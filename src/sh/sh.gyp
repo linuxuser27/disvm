@@ -57,7 +57,7 @@
             'VCCLCompilerTool': {
               'ExceptionHandling': '1', # /EHsc - This seems to only impact Debug, not Release
               'TreatWChar_tAsBuiltInType': 'false',
-              'WarningLevel': '2', # Level 3
+              'WarningLevel': '3',
               'DebugInformationFormat': '3', # PDB
             }
           }
