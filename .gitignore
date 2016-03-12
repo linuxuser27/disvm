@@ -1,0 +1,23 @@
+# Ignore VS noise
+Debug
+Release
+*suo
+*filters
+*sdf
+*sln
+*proj
+*.VC.opendb
+*.db
+*.user
+
+# Ignore all log files
+*.log
+
+# Ignore VIM temporary files
+*~
+*.swp
+
+# Ignore limbo binary files
+*.dis
+*.s
+*.sbl
