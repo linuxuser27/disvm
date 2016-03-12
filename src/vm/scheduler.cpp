@@ -320,6 +320,7 @@ void default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
             debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: broken: %d\n", thread_id);
 
+        assert(false && "Thread has entered broken state");
         break;
     }
 

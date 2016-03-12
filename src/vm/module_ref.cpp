@@ -87,6 +87,7 @@ vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module, cons
     : vm_alloc_t(vm_module_ref_t::type_desc())
     , code_section{ module->code_section }
     , module{ module }
+    , mp_base{ nullptr }
     , type_section{ module->type_section }
     , _function_refs{ resolve_imports(module->export_section, imports) }
     , _builtin_module{ util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin) }
