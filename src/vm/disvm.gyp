@@ -56,6 +56,7 @@
               'msvs_settings': {
                 'VCCLCompilerTool': {
                   'ExceptionHandling': 1,
+                  'Optimization': 3, # Full optimizations
                 }
               }
             },
@@ -63,15 +64,15 @@
               'msvs_settings': {
                 'VCCLCompilerTool': {
                   'ExceptionHandling': 1,
+                  'Optimization': 0, # Disable optimizations
                 }
               }
             }
           },
           'msvs_settings': {
             'VCCLCompilerTool': {
-              'ExceptionHandling': '1', # /EHsc - This seems to only impact Debug, not Release
               'TreatWChar_tAsBuiltInType': 'false',
-              'WarningLevel': '3',
+              'WarningLevel': 3,
               'DebugInformationFormat': '3', # PDB
             }
           },

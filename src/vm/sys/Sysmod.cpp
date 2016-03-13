@@ -159,7 +159,7 @@ Sys_char2byte(vm_registers_t &r, vm_t &vm)
     const auto rune = static_cast<rune_t>(fp.c);
 
     static_assert(Sys_UTFmax == sizeof(rune_t), "UTF max should be same size as rune");
-    uint8_t buffer_local[sizeof(Sys_UTFmax)];
+    uint8_t buffer_local[Sys_UTFmax];
     auto begin = buffer_local;
 
     auto end = utf8::encode(rune, begin);
@@ -342,6 +342,7 @@ Sys_pread(vm_registers_t &r, vm_t &vm)
 void
 Sys_print(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_print>();
     auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
 
@@ -349,7 +350,8 @@ Sys_print(vm_registers_t &r, vm_t &vm)
         throw dereference_nil{ "Print string" };
 
     auto static_buffer = std::array<char, 1024>{};
-    auto written = printf_to_buffer(*str, &fp.vargs, static_buffer.size(), static_buffer.data());
+    auto msg_args = &fp.vargs;
+    auto written = printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
     if (written >= 0)
     {
         std::printf(static_buffer.data());
@@ -357,7 +359,7 @@ Sys_print(vm_registers_t &r, vm_t &vm)
     else
     {
         auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = printf_to_dynamic_buffer(*str, &fp.vargs, dynamic_buffer);
+        written = printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
         std::printf(dynamic_buffer.data());
     }
 

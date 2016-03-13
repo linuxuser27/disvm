@@ -12,9 +12,31 @@
 using namespace disvm::runtime;
 using namespace disvm::runtime::utf8;
 
+namespace
+{
+    // Align the supplied pointer for the template type relative to base.
+    template<typename T>
+    inline byte_t *align_for(byte_t *p, pointer_t base)
+    {
+        for (;;)
+        {
+            const auto d = reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(base);
+            if (d % sizeof(T) == 0)
+                return p;
+
+            p++;
+        }
+    }
+}
+
 // Shamelessly adopted and altered from Inferno implementation (xprint - libinterp/runt.c)
 // [TODO] Handle UTF-8
-word_t printf_to_buffer(const vm_string_t &msg_fmt, byte_t *msg_args, std::size_t buffer_size, char *buffer)
+word_t printf_to_buffer(
+    const disvm::runtime::vm_string_t &msg_fmt,
+    disvm::runtime::byte_t *msg_args,
+    disvm::runtime::pointer_t base,
+    const std::size_t buffer_size,
+    char *buffer)
 {
     auto b_curr = buffer;
     const auto b_end = buffer + (buffer_size - 1);
@@ -60,6 +82,22 @@ word_t printf_to_buffer(const vm_string_t &msg_fmt, byte_t *msg_args, std::size_
             case '%': // Escaped specifier
                 wb = std::snprintf(b_curr, (b_end - b_curr), "%%%%");
                 break;
+            case 'f': // floating point verbs
+            case 'e':
+            case 'E':
+            case 'g':
+            case 'G':
+            {
+                format.push_back(static_cast<char>(c));
+                format.push_back('\0');
+
+                msg_args = align_for<real_t>(msg_args, base);
+
+                const auto r = *reinterpret_cast<real_t *>(msg_args);
+                wb = std::snprintf(b_curr, (b_end - b_curr), format.data(), r);
+                msg_args += sizeof(r);
+                break;
+            }
             case 'o': // octal
             case 'd': // decimal
             case 'x': // hexidecimal
@@ -68,6 +106,8 @@ word_t printf_to_buffer(const vm_string_t &msg_fmt, byte_t *msg_args, std::size_
                 format.push_back('\0');
                 if (big_flag)
                 {
+                    msg_args = align_for<big_t>(msg_args, base);
+
                     const auto b = *reinterpret_cast<big_t *>(msg_args);
                     wb = std::snprintf(b_curr, (b_end - b_curr), format.data(), b);
                     msg_args += sizeof(b);
@@ -119,10 +159,14 @@ word_t printf_to_buffer(const vm_string_t &msg_fmt, byte_t *msg_args, std::size_
     return (b_curr - buffer);
 }
 
-word_t printf_to_dynamic_buffer(const vm_string_t &msg_fmt, byte_t *msg_args, std::vector<char> &buffer)
+word_t printf_to_dynamic_buffer(
+    const disvm::runtime::vm_string_t &msg_fmt,
+    disvm::runtime::byte_t *msg_args,
+    disvm::runtime::pointer_t base,
+    std::vector<char> &buffer)
 {
     auto result = word_t{ 0 };
-    while (-1 == (result = printf_to_buffer(msg_fmt, msg_args, buffer.size(), buffer.data())))
+    while (-1 == (result = printf_to_buffer(msg_fmt, msg_args, base, buffer.size(), buffer.data())))
     {
         buffer.resize(buffer.size() * 2);
     }
