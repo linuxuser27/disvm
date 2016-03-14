@@ -7,7 +7,11 @@
 #include <array>
 #include <chrono>
 #include <thread>
+#include <iostream>
+#include <fstream>
+#include <streambuf>
 #include <exceptions.h>
+#include <debug.h>
 #include <utf8.h>
 #include "Sysmod.h"
 #include "sys_utils.h"
@@ -73,15 +77,113 @@ std::shared_ptr<const type_descriptor_t> T_FD;
 std::shared_ptr<const type_descriptor_t> T_Connection;
 std::shared_ptr<const type_descriptor_t> T_FileIO;
 
+struct vm_fd_t final : public Sys_FD
+{
+    static void finalizer(vm_alloc_t *fileHandle)
+    {
+        auto fd = fileHandle->get_allocation<vm_fd_t>();
+        fd->~vm_fd_t();
+    }
+
+    vm_fd_t(word_t fd, std::unique_ptr<std::iostream> s)
+        : Sys_FD{ fd }
+        , _istream{ s.get() }
+        , _ostream{ s.get() }
+    {
+        assert(s != nullptr);
+        _stream = std::move(s);
+    }
+
+    vm_fd_t(word_t fd, std::unique_ptr<std::istream> s)
+        : Sys_FD{ fd }
+        , _istream{ s.get() }
+        , _ostream{ nullptr }
+    {
+        assert(s != nullptr);
+        _stream = std::move(s);
+    }
+
+    vm_fd_t(word_t fd, std::unique_ptr<std::ostream> s)
+        : Sys_FD{ fd }
+        , _istream{ nullptr }
+        , _ostream{ s.get() }
+    {
+        assert(s != nullptr);
+        _stream = std::move(s);
+    }
+
+    vm_fd_t(word_t fd, std::istream &s)
+        : Sys_FD{ fd }
+        , _istream{ &s }
+        , _ostream{ nullptr }
+    {
+    }
+
+    vm_fd_t(word_t fd, std::ostream &s)
+        : Sys_FD{ fd }
+        , _istream{ nullptr }
+        , _ostream{ &s }
+    {
+    }
+
+    ~vm_fd_t()
+    {
+        debug::assign_debug_pointer(&_istream);
+        debug::assign_debug_pointer(&_ostream);
+
+        if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+            debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: file descriptor: %d", fd);
+    }
+
+    std::istream& input() const
+    {
+        if (_istream == nullptr)
+            throw vm_user_exception{ "File descriptor not open for write" };
+
+        return *_istream;
+    }
+
+    std::ostream& output() const
+    {
+        if (_ostream == nullptr)
+            throw vm_user_exception{ "File descriptor not open for read" };
+
+        return *_ostream;
+    }
+
+private:
+    std::istream *_istream;
+    std::ostream *_ostream;
+    std::unique_ptr<std::ios> _stream;
+};
+
+namespace
+{
+    vm_alloc_t *vm_stdin = nullptr;
+    vm_alloc_t *vm_stdout = nullptr;
+    vm_alloc_t *vm_stderr = nullptr;
+}
+
 void
 Sysmodinit(void)
 {
     builtin::register_module_exports(Sys_PATH, Sysmodlen, Sysmodtab);
     T_Qid = type_descriptor_t::create(sizeof(Sys_Qid), sizeof(Sys_Qid_map), Sys_Qid_map);
     T_Dir = type_descriptor_t::create(sizeof(Sys_Dir), sizeof(Sys_Dir_map), Sys_Dir_map);
-    T_FD = type_descriptor_t::create(sizeof(Sys_FD), sizeof(Sys_FD_map), Sys_FD_map);
+    T_FD = type_descriptor_t::create(sizeof(vm_fd_t), sizeof(Sys_FD_map), Sys_FD_map, vm_fd_t::finalizer);
     T_Connection = type_descriptor_t::create(sizeof(Sys_Connection), sizeof(Sys_Connection_map), Sys_Connection_map);
     T_FileIO = type_descriptor_t::create(sizeof(Sys_FileIO), sizeof(Sys_FileIO_map), Sys_FileIO_map);
+
+    // Initialize default file descriptors
+
+    vm_stdin = vm_alloc_t::allocate(T_FD);
+    ::new(vm_stdin->get_allocation()) vm_fd_t{ 0, std::cin };
+
+    vm_stdout = vm_alloc_t::allocate(T_FD);
+    ::new(vm_stdout->get_allocation()) vm_fd_t{ 1, std::cout };
+
+    vm_stderr = vm_alloc_t::allocate(T_FD);
+    ::new(vm_stderr->get_allocation()) vm_fd_t{ 2, std::cerr };
 }
 
 void
@@ -354,13 +456,13 @@ Sys_print(vm_registers_t &r, vm_t &vm)
     auto written = printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
     if (written >= 0)
     {
-        std::printf(static_buffer.data());
+        vm_stdout->get_allocation<vm_fd_t>()->output() << static_buffer.data();
     }
     else
     {
         auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
         written = printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
-        std::printf(dynamic_buffer.data());
+        vm_stdout->get_allocation<vm_fd_t>()->output() << static_buffer.data();
     }
 
     *fp.ret = written;

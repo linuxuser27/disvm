@@ -8,27 +8,30 @@ Hello: module
     init: fn();
 };
 
+sys : Sys;
+
 init()
 {
     a := "foobar!";
-    sys := load Sys Sys->PATH;
-    sys->print("Hello, %s %o %d %x\n%s%%%% %H", "world!", 8, 10, 16, "------------------\n", a);
+    sys = load Sys Sys->PATH;
+    big_val := big 16r12345;
+    sys->print("Hello, %s %o %d %x %bd %f\n%s%%%% %H\n\n", "world!", 8, 10, 16, big_val, 0.1, "------------------\n", a);
 
-    #test_function_refs();
-    #test_alt();
-    #test_channel();
-    #test_spawn();
-    #test_exceptions();
-    #test_case();
-    #test_discriminated_union();
-    #test_external_module();
-    #test_fixed_point();
-    #test_exponent();
-    #test_string();
-    #test_array();
-    #test_list();
-    #test_branch();
-    #test_for_loop_function_call();
+    test_function_refs();
+    test_alt();
+    test_channel();
+    test_spawn();
+    test_exceptions();
+    test_case();
+    test_discriminated_union();
+    test_external_module();
+    test_fixed_point();
+    test_exponent();
+    test_string();
+    test_array();
+    test_list();
+    test_branch();
+    test_for_loop_function_call();
 }
 
 str_cmp(s1: string, s2: string): int
@@ -43,6 +46,7 @@ str_cmp(s1: string, s2: string): int
 
 test_function_refs()
 {
+    sys->print("test_function_refs()\n");
     f : ref fn(s1: string, s2: string): int;
     f = str_cmp;
 
@@ -54,6 +58,7 @@ test_function_refs()
 
 test_alt()
 {
+    sys->print("test_alt()\n");
     int_chan_10 := chan of int;
     int_chan_20 := chan of int;
     int_chan_done := chan of int;
@@ -144,6 +149,7 @@ alt2(ten : chan of int, twenty : chan of int, done : chan of int)
 
 test_channel()
 {
+    sys->print("test_channel()\n");
     test_channel_int(nil);
     test_channel_int_buffered(nil, nil);
 
@@ -327,6 +333,7 @@ test_channel_ref_adt_buffered(c : chan of ref ChannelAdt, r : chan of ref Channe
 
 test_spawn()
 {
+    sys->print("test_spawn()\n");
     spawn th1();
 }
 
@@ -342,23 +349,24 @@ TESTEXCEPTION : exception(int, int);
 
 test_exceptions()
 {
+    sys->print("test_exceptions()\n");
     {
         raise TESTEXCEPTION(5,10);
     } exception e {
-        TESTEXCEPTION => 
+        TESTEXCEPTION =>
             (a,b) := e;
             if (a != 5 || b != 10) exit;
 
         * => exit;
     }
-    
+
     {
         raise "bad time";
     } exception e {
         "bad time" => ;
         * => exit;
     }
-    
+
     s := 0;
     {
         raise_exception_1(0);
@@ -421,6 +429,7 @@ raise_exception_n(d : int, s:string)
 
 test_case()
 {
+    sys->print("test_case()\n");
     {
         s := 0;
         v := 150;
@@ -431,7 +440,7 @@ test_case()
             201 to 300 => s = 0;
             * => s = 0;
         }
-    
+
         if (s != 1) exit;
     }
 
@@ -444,7 +453,7 @@ test_case()
             "FOO" or "foo" => s = 1;
             * => s = 0;
         }
-    
+
         if (s != 1) exit;
     }
 
@@ -458,7 +467,7 @@ test_case()
             16r400000000 => s = 0;
             * => s = 0;
         }
-    
+
         if (s != 1) exit;
     }
 }
@@ -477,6 +486,7 @@ Constant: adt
 
 test_discriminated_union()
 {
+    sys->print("test_discriminated_union()\n");
     c : ref Constant = ref Constant.Real("pi", 3.14);
     pick x := c
     {
@@ -491,18 +501,19 @@ test_discriminated_union()
 
 test_external_module()
 {
+    sys->print("test_external_module()\n");
     ext_mod := load ExtModule ExtModule->PATH;
 
     {
         module_int := ext_mod->return_int();
         if (module_int != ext_mod->module_constant) exit;
     }
-    
+
     {
         thirty_four := ext_mod->double_int(17);
         if (thirty_four != 34) exit;
     }
-    
+
     {
         d := ext_mod->return_datatype();
         dr := ext_mod->return_datatype_ref();
@@ -515,6 +526,7 @@ test_external_module()
 
 test_fixed_point()
 {
+    sys->print("test_fixed_point()\n");
     fpt : type fixed(0.125, 512.0);
     a := fpt(1.1);
     b := fpt(2.1);
@@ -524,6 +536,7 @@ test_fixed_point()
 
 test_exponent()
 {
+    sys->print("test_exponent()\n");
     {
         base := 2;
         power := 3;
@@ -587,27 +600,28 @@ test_exponent()
 
 test_string()
 {
+    sys->print("test_string()\n");
     count4 := "abcd";
     if (len count4 != 4) exit;
 
     array4 := array of byte count4;
     if (len array4 != 4) exit;
-    
+
     count6 := "わがよたれぞ";
     if (len count6 != 6) exit;
-    
+
     array18 := array of byte count6;
     if (len array18 != 18) exit;
 
     count6_2 := string array18;
     if (count6 != count6_2) exit;
-    
+
     count7 := "खा सकता";
     if (len count7 != 7) exit;
-    
+
     array19 := array of byte count7;
     if (len array19 != 19) exit;
-    
+
     count36 := "abcdefghijklmnopqrstuvwxyz0123456789";
     if (len count36 != 36) exit;
 
@@ -622,7 +636,7 @@ test_string()
         str[len str] = ch + 4;
         if (len str != 5) exit;
         if (str[2] != 'c') exit;
-    
+
         str[2] = 'よ';
         if (len str != 5) exit;
         if (str[2] != 'よ') exit;
@@ -633,14 +647,14 @@ test_string()
         str_l := "a";
         str_l2 := "a";
         str_g := "z";
-        
+
         if (!(str_l == str_l)) exit;
         if (!(str_l == str_l2)) exit;
         if (!(str_l <= str_l2)) exit;
         if (!(str_l >= str_l2)) exit;
         if (!(str_l < str_g)) exit;
         if (!(str_g > str_l)) exit;
-        
+
         str_e : string;
         if (str_l == str_e) exit;
         if (!(str_l != str_e)) exit;
@@ -648,7 +662,7 @@ test_string()
         if (!(str_l >= str_e)) exit;
         if (str_l < str_e) exit;
         if (!(str_g > str_e)) exit;
-        
+
         if (str_e == str_l) exit;
         if (!(str_e != str_l)) exit;
         if (!(str_e <= str_l)) exit;
@@ -658,18 +672,18 @@ test_string()
     }
 
     # Compare (multi-byte)
-    {        
+    {
         str_l := "Α";
         str_l2 := "Α";
         str_g := "Ω";
-        
+
         if (!(str_l == str_l)) exit;
         if (!(str_l == str_l2)) exit;
         if (!(str_l <= str_l2)) exit;
         if (!(str_l >= str_l2)) exit;
         if (!(str_l < str_g)) exit;
         if (!(str_g > str_l)) exit;
-        
+
         str_e : string;
         if (str_l == str_e) exit;
         if (!(str_l != str_e)) exit;
@@ -677,7 +691,7 @@ test_string()
         if (!(str_l >= str_e)) exit;
         if (str_l < str_e) exit;
         if (!(str_g > str_e)) exit;
-        
+
         if (str_e == str_l) exit;
         if (!(str_e != str_l)) exit;
         if (!(str_e <= str_l)) exit;
@@ -687,18 +701,18 @@ test_string()
     }
 
     # Compare (multi-byte/ascii mix)
-    {        
+    {
         str_l := "a";
         str_l2 := "a";
         str_g := "Ω";
-        
+
         if (!(str_l == str_l)) exit;
         if (!(str_l == str_l2)) exit;
         if (!(str_l <= str_l2)) exit;
         if (!(str_l >= str_l2)) exit;
         if (!(str_l < str_g)) exit;
         if (!(str_g > str_l)) exit;
-        
+
         str_e : string;
         if (str_l == str_e) exit;
         if (!(str_l != str_e)) exit;
@@ -706,7 +720,7 @@ test_string()
         if (!(str_l >= str_e)) exit;
         if (str_l < str_e) exit;
         if (!(str_g > str_e)) exit;
-        
+
         if (str_e == str_l) exit;
         if (!(str_e != str_l)) exit;
         if (!(str_e <= str_l)) exit;
@@ -720,17 +734,17 @@ test_string()
         s1 := "1";
         s2 := "2";
         s3 : string;
-        
+
         s4 := s1 + s2;
         if (s4 != "12") exit;
-        
+
         s1 += s2;
         if (s1 != "12") exit;
-        
+
         s5 := s3 + s1;
         s6 := s3 + s3;
     }
-    
+
     # Slice
     {
         s1 := "01234567";
@@ -747,7 +761,7 @@ test_string()
         w_val := 12345;
         s_w := string w_val;
         if (s_w != "12345") exit;
-        
+
         r_val := 3.14;
         s_r := string r_val;
         if (s_r != "3.14") exit;
@@ -762,7 +776,7 @@ test_string()
         s_w := "12345";
         w_val := int s_w;
         if (w_val != 12345) exit;
-        
+
         s_r := "3.14";
         r_val := real s_r;
         if (r_val != 3.14) exit;
@@ -775,10 +789,11 @@ test_string()
 
 test_array()
 {
+    sys->print("test_array()\n");
     arr : array of int;
     a := len arr;
     if (a != 0) exit;
-    
+
     test_array_byte();
     test_array_int();
     test_array_big();
@@ -875,6 +890,7 @@ test_array_real()
 
 test_list()
 {
+    sys->print("test_list()\n");
     lst : list of int;
     l := len lst;
     if (l != 0) exit;
@@ -892,7 +908,7 @@ test_list_byte()
     lst1 := byte 16rff :: lst0;
     lst2 := byte 16rfe :: lst1;
     lst3 := byte 16rfd :: lst2;
-    
+
     if (len lst3 != 3) exit;
     if (hd lst3 != byte 16rfd) exit;
     if (hd tl tl lst3 != byte 16rff) exit;
@@ -904,7 +920,7 @@ test_list_int()
     lst1 := 16rff00 :: lst0;
     lst2 := 16rfe00 :: lst1;
     lst3 := 16rfd00 :: lst2;
-    
+
     if (len lst3 != 3) exit;
     if (hd lst3 != 16rfd00) exit;
     if (hd tl tl lst3 != 16rff00) exit;
@@ -916,7 +932,7 @@ test_list_big()
     lst1 := 16rff000000ff000000 :: lst0;
     lst2 := 16rfe000000ff000000 :: lst1;
     lst3 := 16rfd000000ff000000 :: lst2;
-    
+
     if (len lst3 != 3) exit;
     if (hd lst3 != 16rfd000000ff000000) exit;
     if (hd tl tl lst3 != 16rff000000ff000000) exit;
@@ -928,7 +944,7 @@ test_list_real()
     lst1 := 3.0 :: lst0;
     lst2 := 2.0 :: lst1;
     lst3 := 1.0 :: lst2;
-    
+
     if (len lst3 != 3) exit;
     if (hd lst3 != 1.0) exit;
     if (hd tl tl lst3 != 3.0) exit;
@@ -947,7 +963,7 @@ test_list_adt()
         lst1 := ( "three", 3.0 ) :: lst0;
         lst2 := ( "two", 2.0 ) :: lst1;
         lst3 := ( "one", 1.0 ) :: lst2;
-    
+
         if (len lst3 != 3) exit;
         if ((hd lst3).r != 1.0) exit;
         if ((hd tl tl lst3).r != 3.0) exit;
@@ -961,7 +977,7 @@ test_list_adt()
         lst1 := e3 :: lst0;
         lst2 := e2 :: lst1;
         lst3 := e1 :: lst2;
-        
+
         if (len lst3 != 3) exit;
         if ((hd lst3).r != 1.0) exit;
         if ((hd tl tl lst3).r != 3.0) exit;
@@ -970,12 +986,13 @@ test_list_adt()
 
 test_branch()
 {
+    sys->print("test_branch()\n");
     test_branch_byte();
     test_branch_int();
     test_branch_big();
     test_branch_real();
 }
- 
+
 test_branch_byte()
 {
     a := byte 16rff;
@@ -985,7 +1002,7 @@ test_branch_byte()
     if (a != b) exit;
     if (!(a == b)) exit;
 }
- 
+
 test_branch_int()
 {
     a := 1024;
@@ -995,7 +1012,7 @@ test_branch_int()
     if (a != b) exit;
     if (!(a == b)) exit;
 }
- 
+
 test_branch_big()
 {
     a := 16r10000000FFFFFFFF;
@@ -1018,11 +1035,12 @@ test_branch_real()
 
 test_for_loop_function_call()
 {
-    for (j := 0; j < 20; j++) 
+    sys->print("test_for_loop_function_call()\n");
+    for (j := 0; j < 20; j++)
     {
         is_odd := odd(j);
         is_even := even(j);
-        
+
         if (j % 2 == 0)
         {
             if (is_odd != 0) exit;

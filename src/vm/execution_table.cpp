@@ -152,7 +152,7 @@ namespace
 
         auto str = at_val<vm_string_t>(r.src);
         auto new_array = new vm_array_t(str);
-        pt_ref(r.dest) = new_array->allocation();
+        pt_ref(r.dest) = new_array->get_allocation();
     }
 
     EXEC_DECL(cvtac)
@@ -167,7 +167,7 @@ namespace
                 throw vm_user_exception{ "Invalid array element type for string conversion" };
 
             auto new_string = new vm_string_t(arr->get_length(), reinterpret_cast<uint8_t *>(arr->at(0)));
-            str = new_string->allocation();
+            str = new_string->get_allocation();
         }
 
         pt_ref(r.dest) = str;
@@ -196,7 +196,7 @@ namespace
         auto str = at_val<vm_string_t>(r.dest);
         dec_ref_count_and_free(str);
 
-        pt_ref(r.dest) = new_string->allocation();
+        pt_ref(r.dest) = new_string->get_allocation();
     }
 
     EXEC_DECL(cvtcf)
@@ -221,7 +221,7 @@ namespace
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
 
         auto str = at_val<vm_string_t>(r.dest);
-        pt_ref(r.dest) = new_string->allocation();
+        pt_ref(r.dest) = new_string->get_allocation();
         dec_ref_count_and_free(str);
     }
 
@@ -247,7 +247,7 @@ namespace
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
 
         auto str = at_val<vm_string_t>(r.dest);
-        pt_ref(r.dest) = new_string->allocation();
+        pt_ref(r.dest) = new_string->get_allocation();
         dec_ref_count_and_free(str);
     }
 
@@ -399,7 +399,7 @@ namespace
         if (alloc != nullptr)
         {
             alloc->add_ref();
-            pt_ref(dest) = alloc->allocation();
+            pt_ref(dest) = alloc->get_allocation();
         }
         else
         {
@@ -626,7 +626,7 @@ namespace
         auto old_str = at_val<vm_string_t>(r.dest);
         if (str != old_str)
         {
-            pt_ref(r.dest) = str->allocation();
+            pt_ref(r.dest) = str->get_allocation();
             dec_ref_count_and_free(old_str);
         }
     }
@@ -678,7 +678,7 @@ namespace
 
         if (!append_to_source)
         {
-            pt_ref(r.dest) = str->allocation();
+            pt_ref(r.dest) = str->get_allocation();
             dec_ref_count_and_free(dest_maybe);
         }
     }
@@ -692,7 +692,7 @@ namespace
         if (str != nullptr)
         {
             auto new_string = new vm_string_t(*str, start, end);
-            pt_ref(r.dest) = new_string->allocation();
+            pt_ref(r.dest) = new_string->get_allocation();
         }
         else if (start == 0 && end == 0)
         {
@@ -744,7 +744,7 @@ namespace
         if (arr->alloc_type->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_array);
 
-        pt_ref(r.dest) = new_array->allocation();
+        pt_ref(r.dest) = new_array->get_allocation();
     }
 
     EXEC_DECL(slicela)
@@ -810,7 +810,7 @@ namespace
         auto value = vt_ref<PrimitiveType>(r.src);
         vt_ref<PrimitiveType>(new_list->value()) = value;
 
-        pt_ref(r.dest) = new_list->allocation();
+        pt_ref(r.dest) = new_list->get_allocation();
     }
 
     EXEC_DECL(consb) { _cons<byte_t>(r); }
@@ -830,7 +830,7 @@ namespace
         if (alloc != nullptr)
         {
             alloc->add_ref(); 
-            pt_ref(new_list->value()) = alloc->allocation();
+            pt_ref(new_list->value()) = alloc->get_allocation();
 
             vm.get_garbage_collector().track_allocation(new_list);
         }
@@ -840,7 +840,7 @@ namespace
         }
 
         // Return the list
-        pt_ref(r.dest) = new_list->allocation();
+        pt_ref(r.dest) = new_list->get_allocation();
     }
 
     EXEC_DECL(consmp)
@@ -866,7 +866,7 @@ namespace
             vm.get_garbage_collector().track_allocation(new_list);
 
         // Return the list
-        pt_ref(r.dest) = new_list->allocation();
+        pt_ref(r.dest) = new_list->get_allocation();
     }
 
     template<typename PrimitiveType>
@@ -917,7 +917,7 @@ namespace
 
         auto tail_maybe = list->get_tail();
         if (tail_maybe != nullptr)
-            tail = tail_maybe->allocation();
+            tail = tail_maybe->get_allocation();
 
         // Use the address of the local variable.
         r.src = reinterpret_cast<pointer_t>(&tail);
@@ -973,7 +973,7 @@ namespace
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_channel);
 
-            pt_ref(r.dest) = new_channel->allocation();
+            pt_ref(r.dest) = new_channel->get_allocation();
         }
     }
 
@@ -1061,7 +1061,7 @@ namespace
 
         word_t cancel_outstanding_channel_requests(uint32_t request_thread_id, vm_alt_stack_layout_t *alt, const vm_channel_t &handled_channel)
         {
-            auto alloc = handled_channel.allocation();
+            auto alloc = handled_channel.get_allocation();
 
             auto handled_index = word_t{ -1 };
             const auto channel_count = (alt->send_count + alt->receive_count);
@@ -1216,7 +1216,7 @@ namespace
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_alloc);
 
-            pt_ref(r.dest) = new_alloc->allocation();
+            pt_ref(r.dest) = new_alloc->get_allocation();
         }
     }
 
@@ -1248,7 +1248,7 @@ namespace
         if (type_desc->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_alloc);
 
-        pt_ref(r.dest) = new_alloc->allocation();
+        pt_ref(r.dest) = new_alloc->get_allocation();
     }
 
     namespace
@@ -1270,7 +1270,7 @@ namespace
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_array);
 
-            pt_ref(r.dest) = new_array->allocation();
+            pt_ref(r.dest) = new_array->get_allocation();
         }
     }
 
@@ -1535,7 +1535,7 @@ namespace
             // The first pointer in the exception is a string type
             // that is used to uniquely identify the exception type.
             // The remainder of the type is user-defined.
-            auto content = e->allocation();
+            auto content = e->get_allocation();
             exception_id = at_val<vm_string_t>(content);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
@@ -1580,7 +1580,7 @@ namespace
         dec_ref_count_and_free(current_value);
 
         // Set the exception destination.
-        pt_ref(exception_destination) = e->allocation();
+        pt_ref(exception_destination) = e->get_allocation();
 
         r.pc = handler_pc;
     }
@@ -1630,7 +1630,7 @@ namespace
         const auto &function_imports = imports[module_import_index];
 
         auto entry_module_ref = new vm_module_ref_t{ imported_module, function_imports };
-        pt_ref(r.dest) = entry_module_ref->allocation();
+        pt_ref(r.dest) = entry_module_ref->get_allocation();
     }
 }
 

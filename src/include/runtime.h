@@ -134,7 +134,13 @@ namespace disvm
             pointer_t gc_reserved;
 
         public:
-            pointer_t allocation() const;
+            pointer_t get_allocation() const;
+
+            template <typename T>
+            T *get_allocation() const
+            {
+                return reinterpret_cast<T *>(get_allocation());
+            }
 
         private:
             std::atomic<std::size_t> _ref_count;

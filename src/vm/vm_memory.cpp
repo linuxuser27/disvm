@@ -230,7 +230,7 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
     auto alloc = ::new(mem)vm_alloc_t{ td };
 
     // Initialize pointer types
-    init_memory(*td, alloc->allocation());
+    init_memory(*td, alloc->get_allocation());
 
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d\n", td->size_in_bytes);
     return alloc;
@@ -255,10 +255,10 @@ vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
     auto alloc_copy = vm_alloc_t::allocate(other.alloc_type);
     
     // Copy the current memory contents of the allocation
-    std::memcpy(alloc_copy->allocation(), other.allocation(), alloc_copy->alloc_type->size_in_bytes);
+    std::memcpy(alloc_copy->get_allocation(), other.get_allocation(), alloc_copy->alloc_type->size_in_bytes);
 
     // Ref count all dynamic allocations
-    inc_ref_count_in_memory(*alloc_copy->alloc_type, alloc_copy->allocation());
+    inc_ref_count_in_memory(*alloc_copy->alloc_type, alloc_copy->get_allocation());
 
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm alloc: %#" PRIxPTR " %#"  PRIxPTR "\n", &other, alloc_copy);
     return alloc_copy;
@@ -289,7 +289,7 @@ vm_alloc_t::~vm_alloc_t()
         finalizer(this);
 
     // Free pointer types
-    destroy_memory(*alloc_type, allocation());
+    destroy_memory(*alloc_type, get_allocation());
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc\n");
 }
 
@@ -314,7 +314,7 @@ std::size_t vm_alloc_t::get_ref_count() const
     return _ref_count;
 }
 
-pointer_t vm_alloc_t::allocation() const
+pointer_t vm_alloc_t::get_allocation() const
 {
     // Remove const on the this pointer so the offset can be computed.
     auto non_const_this = const_cast<vm_alloc_t *>(this);

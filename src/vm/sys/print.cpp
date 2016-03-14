@@ -4,8 +4,8 @@
 // Author: arr
 //
 
-#include <array>
 #include <cinttypes>
+#include <array>
 #include <utf8.h>
 #include "sys_utils.h"
 

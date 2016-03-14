@@ -389,7 +389,7 @@ namespace
         auto array_stack_pointer = std::size_t{ 0 };
         auto success = bool{};
         auto code = byte_t{};
-        auto base = reinterpret_cast<byte_t *>(modobj.original_mp->allocation());
+        auto base = reinterpret_cast<byte_t *>(modobj.original_mp->get_allocation());
         for (;;)
         {
             auto bytesRead = reader.get_next_bytes(sizeof(code), &code);
@@ -449,7 +449,7 @@ namespace
                     throw module_reader_exception{ "Failed to read string data" };
 
                 auto new_string = new vm_string_t(str_buffer.size(), str_buffer.data());
-                *reinterpret_cast<pointer_t *>(data_dest) = new_string->allocation();
+                *reinterpret_cast<pointer_t *>(data_dest) = new_string->get_allocation();
                 break;
             }
             case datum_type_t::value_real64:
@@ -469,7 +469,7 @@ namespace
                 if (!success) throw module_reader_exception{ "Failed to read word" };
 
                 auto new_array = new vm_array_t(modobj.type_section[element_type], element_count);
-                *reinterpret_cast<pointer_t *>(data_dest) = new_array->allocation();
+                *reinterpret_cast<pointer_t *>(data_dest) = new_array->get_allocation();
                 break;
             }
             case datum_type_t::set_array:

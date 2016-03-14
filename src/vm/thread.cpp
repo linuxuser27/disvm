@@ -28,7 +28,7 @@ namespace
             reg.src = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.source.register1);
             break;
         case address_mode_t::offset_indirect_mp:
-            reg.src = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->allocation()) + inst.source.register1);
+            reg.src = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.source.register1);
             break;
         case address_mode_t::offset_double_indirect_fp:
         {
@@ -38,7 +38,7 @@ namespace
         }
         case address_mode_t::offset_double_indirect_mp:
         {
-            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->allocation()) + inst.source.register1);
+            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.source.register1);
             reg.src = reinterpret_cast<pointer_t>(mp_offset + inst.source.register2);
             break;
         }
@@ -58,7 +58,7 @@ namespace
             reg.dest = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.destination.register1);
             break;
         case address_mode_t::offset_indirect_mp:
-            reg.dest = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->allocation()) + inst.destination.register1);
+            reg.dest = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.destination.register1);
             break;
         case address_mode_t::offset_double_indirect_fp:
         {
@@ -68,7 +68,7 @@ namespace
         }
         case address_mode_t::offset_double_indirect_mp:
         {
-            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->allocation()) + inst.destination.register1);
+            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.destination.register1);
             reg.dest = reinterpret_cast<pointer_t>(mp_offset + inst.destination.register2);
             break;
         }
@@ -88,7 +88,7 @@ namespace
             reg.mid = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.middle.register1);
             break;
         case address_mode_middle_t::small_offset_indirect_mp:
-            reg.mid = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->allocation()) + inst.middle.register1);
+            reg.mid = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.middle.register1);
             break;
         case address_mode_middle_t::small_immediate:
             reg.mid = reinterpret_cast<pointer_t>(const_cast<word_t *>(&inst.middle.register1));

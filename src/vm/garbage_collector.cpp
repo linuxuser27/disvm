@@ -151,7 +151,7 @@ namespace
                 debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR "\n", curr);
 
             if (curr->alloc_type->map_in_bytes > 0)
-                enum_pointer_fields(*curr->alloc_type, curr->allocation(), add_pointer_to_queue);
+                enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), add_pointer_to_queue);
 
             set_gc_colour(curr, curr_colour);
         }
