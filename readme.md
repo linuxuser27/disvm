@@ -13,7 +13,7 @@ Dis VM build scripts can be generated using gyp (Generate-Your-Project)
 1. Install Python 2.7
 2. Get current source for gyp
 3. Generate build file for your platform
-    - Windows -- `gyp.bat src/sh/sh.gyp`
+    - Windows -- `gyp.bat src\sh\sh.gyp`
     - Other -- `gyp_main.py src/sh/sh.gyp`
 
 # Source
