@@ -46,6 +46,7 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
 default_scheduler_t::default_scheduler_t(vm_t &vm, uint32_t system_thread_count, uint32_t thread_quanta)
     : _gc_complete{ true }
     , _gc_counter{ 1 }
+    , _running_vm_thread_count{ 0 }
     , _worker_thread_count{ system_thread_count }
     , _vm{ vm }
     , _vm_thread_quanta{ thread_quanta }
