@@ -17,6 +17,7 @@
 #include <utils.h>
 #include <exceptions.h>
 #include <debug.h>
+#include <builtin_module.h>
 #include "execution_table.h"
 
 using namespace disvm;
@@ -30,36 +31,6 @@ namespace
 
     using uword_t = uint32_t; // unsigned word_t
     using ubig_t = uint64_t; // unsigned big_t
-
-    template<typename ValueType>
-    ValueType& vt_ref(pointer_t vt)
-    {
-        assert(vt != nullptr);
-        return *reinterpret_cast<ValueType *>(vt);
-    }
-
-    template<typename AllocType>
-    typename std::enable_if<std::is_base_of<vm_alloc_t, AllocType>::value, AllocType *>::type
-        at_val(pointer_t at)
-    {
-        assert(at != nullptr);
-
-        return vm_alloc_t::from_allocation<AllocType>(*reinterpret_cast<pointer_t *>(at));
-    }
-
-    template<>
-    vm_alloc_t *at_val<vm_alloc_t>(pointer_t at)
-    {
-        assert(at != nullptr);
-
-        return vm_alloc_t::from_allocation(*reinterpret_cast<pointer_t *>(at));
-    }
-
-    pointer_t &pt_ref(pointer_t pt)
-    {
-        assert(pt != nullptr);
-        return *reinterpret_cast<pointer_t *>(pt);
-    }
 
 #define EXEC_DECL(inst_name) void inst_name(vm_registers_t &r, vm_t& vm)
 
@@ -805,7 +776,7 @@ namespace
         if (tail_maybe != nullptr)
             tail_maybe->release();
 
-        auto new_list = new vm_list_t(intrinsic_type_desc::type<PrimitiveType>(), tail_maybe);
+        auto new_list = new vm_list_t{ intrinsic_type_desc::type<PrimitiveType>(), tail_maybe };
 
         auto value = vt_ref<PrimitiveType>(r.src);
         vt_ref<PrimitiveType>(new_list->value()) = value;
@@ -825,7 +796,8 @@ namespace
             tail_maybe->release();
 
         // Create a new list
-        auto new_list = new vm_list_t(intrinsic_type_desc::type<pointer_t>(), tail_maybe);
+        auto new_list = new vm_list_t{ intrinsic_type_desc::type<pointer_t>(), tail_maybe };
+
         auto alloc = at_val<vm_alloc_t>(r.src);
         if (alloc != nullptr)
         {
@@ -858,7 +830,8 @@ namespace
             tail_maybe->release();
 
         // Create a new list
-        auto new_list = new vm_list_t(type, tail_maybe);
+        auto new_list = new vm_list_t{ type, tail_maybe };
+
         auto destination = new_list->value();
         std::memmove(destination, r.src, type->size_in_bytes);
 

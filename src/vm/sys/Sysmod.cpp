@@ -5,6 +5,7 @@
 //
 
 #include <array>
+#include <algorithm>
 #include <chrono>
 #include <thread>
 #include <iostream>
@@ -13,6 +14,7 @@
 #include <exceptions.h>
 #include <debug.h>
 #include <utf8.h>
+#include <vm_memory.h>
 #include "Sysmod.h"
 #include "sys_utils.h"
 
@@ -69,99 +71,153 @@ namespace
     };
 
     const word_t Sysmodlen = 43;
-}
 
-std::shared_ptr<const type_descriptor_t> T_Qid;
-std::shared_ptr<const type_descriptor_t> T_Dir;
-std::shared_ptr<const type_descriptor_t> T_FD;
-std::shared_ptr<const type_descriptor_t> T_Connection;
-std::shared_ptr<const type_descriptor_t> T_FileIO;
+    std::shared_ptr<const type_descriptor_t> T_Qid;
+    std::shared_ptr<const type_descriptor_t> T_Dir;
+    std::shared_ptr<const type_descriptor_t> T_FD;
+    std::shared_ptr<const type_descriptor_t> T_Connection;
+    std::shared_ptr<const type_descriptor_t> T_FileIO;
 
-struct vm_fd_t final : public Sys_FD
-{
-    static void finalizer(vm_alloc_t *fileHandle)
+    class vm_fd_t final : public Sys_FD
     {
-        auto fd = fileHandle->get_allocation<vm_fd_t>();
-        fd->~vm_fd_t();
-    }
+    public: // static
+        static void finalizer(vm_alloc_t *fileHandle)
+        {
+            auto fd = fileHandle->get_allocation<vm_fd_t>();
 
-    vm_fd_t(word_t fd, std::unique_ptr<std::iostream> s)
-        : Sys_FD{ fd }
-        , _istream{ s.get() }
-        , _ostream{ s.get() }
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+            {
+                debug::log_msg(
+                    debug::component_trace_t::builtin,
+                    debug::log_level_t::debug,
+                    "sys: fd: finalize: %d\n",
+                    fd->fd);
+            }
+
+            sys::drop_fd_record(fd->fd);
+            fd->~vm_fd_t();
+        }
+
+        static std::tuple<word_t, vm_alloc_t *> create(std::unique_ptr<std::iostream> s, word_t fd_mode, vm_string_t *fd_path)
+        {
+            assert(s != nullptr);
+            auto alloc = vm_alloc_t::allocate(T_FD);
+            const auto fd = sys::create_fd_record(alloc);
+            auto vm_fd = ::new(alloc->get_allocation())vm_fd_t{ fd, std::move(s), fd_mode, fd_path };
+
+            return std::make_tuple(vm_fd->fd, alloc);
+        }
+
+    private:
+        vm_fd_t(const word_t fd, std::unique_ptr<std::iostream> s, const word_t fd_mode, vm_string_t *fd_path)
+            : Sys_FD{ fd }
+            , _fd_mode{ fd_mode }
+            , _fd_path{ fd_path }
+            , _istream{ s.get() }
+            , _ostream{ s.get() }
+        {
+            _stream = std::move(s);
+
+            if (_fd_path != nullptr)
+                _fd_path->add_ref();
+        }
+
+    public:
+        vm_fd_t(const word_t fd, std::istream &is)
+            : Sys_FD{ fd }
+            , _fd_mode{}
+            , _fd_path{ nullptr }
+            , _istream{ &is }
+            , _ostream{ nullptr }
+        {
+        }
+
+        vm_fd_t(const word_t fd, std::ostream &os)
+            : Sys_FD{ fd }
+            , _fd_mode{}
+            , _fd_path{ nullptr }
+            , _istream{ nullptr }
+            , _ostream{ &os }
+        {
+        }
+
+        ~vm_fd_t()
+        {
+            debug::assign_debug_pointer(&_istream);
+            debug::assign_debug_pointer(&_ostream);
+            if (_stream != nullptr)
+                _stream.reset();
+
+            // Honor the close flag
+            if ((_fd_mode & Sys_ORCLOSE) && _fd_path != nullptr)
+                std::remove(_fd_path->str());
+
+            dec_ref_count_and_free(_fd_path);
+            debug::assign_debug_pointer(&_fd_path);
+        }
+
+        word_t get_original_mode() const
+        {
+            return _fd_mode;
+        }
+
+        vm_string_t *get_original_path() const
+        {
+            return _fd_path;
+        }
+
+        word_t read(const word_t buffer_size_in_bytes, void *buffer)
+        {
+            if (_istream == nullptr)
+                throw vm_system_exception{ "File descriptor not open for read operation" };
+
+            _istream->read(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
+            if (_istream->bad())
+                throw vm_user_exception{ "Read operation error" };
+
+            return static_cast<word_t>(_istream->gcount());
+        }
+
+        void write(const word_t buffer_size_in_bytes, void *buffer)
+        {
+            if (_ostream == nullptr)
+                throw vm_system_exception{ "File descriptor not open for write operation" };
+
+            _ostream->write(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
+            if (_ostream->bad())
+                throw vm_user_exception{ "Write operation error" };
+        }
+
+    private:
+        const word_t _fd_mode;
+        vm_string_t *_fd_path;
+        std::istream *_istream;
+        std::ostream *_ostream;
+        std::unique_ptr<std::ios> _stream;
+    };
+
+    vm_fd_t *fd_stdin = nullptr;
+    vm_fd_t *fd_stdout = nullptr;
+    vm_fd_t *fd_stderr = nullptr;
+
+    std::ios::openmode convert_to_openmode(const word_t mode)
     {
-        assert(s != nullptr);
-        _stream = std::move(s);
+        auto om = std::ios::openmode{};
+
+        // Lowest bit is for read/write.
+        if (mode & Sys_OWRITE)
+            om |= std::ios::out;
+        else
+            om |= std::ios::in; // Sys_OREAD
+
+        if (mode & Sys_ORDWR)
+            om |= (std::ios::in | std::ios::out);
+
+        if (mode & Sys_OTRUNC)
+            om |= std::ios::trunc;
+
+        return om;
     }
-
-    vm_fd_t(word_t fd, std::unique_ptr<std::istream> s)
-        : Sys_FD{ fd }
-        , _istream{ s.get() }
-        , _ostream{ nullptr }
-    {
-        assert(s != nullptr);
-        _stream = std::move(s);
-    }
-
-    vm_fd_t(word_t fd, std::unique_ptr<std::ostream> s)
-        : Sys_FD{ fd }
-        , _istream{ nullptr }
-        , _ostream{ s.get() }
-    {
-        assert(s != nullptr);
-        _stream = std::move(s);
-    }
-
-    vm_fd_t(word_t fd, std::istream &s)
-        : Sys_FD{ fd }
-        , _istream{ &s }
-        , _ostream{ nullptr }
-    {
-    }
-
-    vm_fd_t(word_t fd, std::ostream &s)
-        : Sys_FD{ fd }
-        , _istream{ nullptr }
-        , _ostream{ &s }
-    {
-    }
-
-    ~vm_fd_t()
-    {
-        debug::assign_debug_pointer(&_istream);
-        debug::assign_debug_pointer(&_ostream);
-
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-            debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: file descriptor: %d", fd);
-    }
-
-    std::istream& input() const
-    {
-        if (_istream == nullptr)
-            throw vm_user_exception{ "File descriptor not open for write" };
-
-        return *_istream;
-    }
-
-    std::ostream& output() const
-    {
-        if (_ostream == nullptr)
-            throw vm_user_exception{ "File descriptor not open for read" };
-
-        return *_ostream;
-    }
-
-private:
-    std::istream *_istream;
-    std::ostream *_ostream;
-    std::unique_ptr<std::ios> _stream;
-};
-
-namespace
-{
-    vm_alloc_t *vm_stdin = nullptr;
-    vm_alloc_t *vm_stdout = nullptr;
-    vm_alloc_t *vm_stderr = nullptr;
 }
 
 void
@@ -176,14 +232,26 @@ Sysmodinit(void)
 
     // Initialize default file descriptors
 
-    vm_stdin = vm_alloc_t::allocate(T_FD);
-    ::new(vm_stdin->get_allocation()) vm_fd_t{ 0, std::cin };
+    {
+        auto vm_stdin = vm_alloc_t::allocate(T_FD);
+        const auto fd = sys::create_fd_record(vm_stdin);
+        fd_stdin = ::new(vm_stdin->get_allocation())vm_fd_t{ fd, std::cin };
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdin: %d\n", fd);
+    }
 
-    vm_stdout = vm_alloc_t::allocate(T_FD);
-    ::new(vm_stdout->get_allocation()) vm_fd_t{ 1, std::cout };
+    {
+        auto vm_stdout = vm_alloc_t::allocate(T_FD);
+        const auto fd = sys::create_fd_record(vm_stdout);
+        fd_stdout = ::new(vm_stdout->get_allocation())vm_fd_t{ fd, std::cout };
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdout: %d\n", fd);
+    }
 
-    vm_stderr = vm_alloc_t::allocate(T_FD);
-    ::new(vm_stderr->get_allocation()) vm_fd_t{ 2, std::cerr };
+    {
+        auto vm_stderr = vm_alloc_t::allocate(T_FD);
+        const auto fd = sys::create_fd_record(vm_stderr);
+        fd_stderr = ::new(vm_stderr->get_allocation())vm_fd_t{ fd, std::cerr };
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stderr: %d\n", fd);
+    }
 }
 
 void
@@ -260,19 +328,19 @@ Sys_char2byte(vm_registers_t &r, vm_t &vm)
 
     const auto rune = static_cast<rune_t>(fp.c);
 
-    static_assert(Sys_UTFmax == sizeof(rune_t), "UTF max should be same size as rune");
+    static_assert(Sys_UTFmax == sizeof(rune), "UTF max should be same size as rune");
     uint8_t buffer_local[Sys_UTFmax];
     auto begin = buffer_local;
 
     auto end = utf8::encode(rune, begin);
     const auto count = static_cast<word_t>(end - begin);
 
-    // Initialize for failure.
-    *fp.ret = 0;
-
     const auto final_index = n + count;
     if (final_index > buffer->get_length())
+    {
+        *fp.ret = 0;
         return;
+    }
 
     // Insert the bytes into the buffer
     for (auto i = word_t{ n }; i < final_index; ++i)
@@ -295,7 +363,41 @@ void
 Sys_create(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_create>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto path = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    const auto open_mode = convert_to_openmode(fp.mode);
+
+    auto cfs_flag = sys::cfs_flags_t::none;
+    if (fp.mode & Sys_OEXCL)
+        cfs_flag = (sys::cfs_flags_t::atomic | sys::cfs_flags_t::ensure_create);
+
+    // [TODO] Apply the requested permissions to the file.
+    auto file_stream = sys::create_file_stream(path->str(), (open_mode | std::ios::binary), cfs_flag);
+
+    // Return null if file stream is not open.
+    if (file_stream == nullptr)
+    {
+        *fp.ret = nullptr;
+        return;
+    }
+
+    vm_alloc_t *fd_alloc;
+    auto fd = word_t{};
+    std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
+
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+    {
+        debug::log_msg(
+            debug::component_trace_t::builtin,
+            debug::log_level_t::debug,
+            "sys: create: %d >>%s<< %#x %#x\n",
+            fd,
+            path->str(),
+            fp.mode,
+            fp.perm);
+    }
+
+    *fp.ret = fd_alloc->get_allocation();
 }
 
 void
@@ -417,7 +519,36 @@ void
 Sys_open(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_open>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto path = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    const auto open_mode = convert_to_openmode(fp.mode);
+
+    // [TODO] Handle opening devices - not just files (i.e. /dev/random, /dev/source, /proc/1234)
+    auto file_stream = sys::create_file_stream(path->str(), (open_mode | std::ios::binary));
+
+    // Return null if file stream is not open.
+    if (file_stream == nullptr)
+    {
+        *fp.ret = nullptr;
+        return;
+    }
+
+    vm_alloc_t *fd_alloc;
+    auto fd = word_t{};
+    std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
+
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+    {
+        debug::log_msg(
+            debug::component_trace_t::builtin,
+            debug::log_level_t::debug,
+            "sys: open: %d >>%s<< %#x\n",
+            fd,
+            path->str(),
+            fp.mode);
+    }
+
+    *fp.ret = fd_alloc->get_allocation();
 }
 
 void
@@ -453,16 +584,16 @@ Sys_print(vm_registers_t &r, vm_t &vm)
 
     auto static_buffer = std::array<char, 1024>{};
     auto msg_args = &fp.vargs;
-    auto written = printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
+    auto written = sys::printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
     if (written >= 0)
     {
-        vm_stdout->get_allocation<vm_fd_t>()->output() << static_buffer.data();
+        fd_stdout->write(written, static_buffer.data());
     }
     else
     {
         auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
-        vm_stdout->get_allocation<vm_fd_t>()->output() << static_buffer.data();
+        written = sys::printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
+        fd_stdout->write(written, dynamic_buffer.data());
     }
 
     *fp.ret = written;
@@ -479,7 +610,26 @@ void
 Sys_read(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_read>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    const auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.buf);
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
+    auto n = fp.n;
+    if (buffer == nullptr || n <= 0)
+    {
+        *fp.ret = 0;
+        return;
+    }
+
+    // [SPEC] Supplying a size greater than the buffer length is
+    // equivalent to indicating the entire buffer should be filled.
+    n = std::min(n, buffer->get_length());
+
+    auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    assert(fd_alloc->alloc_type == T_FD);
+
+    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    *fp.ret = fd->read(n, buffer->at(0));
 }
 
 void
@@ -511,9 +661,7 @@ Sys_sleep(vm_registers_t &r, vm_t &vm)
     const auto period_ms = fp.period;
 
     // [TODO] Thread should yield to another according to the sleep() specification.
-    r.current_thread_state = vm_thread_state_t::release;
     std::this_thread::sleep_for(std::chrono::milliseconds(period_ms));
-    r.current_thread_state = vm_thread_state_t::ready;
 
     *fp.ret = 0;
 }
@@ -539,11 +687,120 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
     throw vm_system_exception{ "Instruction not implemented" };
 }
 
+namespace
+{
+    bool is_delim(const rune_t c, const vm_string_t &delim)
+    {
+        const auto max = delim.get_length();
+        assert(max > 0);
+
+        // Optimization for 3 or less delimiters
+        switch (max)
+        {
+        default:
+            break;
+        case 1:
+            return (delim.get_rune(0) == c);
+        case 2:
+            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c);
+        case 3:
+            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c) || (delim.get_rune(2) == c);
+        }
+
+        for (auto i = word_t{ 0 }; i < max; ++i)
+        {
+            if (delim.get_rune(i) == c)
+                return true;
+        }
+
+        return false;
+    }
+}
+
 void
 Sys_tokenize(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_tokenize>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    // Initialize for failure.
+    fp.ret->t0 = 0;
+    dec_ref_count_and_free(vm_alloc_t::from_allocation(fp.ret->t1));
+    fp.ret->t1 = nullptr;
+
+    auto s = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (s == nullptr || s->get_length() == 0)
+        return;
+
+    auto curr_node = new vm_list_t{ intrinsic_type_desc::type<pointer_t>() };
+
+    // Set the head of the list
+    fp.ret->t1 = curr_node->get_allocation();
+
+    auto delim = vm_alloc_t::from_allocation<vm_string_t>(fp.delim);
+    if (delim == nullptr || delim->get_length() == 0)
+    {
+        // Add supplied string to list
+        pt_ref(curr_node->value()) = s->get_allocation();
+        s->add_ref();
+
+        fp.ret->t0 = 1;
+        return;
+    }
+
+    // Tokenize the string
+    vm_list_t *prev_node = nullptr;
+    auto n = word_t{ 0 };
+    auto begin = word_t{ 0 };
+    auto end = word_t{ 0 };
+    const auto len = s->get_length();
+    while (begin < len)
+    {
+        // Consume delimiters
+        while (begin < len)
+        {
+            const auto rune = s->get_rune(begin);
+            if (!is_delim(rune, *delim))
+                break;
+            ++begin;
+        }
+
+        end = begin;
+
+        // Consume non-delimiters
+        while (end < len)
+        {
+            const auto rune = s->get_rune(end);
+            if (is_delim(rune, *delim))
+                break;
+            ++end;
+        }
+
+        // No progress - It is and isn't a delimiter (i.e. no more characters).
+        if (begin == end)
+            break;
+
+        // Current node is initially non-null
+        if (curr_node == nullptr)
+            curr_node = new vm_list_t{ intrinsic_type_desc::type<pointer_t>() };
+
+        const auto token = new vm_string_t{ *s, begin, end };
+        pt_ref(curr_node->value()) = token->get_allocation();
+
+        // Previous node is initially null
+        if (prev_node != nullptr)
+        {
+            prev_node->set_tail(curr_node);
+            curr_node->release();
+        }
+
+        prev_node = curr_node;
+        curr_node = nullptr;
+
+        begin = end;
+        ++n;
+    }
+
+    fp.ret->t0 = n;
 }
 
 void
@@ -571,7 +828,28 @@ void
 Sys_write(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_write>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    const auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.buf);
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
+    auto n = fp.n;
+    if (buffer == nullptr || n <= 0)
+    {
+        *fp.ret = 0;
+        return;
+    }
+
+    // [SPEC] Supplying a size greater than the buffer length is
+    // equivalent to indicating the entire buffer should be written.
+    n = std::min(n, buffer->get_length());
+
+    auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    assert(fd_alloc->alloc_type == T_FD);
+
+    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    fd->write(n, buffer->at(0));
+
+    *fp.ret = n;
 }
 
 void

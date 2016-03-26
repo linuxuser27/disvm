@@ -60,6 +60,42 @@ namespace disvm
         static_assert(
             sizeof(vm_frame_base_alloc_t) == runtime_constants::default_register_count * runtime_constants::default_register_size_bytes,
             "Default register allocation should match base allocation type");
+
+        //
+        // Helpers for accessing VM types
+        //
+
+        // Get value-type reference
+        template<typename ValueType>
+        ValueType& vt_ref(pointer_t vt)
+        {
+            assert(vt != nullptr);
+            return *reinterpret_cast<ValueType *>(vt);
+        }
+
+        // Get allocation type value
+        template<typename AllocType>
+        typename std::enable_if<std::is_base_of<vm_alloc_t, AllocType>::value, AllocType *>::type
+            at_val(pointer_t at)
+        {
+            assert(at != nullptr);
+            return vm_alloc_t::from_allocation<AllocType>(*reinterpret_cast<pointer_t *>(at));
+        }
+
+        // Get allocation type value - base alloc type
+        template<>
+        inline vm_alloc_t *at_val<vm_alloc_t>(pointer_t at)
+        {
+            assert(at != nullptr);
+            return vm_alloc_t::from_allocation(*reinterpret_cast<pointer_t *>(at));
+        }
+
+        // Get pointer type reference
+        inline pointer_t &pt_ref(pointer_t pt)
+        {
+            assert(pt != nullptr);
+            return *reinterpret_cast<pointer_t *>(pt);
+        }
     }
 }
 

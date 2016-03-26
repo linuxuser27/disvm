@@ -76,7 +76,6 @@ namespace disvm
             const uint32_t _worker_thread_count;
             std::vector<std::thread> _worker_pool;
 
-            std::mutex _worker_event_lock;
             std::condition_variable _worker_event;
             std::atomic_bool _terminating;
 

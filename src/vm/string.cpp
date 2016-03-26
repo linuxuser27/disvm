@@ -22,7 +22,7 @@ std::shared_ptr<const type_descriptor_t> vm_string_t::type_desc()
 namespace
 {
     // Enumeration for character type compare cases.
-    enum class compare_case
+    enum class compare_case_t
     {
         ascii_ascii,
         ascii_rune,
@@ -31,10 +31,10 @@ namespace
     };
 
     // Scenario matrix for compare cases
-    const compare_case scenario_matrix[][2] =
+    const compare_case_t scenario_matrix[][2] =
     {
-        { compare_case::ascii_ascii, compare_case::ascii_rune },
-        { compare_case::rune_ascii, compare_case::rune_rune },
+        { compare_case_t::ascii_ascii, compare_case_t::ascii_rune },
+        { compare_case_t::rune_ascii, compare_case_t::rune_rune },
     };
 
     // Case indices
@@ -92,14 +92,14 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
     {
     default:
         assert(false && "Unknown compare scenario");
-    case compare_case::ascii_ascii:
-    case compare_case::rune_rune:
+    case compare_case_t::ascii_ascii:
+    case compare_case_t::rune_rune:
         result = std::memcmp(str_mem_1, str_mem_2, min_length);
         break;
-    case compare_case::ascii_rune:
+    case compare_case_t::ascii_rune:
         result = _compare(min_length, reinterpret_cast<char *>(str_mem_1), reinterpret_cast<rune_t *>(str_mem_2));
         break;
-    case compare_case::rune_ascii:
+    case compare_case_t::rune_ascii:
         result = _compare(min_length, reinterpret_cast<rune_t *>(str_mem_1), reinterpret_cast<char *>(str_mem_2));
         break;
     }
@@ -281,7 +281,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     }
 
     // Copy over string content starting at the correct index (char vs. rune_t)
-    ::memcpy(dest, (src + (begin_index * _character_size)), length_in_bytes);
+    std::memcpy(dest, (src + (begin_index * _character_size)), length_in_bytes);
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR "\n", &other, begin_index, end_index, this);
 }
 

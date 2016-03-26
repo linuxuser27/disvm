@@ -47,6 +47,7 @@ default_scheduler_t::default_scheduler_t(vm_t &vm, uint32_t system_thread_count,
     : _gc_complete{ true }
     , _gc_counter{ 1 }
     , _running_vm_thread_count{ 0 }
+    , _terminating{ false }
     , _worker_thread_count{ system_thread_count }
     , _vm{ vm }
     , _vm_thread_quanta{ thread_quanta }
@@ -58,16 +59,12 @@ default_scheduler_t::~default_scheduler_t()
     // Drain the runnable queue and clear out all the threads
     {
         std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+        _terminating = true;
+
         while (!_runnable_vm_threads.empty())
             _runnable_vm_threads.pop();
 
         _all_vm_threads.clear();
-    }
-
-    // Set terminating flag
-    {
-        std::unique_lock<std::mutex> worker_event_lock{ _worker_event_lock };
-        _terminating = true;
     }
 
     // Notify all workers
@@ -193,49 +190,44 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
     for (;;)
     {
         // Check for a vm thread in the queue
+        std::unique_lock<std::mutex> lock{ _vm_threads_lock };
+
+        // Check if a GC should be performed.
+        // Matching part of the logic in Inferno (emu/port/dis.c).
+        if ((_gc_counter & 0xff) == 0)
         {
-            std::unique_lock<std::mutex> lock{ _vm_threads_lock };
+            const auto running_thread_count_local = _running_vm_thread_count;
+            const auto is_gc_thread = running_thread_count_local == 0;
+            perform_gc(is_gc_thread, lock);
+        }
 
-            // Check if a GC should be performed.
-            // Matching part of the logic in Inferno (emu/port/dis.c).
-            if ((_gc_counter & 0xff) == 0)
-            {
-                const auto running_thread_count_local = _running_vm_thread_count;
-                const auto is_gc_thread = running_thread_count_local == 0;
-                perform_gc(is_gc_thread, lock);
-            }
+        if (!_runnable_vm_threads.empty())
+        {
+            next_thread = _runnable_vm_threads.front();
+            _runnable_vm_threads.pop();
+            ++_running_vm_thread_count;
+            ++_gc_counter;
 
-            if (!_runnable_vm_threads.empty())
-            {
-                next_thread = _runnable_vm_threads.front();
-                _runnable_vm_threads.pop();
-                ++_running_vm_thread_count;
-                ++_gc_counter;
+            // This system thread now takes ownership of the vm thread
+            next_thread->system_thread_ownership.lock();
+            return next_thread;
+        }
 
-                // This system thread now takes ownership of the vm thread
-                next_thread->system_thread_ownership.lock();
-                return next_thread;
-            }
-
-            if (!_all_vm_threads.empty() && _blocked_vm_thread_ids.size() == _all_vm_threads.size())
-            {
-                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::warning, "scheduler: deadlock detected\n");
-                assert(false && "VM thread deadlock detected");
-            }
+        if (!_all_vm_threads.empty() && _blocked_vm_thread_ids.size() == _all_vm_threads.size())
+        {
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::warning, "scheduler: deadlock detected\n");
+            assert(false && "VM thread deadlock detected");
         }
 
         // If the queue is empty, wait for a notification
-        {
-            std::unique_lock<std::mutex> worker_event_lock{ _worker_event_lock };
-            if (_terminating)
-                return{};
+        if (_terminating)
+            return{};
 
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting\n");
-            _worker_event.wait(worker_event_lock);
+        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting\n");
+        _worker_event.wait(lock);
 
-            if (_terminating)
-                return{};
-        }
+        if (_terminating)
+            return{};
     }
 }
 

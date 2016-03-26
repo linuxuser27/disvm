@@ -19,7 +19,7 @@ using namespace disvm::runtime::builtin;
 
 namespace
 {
-    std::atomic_bool builtin_modules_initialized;
+    std::atomic_bool builtin_modules_initialized{ false };
 
     std::mutex builtin_modules_lock;
     std::forward_list<std::shared_ptr<vm_module_t>> builtin_modules;

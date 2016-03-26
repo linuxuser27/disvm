@@ -23,6 +23,8 @@
         'vm_exception_handler.cpp',
         'sys/print.cpp',
         'sys/Sysmod.cpp',
+        'sys/file_system.cpp',
+        'sys/fd_manager.cpp',
       ],
       'include_dirs': [
         '../include'

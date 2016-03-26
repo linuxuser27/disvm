@@ -392,8 +392,8 @@ namespace
         auto base = reinterpret_cast<byte_t *>(modobj.original_mp->get_allocation());
         for (;;)
         {
-            auto bytesRead = reader.get_next_bytes(sizeof(code), &code);
-            if (bytesRead != sizeof(code)) throw module_reader_exception{ "Failed to read data item code" };
+            auto bytes_read = reader.get_next_bytes(sizeof(code), &code);
+            if (bytes_read != sizeof(code)) throw module_reader_exception{ "Failed to read data item code" };
             if (code == 0)
                 break;
 
@@ -444,8 +444,8 @@ namespace
             case datum_type_t::utf_string:
             {
                 auto str_buffer = std::vector<uint8_t>(count);
-                auto bytesRead = reader.get_next_bytes(count, str_buffer.data());
-                if (bytesRead != count)
+                auto str_bytes = reader.get_next_bytes(count, str_buffer.data());
+                if (str_bytes != count)
                     throw module_reader_exception{ "Failed to read string data" };
 
                 auto new_string = new vm_string_t(str_buffer.size(), str_buffer.data());

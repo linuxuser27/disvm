@@ -249,7 +249,7 @@ namespace disvm
 
             vm_list_t* get_tail() const;
 
-            vm_list_t* drop_tail();
+            void set_tail(vm_list_t *new_tail);
 
             // Returns a pointer to the value
             pointer_t value() const;

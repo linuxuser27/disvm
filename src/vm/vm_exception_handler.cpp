@@ -43,12 +43,12 @@ std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_except
                 if (exception_id.compare_to(exception_name) == 0)
                 {
                     debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "end: handler: match: %d\n", unwind_depth);
-                    return std::tuple<const handler_t *, vm_frame_t *, std::size_t>{ &handler, current_frame, exception.pc };
+                    return std::make_tuple(&handler, current_frame, exception.pc);
                 }
                 else if (exception_name == nullptr && exception.pc != runtime_constants::invalid_program_counter)
                 {
                     debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "end: handler: fallback: %d\n", unwind_depth);
-                    return std::tuple<const handler_t *, vm_frame_t *, std::size_t>{ &handler, current_frame, exception.pc };
+                    return std::make_tuple(&handler, current_frame, exception.pc);
                 }
             }
         }

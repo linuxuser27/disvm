@@ -344,7 +344,7 @@ namespace
     }
 }
 
-std::atomic_bool intrinsic_type_desc::is_initialized;
+std::atomic_bool intrinsic_type_desc::is_initialized{ false };
 
 void intrinsic_type_desc::initialize()
 {

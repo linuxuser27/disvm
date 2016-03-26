@@ -5,6 +5,7 @@
 //
 
 #include <runtime.h>
+#include <exceptions.h>
 #include <vm_memory.h>
 #include <debug.h>
 
@@ -21,14 +22,10 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
     , _element_type{ td }
     , _is_alloc{ sizeof(_mem) < td->size_in_bytes }
     , _mem{}
-    , _tail{ tail }
+    , _tail{ nullptr }
 {
     assert(_element_type != nullptr);
-    if (_tail != nullptr)
-    {
-        assert(tail->get_element_type() == _element_type);
-        _tail->add_ref();
-    }
+    set_tail(tail);
 
     // If the default list element storage is not enough, allocate more memory.
     if (_is_alloc)
@@ -41,14 +38,15 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
         init_memory(*_element_type, &_mem.local);
     }
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list: new\n");
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list\n");
 }
 
 vm_list_t::~vm_list_t()
 {
     // Remove tail
     dec_ref_count_and_free(_tail);
-    _tail = nullptr;
+    debug::assign_debug_pointer(&_tail);
 
     // Destroy and free the list element, if default element size was surpassed.
     if (_is_alloc)
@@ -88,12 +86,20 @@ vm_list_t *vm_list_t::get_tail() const
     return _tail;
 }
 
-vm_list_t *vm_list_t::drop_tail()
+void vm_list_t::set_tail(vm_list_t *new_tail)
 {
-    auto tail = _tail;
-    _tail = nullptr;
-    tail->release();
-    return tail;
+    if (new_tail != nullptr)
+    {
+        if (new_tail->get_element_type() != _element_type)
+            throw type_violation{};
+
+        new_tail->add_ref();
+    }
+
+    auto prev_tail = _tail;
+    _tail = new_tail;
+
+    dec_ref_count_and_free(prev_tail);
 }
 
 pointer_t vm_list_t::value() const

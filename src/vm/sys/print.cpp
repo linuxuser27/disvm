@@ -16,7 +16,7 @@ namespace
 {
     // Align the supplied pointer for the template type relative to base.
     template<typename T>
-    inline byte_t *align_for(byte_t *p, pointer_t base)
+    byte_t *align_for(byte_t *p, pointer_t base)
     {
         for (;;)
         {
@@ -31,7 +31,7 @@ namespace
 
 // Shamelessly adopted and altered from Inferno implementation (xprint - libinterp/runt.c)
 // [TODO] Handle UTF-8
-word_t printf_to_buffer(
+word_t disvm::runtime::sys::printf_to_buffer(
     const disvm::runtime::vm_string_t &msg_fmt,
     disvm::runtime::byte_t *msg_args,
     disvm::runtime::pointer_t base,
@@ -121,17 +121,19 @@ word_t printf_to_buffer(
                 break;
             case 's': // string
             {
-                auto s = vm_alloc_t::from_allocation<vm_string_t>(*reinterpret_cast<pointer_t *>(msg_args));
-                if (s != nullptr)
-                    wb = std::snprintf(b_curr, (b_end - b_curr), "%s", s->str());
+                auto p = *reinterpret_cast<pointer_t *>(msg_args);
+                auto str = vm_alloc_t::from_allocation<vm_string_t>(p);
+                if (str != nullptr)
+                    wb = std::snprintf(b_curr, (b_end - b_curr), "%s", str->str());
 
-                msg_args += sizeof(pointer_t);
+                msg_args += sizeof(p);
                 break;
             }
             // [SPEC] Undocumented format verb for debugging VM objects.
             case 'H':
             {
-                auto alloc = vm_alloc_t::from_allocation(*reinterpret_cast<pointer_t *>(msg_args));
+                auto p = *reinterpret_cast<pointer_t *>(msg_args);
+                auto alloc = vm_alloc_t::from_allocation(p);
                 auto rc = static_cast<std::size_t>(-1);
                 const void *type_alloc = nullptr;
                 if (alloc != nullptr)
@@ -140,8 +142,8 @@ word_t printf_to_buffer(
                     type_alloc = alloc->alloc_type.get();
                 }
 
-                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIdPTR ".%#08" PRIxPTR, rc, reinterpret_cast<std::size_t>(type_alloc));
-                msg_args += sizeof(pointer_t);
+                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIuPTR ".%#08" PRIxPTR, rc, reinterpret_cast<std::size_t>(type_alloc));
+                msg_args += sizeof(p);
                 break;
             }
             }
@@ -159,7 +161,7 @@ word_t printf_to_buffer(
     return (b_curr - buffer);
 }
 
-word_t printf_to_dynamic_buffer(
+word_t disvm::runtime::sys::printf_to_dynamic_buffer(
     const disvm::runtime::vm_string_t &msg_fmt,
     disvm::runtime::byte_t *msg_args,
     disvm::runtime::pointer_t base,
@@ -167,9 +169,7 @@ word_t printf_to_dynamic_buffer(
 {
     auto result = word_t{ 0 };
     while (-1 == (result = printf_to_buffer(msg_fmt, msg_args, base, buffer.size(), buffer.data())))
-    {
         buffer.resize(buffer.size() * 2);
-    }
 
     return result;
 }
