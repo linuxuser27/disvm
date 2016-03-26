@@ -140,20 +140,18 @@ void disvm::runtime::free_memory(void *memory)
 void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
 {
     assert(data != nullptr);
-    auto memory_word_len = std::size_t{ type_desc.size_in_bytes / sizeof(word_t) };
-    if (memory_word_len == 0)
+    if (type_desc.size_in_bytes == 0)
         return;
 
     debug::assign_debug_memory(data, type_desc.size_in_bytes);
 
     auto memory = reinterpret_cast<word_t *>(data);
-    assert((memory_word_len / sizeof(word_t)) <= static_cast<std::size_t>(type_desc.size_in_bytes)); // type desc is in bytes convert len to bytes from words.
     for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
     {
         const auto words8 = type_desc.pointer_map[i];
         if (words8 != 0)
         {
-            auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+            const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
 
             // Enumerating the flags in reverse order so memory access is linear.
             if (flags[7]) memory[0] = runtime_constants::nil;
@@ -414,19 +412,19 @@ static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thr
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;
 
-std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size)
+std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes)
 {
-    return type_descriptor_t::create(size, 0, nullptr);
+    return type_descriptor_t::create(size_in_bytes, 0, nullptr);
 }
 
-std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size, const std::vector<byte_t> &pointer_map)
+std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map)
 {
     assert(pointer_map.size() < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
-    return type_descriptor_t::create(size, static_cast<word_t>(pointer_map.size()), pointer_map.data());
+    return type_descriptor_t::create(size_in_bytes, static_cast<word_t>(pointer_map.size()), pointer_map.data());
 }
 
 std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
-    const word_t size,
+    const word_t size_in_bytes,
     const word_t pointer_map_length,
     const byte_t *pointer_map,
     const vm_alloc_instance_finalizer_t finalizer)
@@ -453,7 +451,7 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             pointer_map_local[i] = pointer_map[i];
     }
 
-    auto new_type = ::new(new_type_memory) type_descriptor_t{ size, pointer_map_length, pointer_map_local, finalizer };
+    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer };
     return std::shared_ptr<type_descriptor_t>{ new_type, deleter };
 }
 

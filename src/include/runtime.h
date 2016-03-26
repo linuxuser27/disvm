@@ -56,10 +56,10 @@ namespace disvm
             static vm_alloc_instance_finalizer_t no_finalizer;
 
             // Create a type descriptor for type of the supplied size and pointers based on the supplied map.
-            static std::shared_ptr<const type_descriptor_t> create(const word_t size);
-            static std::shared_ptr<const type_descriptor_t> create(const word_t size, const std::vector<byte_t> &pointer_map);
+            static std::shared_ptr<const type_descriptor_t> create(const word_t size_in_bytes);
+            static std::shared_ptr<const type_descriptor_t> create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map);
             static std::shared_ptr<const type_descriptor_t> create(
-                const word_t size,
+                const word_t size_in_bytes,
                 const word_t pointer_map_length,
                 const byte_t *pointer_map,
                 vm_alloc_instance_finalizer_t finalizer = type_descriptor_t::no_finalizer);

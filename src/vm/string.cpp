@@ -366,7 +366,7 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
     if (_is_alloc)
     {
         free_memory(local_source);
-        _mem.alloc = nullptr;
+        debug::assign_debug_pointer(&_mem.alloc);
     }
 
     _mem.alloc = new_source;

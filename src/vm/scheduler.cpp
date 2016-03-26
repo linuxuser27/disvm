@@ -219,7 +219,6 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
             assert(false && "VM thread deadlock detected");
         }
 
-        // If the queue is empty, wait for a notification
         if (_terminating)
             return{};
 

@@ -78,18 +78,16 @@ namespace disvm
         inline void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback)
         {
             assert(data != nullptr && callback != nullptr);
-            auto memory_word_len = std::size_t{ type_desc.size_in_bytes / sizeof(word_t) };
-            if (memory_word_len == 0)
+            if (type_desc.size_in_bytes == 0)
                 return;
 
             auto memory = reinterpret_cast<word_t *>(data);
-            assert((memory_word_len / sizeof(word_t)) <= static_cast<std::size_t>(type_desc.size_in_bytes)); // type desc is in bytes convert len to bytes from words.
             for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
             {
                 const auto words8 = type_desc.pointer_map[i];
                 if (words8 != 0)
                 {
-                    auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+                    const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
 
                     // Enumerating the flags in reverse order so memory access is linear.
                     if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]));
