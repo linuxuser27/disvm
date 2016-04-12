@@ -1,21 +1,25 @@
-implement Hello;
+implement Command;
 
 include "sys.m";
+include "draw.m";
+include "Command.m";
 include "external_module.m";
-
-Hello: module
-{
-    init: fn();
-};
 
 sys : Sys;
 
-init()
+init(cxt: ref Draw->Context, args: list of string)
 {
     a := "foobar!";
     sys = load Sys Sys->PATH;
     big_val := big 16r12345;
     sys->print("Hello, %s %o %d %x %bd %f\n%s%%%% %H\n\n", "world!", 8, 10, 16, big_val, 0.1, "------------------\n", a);
+
+    while (args != nil)
+    {
+      arg := hd args;
+      sys->print("-- %s --\n", arg);
+      args = tl args;
+    }
 
     test_function_refs();
     test_alt();

@@ -773,10 +773,10 @@ namespace
     void _cons(vm_registers_t &r)
     {
         auto tail_maybe = at_val<vm_list_t>(r.dest);
+        auto new_list = new vm_list_t{ intrinsic_type_desc::type<PrimitiveType>(), tail_maybe };
+
         if (tail_maybe != nullptr)
             tail_maybe->release();
-
-        auto new_list = new vm_list_t{ intrinsic_type_desc::type<PrimitiveType>(), tail_maybe };
 
         auto value = vt_ref<PrimitiveType>(r.src);
         vt_ref<PrimitiveType>(new_list->value()) = value;
@@ -792,11 +792,11 @@ namespace
     EXEC_DECL(consp)
     {
         auto tail_maybe = at_val<vm_list_t>(r.dest);
-        if (tail_maybe != nullptr)
-            tail_maybe->release();
 
         // Create a new list
         auto new_list = new vm_list_t{ intrinsic_type_desc::type<pointer_t>(), tail_maybe };
+        if (tail_maybe != nullptr)
+            tail_maybe->release();
 
         auto alloc = at_val<vm_alloc_t>(r.src);
         if (alloc != nullptr)
@@ -826,11 +826,11 @@ namespace
         inc_ref_count_in_memory(*type, r.src);
 
         auto tail_maybe = at_val<vm_list_t>(r.dest);
-        if (tail_maybe != nullptr)
-            tail_maybe->release();
 
         // Create a new list
         auto new_list = new vm_list_t{ type, tail_maybe };
+        if (tail_maybe != nullptr)
+            tail_maybe->release();
 
         auto destination = new_list->value();
         std::memmove(destination, r.src, type->size_in_bytes);

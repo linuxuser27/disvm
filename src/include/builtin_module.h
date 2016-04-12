@@ -49,6 +49,8 @@ namespace disvm
 
         // [SPEC] All allocated frames have the following base layout.
         // See 'struct Frame' in Inferno (include/interp.h)
+        // The base frame does not include the return register since that
+        // is typed on the generated function frame type.
         struct vm_frame_base_alloc_t
         {
             vm_pc_t p_pc; // Previous PC
@@ -57,9 +59,17 @@ namespace disvm
             pointer_t reserved; // Reserved for VM
         };
 
-        static_assert(
-            sizeof(vm_frame_base_alloc_t) == runtime_constants::default_register_count * runtime_constants::default_register_size_bytes,
-            "Default register allocation should match base allocation type");
+        struct vm_frame_constants
+        {
+            static const auto register_size_in_bytes = sizeof(word_t);
+
+            // Includes registers on base frame plus the implied return register
+            static const auto default_register_count = (sizeof(vm_frame_base_alloc_t) / register_size_in_bytes) + 1;
+
+            // See VM frame definition
+            static const auto fixed_point_register_1_frame_offset = default_register_count * register_size_in_bytes;
+            static const auto fixed_point_register_2_frame_offset = fixed_point_register_1_frame_offset + (2 * register_size_in_bytes);
+        };
 
         //
         // Helpers for accessing VM types

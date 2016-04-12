@@ -19,7 +19,7 @@ namespace
     struct vm_stack_page
     {
         vm_stack_page *prev_page;
-        uintptr_t page_limit_addr;
+        std::uintptr_t page_limit_addr;
         vm_frame_t *page_top_frame; // Do not free. This is used as a tracking pointer.
 
         void *stack_data() const
@@ -30,7 +30,7 @@ namespace
 
         bool contains_frame(const vm_frame_t *frame) const
         {
-            return reinterpret_cast<uintptr_t>(stack_data()) <= reinterpret_cast<uintptr_t>(frame) && reinterpret_cast<uintptr_t>(frame) < page_limit_addr;
+            return reinterpret_cast<std::uintptr_t>(stack_data()) <= reinterpret_cast<std::uintptr_t>(frame) && reinterpret_cast<std::uintptr_t>(frame) < page_limit_addr;
         }
     };
 
@@ -66,16 +66,17 @@ namespace
         void *new_page()
         {
             auto current_stack_page = top_page;
-            top_page = alloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
+            top_page = calloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
 
             // Initialize the stack allocation.
             top_page->prev_page = current_stack_page;
 
             // The top frame member is only for tracking and so is initialized to null.
             top_page->page_top_frame = nullptr;
-            top_page->page_limit_addr = reinterpret_cast<uintptr_t>(top_page)+stack_page_size;
+            top_page->page_limit_addr = reinterpret_cast<std::uintptr_t>(top_page)+stack_page_size;
 
-            debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR "\n", top_page, top_page->page_limit_addr);
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR "\n", top_page, top_page->page_limit_addr);
 
             return top_page->stack_data();
         }
@@ -87,7 +88,9 @@ namespace
             assert(current_stack_page != nullptr);
 
             free_memory(top_page);
-            debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: vm stack alloc\n");
+
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: vm stack alloc\n");
 
             // Set the top page
             top_page = current_stack_page;
@@ -158,7 +161,7 @@ vm_module_ref_t *&vm_frame_t::prev_module_ref() const
 
 pointer_t vm_frame_t::fixed_point_register_1() const
 {
-    const auto offset = runtime_constants::fixed_point_register_1_frame_offset;
+    const auto offset = vm_frame_constants::fixed_point_register_1_frame_offset;
     assert(offset < frame_type->size_in_bytes);
 
     auto p = reinterpret_cast<uint8_t *>(base()) + offset;
@@ -167,7 +170,7 @@ pointer_t vm_frame_t::fixed_point_register_1() const
 
 pointer_t vm_frame_t::fixed_point_register_2() const
 {
-    const auto offset = runtime_constants::fixed_point_register_2_frame_offset;
+    const auto offset = vm_frame_constants::fixed_point_register_2_frame_offset;
     assert(offset < frame_type->size_in_bytes);
 
     auto p = reinterpret_cast<uint8_t *>(base()) + offset;
@@ -210,16 +213,17 @@ vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> fra
     vm_frame_t *new_frame;
     if (page_top_frame == nullptr)
     {
-        new_frame = ::new(layout->top_page->stack_data())vm_frame_t{ frame_type };
+        auto new_frame_addr = layout->top_page->stack_data();
+        new_frame = ::new(new_frame_addr)vm_frame_t{ frame_type };
     }
     else
     {
-        auto current_page_top_frame_addr = reinterpret_cast<std::size_t>(page_top_frame);
+        auto current_page_top_frame_addr = reinterpret_cast<std::uintptr_t>(page_top_frame);
         auto new_frame_addr_maybe = current_page_top_frame_addr + (sizeof(vm_frame_t) + page_top_frame->frame_type->size_in_bytes);
 
         // If the new frame is not going to fit on the current page, create a new page.
         if ((new_frame_addr_maybe + new_frame_size) >= layout->top_page->page_limit_addr)
-            new_frame_addr_maybe = reinterpret_cast<uintptr_t>(layout->new_page());
+            new_frame_addr_maybe = reinterpret_cast<std::uintptr_t>(layout->new_page());
 
         new_frame = ::new(reinterpret_cast<void *>(new_frame_addr_maybe))vm_frame_t{ frame_type };
     }

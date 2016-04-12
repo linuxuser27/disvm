@@ -20,7 +20,7 @@ namespace
     {
         for (;;)
         {
-            const auto d = reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(base);
+            const auto d = reinterpret_cast<std::uintptr_t>(p) - reinterpret_cast<std::uintptr_t>(base);
             if (d % sizeof(T) == 0)
                 return p;
 

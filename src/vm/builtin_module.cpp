@@ -61,7 +61,7 @@ void disvm::runtime::builtin::register_module_exports(const char *name, word_t t
     header.entry_pc = runtime_constants::invalid_program_counter;
     header.entry_type = -1;
 
-    new_builtin->module_name = std::make_unique<vm_string_t>(::strlen(name), reinterpret_cast<const uint8_t *>(name));
+    new_builtin->module_name = std::make_unique<vm_string_t>(std::strlen(name), reinterpret_cast<const uint8_t *>(name));
 
     // Fill out code, type, and export sections
     for (auto i = word_t{ 0 }; i < table_length; ++i)

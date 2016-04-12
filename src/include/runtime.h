@@ -64,10 +64,8 @@ namespace disvm
                 const byte_t *pointer_map,
                 vm_alloc_instance_finalizer_t finalizer = type_descriptor_t::no_finalizer);
 
-        private:
-            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer);
-
         public:
+            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer);
             type_descriptor_t(const type_descriptor_t&) = delete;
             type_descriptor_t& operator=(const type_descriptor_t&) = delete;
 
@@ -80,11 +78,6 @@ namespace disvm
         // Access to type descriptors for VM intrinsic types.
         class intrinsic_type_desc final
         {
-        private:
-            friend vm_t;
-            static std::atomic_bool is_initialized;
-            static void initialize();
-
         public:
             // Templated type descriptor getter
             template<typename IntrinsicType>
@@ -371,13 +364,6 @@ namespace disvm
             static const auto nil = std::size_t{ 0 };
 
             static const auto invalid_program_counter = vm_pc_t{ ~0 };
-
-            static const auto default_register_count = std::size_t{ 4 };
-            static const auto default_register_size_bytes = sizeof(word_t);
-
-            // See VM frame definition
-            static const auto fixed_point_register_1_frame_offset = std::size_t{ default_register_count * default_register_size_bytes };
-            static const auto fixed_point_register_2_frame_offset = fixed_point_register_1_frame_offset + (2 * default_register_size_bytes);
         };
 
         // Addressing mode for middle instruction data

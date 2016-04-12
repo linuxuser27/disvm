@@ -323,92 +323,76 @@ namespace
 {
     namespace hidden_type_desc
     {
-        std::shared_ptr<const type_descriptor_t> byte;
-        std::shared_ptr<const type_descriptor_t> short_word;
-        std::shared_ptr<const type_descriptor_t> word;
-        std::shared_ptr<const type_descriptor_t> short_real;
-        std::shared_ptr<const type_descriptor_t> real;
-        std::shared_ptr<const type_descriptor_t> big;
-        std::shared_ptr<const type_descriptor_t> pointer;
+        const type_descriptor_t byte{ sizeof(byte_t), 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t short_word{ sizeof(short_word_t), 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t word{ sizeof(word_t), 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t short_real{ sizeof(short_real_t), 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t real{ sizeof(real_t), 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t big{ sizeof(big_t), 0, nullptr, type_descriptor_t::no_finalizer };
 
-        std::shared_ptr<const type_descriptor_t> vm_array;
-        std::shared_ptr<const type_descriptor_t> vm_list;
-        std::shared_ptr<const type_descriptor_t> vm_channel;
-        std::shared_ptr<const type_descriptor_t> vm_string;
+        const byte_t pointer_map[] = { 0x80 };
+        const type_descriptor_t pointer{ sizeof(pointer_t), (sizeof(pointer_map) / sizeof(pointer_map[0])), pointer_map, type_descriptor_t::no_finalizer };
 
-        std::shared_ptr<const type_descriptor_t> vm_module_ref;
-        std::shared_ptr<const type_descriptor_t> vm_stack;
-        std::shared_ptr<const type_descriptor_t> vm_thread;
+        const type_descriptor_t vm_array{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t vm_list{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t vm_channel{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t vm_string{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+
+        const type_descriptor_t vm_module_ref{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t vm_stack{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        const type_descriptor_t vm_thread{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+
+        struct
+        {
+            void operator()(const type_descriptor_t *)
+            {
+                // Not allocated on heap
+            }
+        } deleter;
     }
 }
 
-std::atomic_bool intrinsic_type_desc::is_initialized{ false };
-
-void intrinsic_type_desc::initialize()
-{
-    auto is_false = bool{ false };
-    if (!intrinsic_type_desc::is_initialized.compare_exchange_strong(is_false, true))
-        return;
-
-    hidden_type_desc::byte = type_descriptor_t::create(sizeof(byte_t));
-    hidden_type_desc::short_word = type_descriptor_t::create(sizeof(short_word_t));
-    hidden_type_desc::word = type_descriptor_t::create(sizeof(word_t));
-    hidden_type_desc::short_real = type_descriptor_t::create(sizeof(short_real_t));
-    hidden_type_desc::real = type_descriptor_t::create(sizeof(real_t));
-    hidden_type_desc::big = type_descriptor_t::create(sizeof(big_t));
-    hidden_type_desc::pointer = type_descriptor_t::create(sizeof(pointer_t), std::vector<byte_t>{0x80});
-
-    hidden_type_desc::vm_array = type_descriptor_t::create(0);
-    hidden_type_desc::vm_list = type_descriptor_t::create(0);
-    hidden_type_desc::vm_channel = type_descriptor_t::create(0);
-    hidden_type_desc::vm_string = type_descriptor_t::create(0);
-
-    hidden_type_desc::vm_module_ref = type_descriptor_t::create(0);
-    hidden_type_desc::vm_stack = type_descriptor_t::create(0);
-    hidden_type_desc::vm_thread = type_descriptor_t::create(0);
-}
+template<>
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<byte_t>() { return{ &hidden_type_desc::byte, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<byte_t>() { return hidden_type_desc::byte; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>() { return{ &hidden_type_desc::short_word, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>() { return hidden_type_desc::short_word; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<word_t>() { return{ &hidden_type_desc::word, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<word_t>() { return hidden_type_desc::word; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>() { return{ &hidden_type_desc::short_real, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>() { return hidden_type_desc::short_real; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<real_t>() { return{ &hidden_type_desc::real, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<real_t>() { return hidden_type_desc::real; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<big_t>() { return{ &hidden_type_desc::big, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<big_t>() { return hidden_type_desc::big; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>() { return{ &hidden_type_desc::pointer, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>() { return hidden_type_desc::pointer; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>() { return{ &hidden_type_desc::vm_array, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>() { return hidden_type_desc::vm_array; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>() { return{ &hidden_type_desc::vm_list, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>() { return hidden_type_desc::vm_list; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>() { return{ &hidden_type_desc::vm_channel, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>() { return hidden_type_desc::vm_channel; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>() { return{ &hidden_type_desc::vm_string, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>() { return hidden_type_desc::vm_string; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>() { return{ &hidden_type_desc::vm_module_ref, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>() { return hidden_type_desc::vm_module_ref; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>() { return{ &hidden_type_desc::vm_stack, hidden_type_desc::deleter }; }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>() { return hidden_type_desc::vm_stack; }
-
-template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>() { return hidden_type_desc::vm_thread; }
+static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>() { return{ &hidden_type_desc::vm_thread, hidden_type_desc::deleter }; }
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;
 

@@ -41,9 +41,6 @@ vm_t::vm_t(
     create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler,
     create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc)
 {
-    // Initialize intrinsic type descriptors
-    intrinsic_type_desc::initialize();
-
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();
 
@@ -69,9 +66,6 @@ vm_t::vm_t(
 
 vm_t::vm_t(uint32_t system_thread_count, uint32_t thread_quanta)
 {
-    // Initialize intrinsic type descriptors
-    runtime::intrinsic_type_desc::initialize();
-
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();
 
