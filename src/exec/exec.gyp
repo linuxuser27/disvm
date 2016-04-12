@@ -1,7 +1,7 @@
 {
   'targets': [
     {
-      'target_name': 'disvm-sh',
+      'target_name': 'disvm-exec',
       'type': 'executable',
       'sources': [
         'main.cpp'

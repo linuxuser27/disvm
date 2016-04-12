@@ -1,5 +1,5 @@
 #
-# Command module definition for disvm Shell
+# Command module definition for disvm-exec program
 #
 
 # Sys and Draw modules must be included before this file in modules.

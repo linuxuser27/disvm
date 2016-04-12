@@ -13,8 +13,8 @@ Dis VM build scripts can be generated using gyp (Generate-Your-Project)
 1. Install Python 2.7
 2. Get current source for gyp
 3. Generate build file for your platform
-    - Windows -- `gyp.bat src\sh\sh.gyp`
-    - Other -- `gyp_main.py src/sh/sh.gyp`
+    - Windows -- `gyp.bat src\exec\exec.gyp`
+    - Other -- `gyp_main.py src/exec/exec.gyp`
 
 # Source
 
@@ -23,7 +23,7 @@ The source tree is as follows:
  - `limbo/` - Source code written in limbo for testing the VM
  - `src/`
      - `include/` - Global include files
-     - `sh/` - Hosting binary for VM
+     - `exec/` - Hosting binary for VM
      - `vm/` - VM as a static library
 
 

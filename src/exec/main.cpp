@@ -1,5 +1,5 @@
 //
-// Dis VM - Shell
+// Dis VM - exec program
 // File: main.cpp
 // Author: arr
 //
