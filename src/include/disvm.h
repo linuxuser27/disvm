@@ -23,7 +23,7 @@ namespace disvm
     std::unique_ptr<runtime::vm_module_t> read_module(std::istream &data);
 
     template <typename C>
-    using create_vm_interface_callback_t = std::function<std::unique_ptr<C>(vm_t &)>;
+    using create_vm_interface_callback_t = std::unique_ptr<C>(*)(vm_t &);
 
     // Virtual machine
     class vm_t final

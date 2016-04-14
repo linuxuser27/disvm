@@ -20,6 +20,28 @@ vm_garbage_collector_t::~vm_garbage_collector_t()
 {
 }
 
+std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
+{
+    class no_op_gc : public vm_garbage_collector_t
+    {
+    public:
+        void track_allocation(vm_alloc_t *) override
+        {
+        }
+
+        void enum_tracked_allocations(vm_alloc_callback_t) const override
+        {
+        }
+
+        bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &)  override
+        {
+            return true;
+        }
+    };
+
+    return std::make_unique<no_op_gc>();
+}
+
 default_garbage_collector_t::default_garbage_collector_t(vm_t &vm)
     : _collection_epoch{ 0 }
     , _vm{ vm }
