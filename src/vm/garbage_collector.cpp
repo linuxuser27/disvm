@@ -33,7 +33,7 @@ std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
         {
         }
 
-        bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &)  override
+        bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &) override
         {
             return true;
         }

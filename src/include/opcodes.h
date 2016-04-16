@@ -173,7 +173,7 @@ namespace disvm
         newz,
         newaz,
         raise,
-        casel,
+        casel = 0x9f,
         mulx,
         divx,
         cvtxx,

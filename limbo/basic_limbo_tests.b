@@ -532,10 +532,10 @@ test_fixed_point()
 {
     sys->print("test_fixed_point()\n");
     fpt : type fixed(0.125, 512.0);
-    a := fpt(1.1);
-    b := fpt(2.1);
+    a := fpt(1.5);
+    b := fpt(2.5);
     c := a * b;
-    #if (c != fpt(2.31)) exit;
+    if (c != fpt(3.75)) exit;
 }
 
 test_exponent()

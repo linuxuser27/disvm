@@ -105,16 +105,42 @@ namespace
         vt_ref<word_t>(r.dest) = static_cast<word_t>(f);
     }
 
+    // [SPEC] Op code for converting 'Fixed point' value to word_t
+    // Undocumented: (http://www.vitanuova.com/inferno/papers/dis.html)
     EXEC_DECL(cvtxx)
     {
-        const auto p = vt_ref<word_t>(r.mid);
-        auto res = static_cast<big_t>(vt_ref<word_t>(r.src));
-        if (p >= 0)
-            res <<= p;
+        const auto pow2_scale = vt_ref<word_t>(r.mid);
+        auto res = big_t{ vt_ref<word_t>(r.src) };
+        if (pow2_scale >= 0)
+            res <<= pow2_scale;
         else
-            res >>= (-p);
+            res >>= (-pow2_scale);
 
         vt_ref<word_t>(r.dest) = static_cast<word_t>(res);
+    }
+
+    // [SPEC] Op code for converting 'Fixed point' value to word_t
+    // Undocumented: (http://www.vitanuova.com/inferno/papers/dis.html)
+    EXEC_DECL(cvtxx0)
+    {
+        auto tmp = big_t{ vt_ref<word_t>(r.src) };
+        if (tmp == 0)
+        {
+            vt_ref<word_t>(r.dest) = 0;
+            return;
+        }
+
+        const auto pow2_scale = vt_ref<word_t>(r.mid);
+        if (pow2_scale >= 0)
+            tmp <<= pow2_scale;
+        else
+            tmp >>= (-pow2_scale);
+
+        const auto residual_scale = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_1());
+        assert(residual_scale != 0);
+
+        const auto result = tmp / residual_scale;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
     }
 
     EXEC_DECL(cvtca)
@@ -320,33 +346,113 @@ namespace
     // [SPEC] 'Fixed point' op codes
     // Undocumented: (http://www.vitanuova.com/inferno/papers/dis.html)
     // Limbo reference: (http://www.vitanuova.com/inferno/papers/addendum.pdf)
+
+    // Multiply for fixed point types with final scaling as a power of 2.
+    //  mulx src1 src2 dst
+    //   src1 - integer 1
+    //   src2 - integer 2
+    //   fpr_2 - result scaling factor (2^x)
+    //   dest - result integer
     EXEC_DECL(mulx)
     {
         const auto m = big_t{ vt_ref<word_t>(r.mid) };
         const auto s = big_t{ vt_ref<word_t>(r.src) };
         auto result = m * s;
 
-        const auto p = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
-        if (p >= 0)
-            result <<= p;
+        const auto pow2_scale = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
+        if (pow2_scale >= 0)
+            result <<= pow2_scale;
         else
-            result >>= (-p);
+            result >>= (-pow2_scale);
 
         vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
     }
 
+    // Division for fixed point types with final scaling as a power of 2.
+    //  divx src1 src2 dst
+    //   src1 - integer 1
+    //   src2 - integer 2
+    //   fpr_2 - result scaling factor (2^x)
+    //   dest - result integer
     EXEC_DECL(divx)
     {
-        auto denom = big_t{ vt_ref<word_t>(r.mid) };
-        const auto p = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
-        if (p >= 0)
-            denom <<= p;
+        auto numerator = big_t{ vt_ref<word_t>(r.mid) };
+        const auto pow2_scale = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
+        if (pow2_scale >= 0)
+            numerator <<= pow2_scale;
         else
-            denom >>= (-p);
+            numerator >>= (-pow2_scale);
 
-        const auto numerator = big_t{ vt_ref<word_t>(r.src) };
-        auto result = denom / numerator;
+        const auto denom = big_t{ vt_ref<word_t>(r.src) };
+        if (denom == 0)
+            throw divide_by_zero{};
 
+        const auto result = numerator / denom;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+    }
+
+    //  mulx0 src1 src2 dst
+    //   src1 - integer 1
+    //   src2 - integer 2
+    //   fpr_1 - residual factor
+    //   fpr_2 - result scaling factor (2^x)
+    //   dest - result integer
+    EXEC_DECL(mulx0)
+    {
+        const auto m = big_t{ vt_ref<word_t>(r.mid) };
+        const auto s = big_t{ vt_ref<word_t>(r.src) };
+        auto tmp = m * s;
+
+        if (m == 0 || s == 0)
+        {
+            vt_ref<word_t>(r.dest) = 0;
+            return;
+        }
+
+        const auto frame = r.stack.peek_frame();
+        const auto pow2_scale = *reinterpret_cast<word_t *>(frame->fixed_point_register_2());
+        if (pow2_scale >= 0)
+            tmp <<= pow2_scale;
+        else
+            tmp >>= (-pow2_scale);
+
+        const auto residual_scale = big_t{ *reinterpret_cast<word_t *>(frame->fixed_point_register_1()) };
+        assert(residual_scale != 0);
+
+        const auto result = tmp / residual_scale;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+    }
+
+    //  divx0 src1 src2 dst
+    //   src1 - integer 1
+    //   src2 - integer 2
+    //   fpr_1 - residual factor
+    //   fpr_2 - result scaling factor (2^x)
+    //   dest - result integer
+    EXEC_DECL(divx0)
+    {
+        const auto m = big_t{ vt_ref<word_t>(r.mid) };
+        const auto s = big_t{ vt_ref<word_t>(r.src) };
+        if (s == 0)
+            throw divide_by_zero{};
+
+        if (m == 0)
+        {
+            vt_ref<word_t>(r.dest) = 0;
+            return;
+        }
+
+        const auto frame = r.stack.peek_frame();
+        const auto residual_scale = big_t{ *reinterpret_cast<word_t *>(frame->fixed_point_register_1()) };
+
+        auto tmp = m * residual_scale;
+        const auto pow2_scale = *reinterpret_cast<word_t *>(frame->fixed_point_register_2());
+        if (pow2_scale >= 0)
+            tmp <<= pow2_scale;
+        else
+            tmp >>= (-pow2_scale);
+
+        const auto result = tmp / s;
         vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
     }
 
@@ -1397,14 +1503,16 @@ namespace
 
         if (r.module_ref->is_builtin_module())
         {
-            // Execute the built-in function, then return
             const auto &inst = r.module_ref->code_section[function_pc];
             assert(r.mp_base == nullptr && "Built-in modules shouldn't have module data (MP register)");
 
             r.current_thread_state = vm_thread_state_t::release;
             inst.native(r, vm);
             ret(r, vm);
-            r.current_thread_state = vm_thread_state_t::running;
+
+            // Only reset the thread if it is in the state set prior to native call.
+            if (r.current_thread_state == vm_thread_state_t::release)
+                r.current_thread_state = vm_thread_state_t::running;
         }
         else
         {
@@ -1477,7 +1585,6 @@ namespace
 
     EXEC_DECL(exit)
     {
-        assert(false && "test failure");
         r.current_thread_state = vm_thread_state_t::exiting;
     }
 
@@ -1772,9 +1879,9 @@ const vm_exec_t disvm::runtime::vm_exec_table[static_cast<std::size_t>(opcode_t:
     mulx,
     divx,
     cvtxx,
-    notimpl, // mulx0,
-    notimpl, // divx0,
-    notimpl, // cvtxx0,
+    mulx0,
+    divx0,
+    cvtxx0,
     notimpl, // mulx1,
     notimpl, // divx1,
     notimpl, // cvtxx1,

@@ -89,7 +89,9 @@ namespace
 
         // [TODO] Implement the UI context for the command
         mp_base[1] = nullptr;
-        mp_base[2] = args->get_allocation();
+
+        if (args != nullptr)
+            mp_base[2] = args->get_allocation();
 
         e.code_section =
         {
@@ -170,4 +172,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-
