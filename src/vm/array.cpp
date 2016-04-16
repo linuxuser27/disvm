@@ -156,7 +156,7 @@ word_t vm_array_t::get_length() const
 pointer_t vm_array_t::at(word_t index) const
 {
     if (index < 0 || _length <= index)
-        throw out_of_range_memory{ 0, _length - 1, index };
+        throw index_out_of_range_memory{ 0, _length - 1, index };
 
     return reinterpret_cast<pointer_t>(_arr + (index * _element_type->size_in_bytes));
 }

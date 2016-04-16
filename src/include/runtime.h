@@ -759,7 +759,7 @@ namespace disvm
 
             ~vm_thread_t();
 
-            vm_thread_state_t execute(vm_t &virtual_machine, uint32_t quanta);
+            vm_thread_state_t execute(vm_t &virtual_machine, const uint32_t quanta);
 
             vm_thread_state_t get_state() const;
 

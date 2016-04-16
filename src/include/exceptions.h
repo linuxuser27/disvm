@@ -60,7 +60,7 @@ namespace disvm
             { }
         };
 
-        class invalid_utf8 : public vm_user_exception
+        class invalid_utf8 final : public vm_user_exception
         {
         public:
             explicit invalid_utf8()
@@ -84,7 +84,7 @@ namespace disvm
             const char *operation;
         };
 
-        class type_violation : public vm_user_exception
+        class type_violation final : public vm_user_exception
         {
         public:
             explicit type_violation()
@@ -92,26 +92,23 @@ namespace disvm
             { }
         };
 
-        class out_of_range_memory final : public vm_user_exception
+        class out_of_range_memory : public vm_user_exception
         {
         public:
             explicit out_of_range_memory()
                 : vm_user_exception("Out of range access")
-                , invalid_value{ 0 }
-                , range_defined{ false }
-                , valid_max{ 0 }
-                , valid_min{ 0 }
             { }
+        };
 
-            explicit out_of_range_memory(word_t valid_min, word_t valid_max, word_t invalid_valid)
-                : vm_user_exception("Out of range access")
-                , invalid_value{ invalid_valid }
-                , range_defined{ true }
+        class index_out_of_range_memory final : public out_of_range_memory
+        {
+        public:
+            explicit index_out_of_range_memory(word_t valid_min, word_t valid_max, word_t invalid_value)
+                : invalid_value{ invalid_value }
                 , valid_max{ valid_max }
                 , valid_min{ valid_min }
             { }
 
-            const bool range_defined;
             const word_t valid_min;
             const word_t valid_max;
             const word_t invalid_value;

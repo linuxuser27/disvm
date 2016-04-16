@@ -264,10 +264,10 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
         throw out_of_range_memory{};
 
     if (begin_index < 0)
-        throw out_of_range_memory{ 0, other._length, begin_index };
+        throw index_out_of_range_memory{ 0, other._length, begin_index };
 
     if (other._length < end_index)
-        throw out_of_range_memory{ 0, other._length, end_index };
+        throw index_out_of_range_memory{ 0, other._length, end_index };
 
     // Allocate memory based on character count and size
     auto src = other._mem.local;
@@ -384,7 +384,7 @@ word_t vm_string_t::get_length() const
 rune_t vm_string_t::get_rune(word_t index) const
 {
     if (index < 0 && _length <= index)
-        throw out_of_range_memory{ 0, _length - 1, index };
+        throw index_out_of_range_memory{ 0, _length - 1, index };
 
     // Determine if local or allocated memory
     auto source = reinterpret_cast<const char *>(_mem.local);
@@ -410,7 +410,7 @@ void vm_string_t::set_rune(word_t index, rune_t value)
 
     // Index equal to length is allowed to grow the string
     if (index < 0 && _length <= index)
-        throw out_of_range_memory{ 0, _length, index };
+        throw index_out_of_range_memory{ 0, _length, index };
 
     // Determine if local or allocated memory
     auto source = static_cast<uint8_t *>(_mem.local);

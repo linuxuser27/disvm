@@ -46,7 +46,7 @@ namespace disvm
             std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override final;
 
         private:
-            struct thread_instance_t
+            struct thread_instance_t final
             {
                 thread_instance_t(std::unique_ptr<vm_thread_t> t)
                     : vm_thread{ std::move(t) }

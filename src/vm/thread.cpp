@@ -117,10 +117,9 @@ namespace
 #endif
     }
 
-    std::atomic<uint32_t> thread_id_counter(1);
-
     uint32_t get_unique_thread_id()
     {
+        static std::atomic<uint32_t> thread_id_counter{ 1 };
         return thread_id_counter.fetch_add(1);
     }
 }
@@ -206,15 +205,17 @@ vm_thread_t::vm_thread_t(
     //  Copy over the frame into this thread - pass arguments to the thread
     current_frame->copy_frame_contents(initial_frame);
 
-    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
+        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d\n", _thread_id, _parent_thread_id);
 }
 
 vm_thread_t::~vm_thread_t()
 {
-    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
+        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
 }
 
-vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, uint32_t quanta)
+vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t quanta)
 {
     _registers.current_thread_state = vm_thread_state_t::running;
     assert(_registers.pc != runtime_constants::invalid_program_counter);
@@ -236,9 +237,13 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, uint32_t quanta)
             assert(static_cast<std::size_t>(_registers.pc) < code_section.size());
 
             const auto &inst = code_section[_registers.pc].op;
+            const auto op_code = static_cast<std::size_t>(inst.opcode);
+            if (static_cast<std::size_t>(opcode_t::last_opcode) < op_code)
+                throw vm_system_exception{ "Unknown op-code" };
+
             decode_address(inst, _registers);
             _registers.pc++;
-            vm_exec_table[static_cast<std::size_t>(inst.opcode)](_registers, virtual_machine);
+            vm_exec_table[op_code](_registers, virtual_machine);
 
             if (_registers.current_thread_state != vm_thread_state_t::running)
                 break;
@@ -247,13 +252,17 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, uint32_t quanta)
     catch (const unhandled_user_exception &uue)
     {
         // [TODO] Store the exception
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "broken: vm thread: unhandled: >>%s<< %d >>%s<<\n", uue.exception_id, uue.program_counter, uue.module_name);
+        std::printf("%s - %s in %s at %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
+        _registers.current_thread_state = vm_thread_state_t::broken;
+    }
+    catch (const index_out_of_range_memory &ioor)
+    {
+        std::printf("%s - %d [%d,%d]\n", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
     catch (const vm_user_exception &ue)
     {
-        // [TODO] Store the exception
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "broken: vm thread: >>%s<<\n", ue.what());
+        std::printf("%s\n", ue.what());
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
 

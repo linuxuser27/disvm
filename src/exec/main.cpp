@@ -93,13 +93,17 @@ namespace
         if (args != nullptr)
             mp_base[2] = args->get_allocation();
 
+        // Define the frame offsets for the two arguments
+        const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset;
+        const auto second_arg_offset = first_arg_offset + vm_frame_constants::register_size_in_bytes;
+
         e.code_section =
         {
             { vm_exec_op_t
                 {
                     opcode_t::load,
                     { address_mode_t::offset_indirect_mp, 0, 0 }, // command module path
-                    { address_mode_middle_t::small_immediate, 0 },
+                    { address_mode_middle_t::small_immediate, 0 }, // import table index
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
                 }
             },
@@ -107,7 +111,7 @@ namespace
                 {
                     opcode_t::mframe,
                     { address_mode_t::offset_indirect_fp, 20, 0 }, // module reference
-                    { address_mode_middle_t::small_immediate, 0 },
+                    { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 24, 0 } // module call frame
                 }
             },
@@ -116,7 +120,7 @@ namespace
                     opcode_t::movp,
                     { address_mode_t::offset_indirect_mp, 4, 0 }, // UI context
                     { address_mode_middle_t::none },
-                    { address_mode_t::offset_double_indirect_fp, 24, 32 } // module call frame -> UI context offset
+                    { address_mode_t::offset_double_indirect_fp, 24, first_arg_offset } // module call frame -> UI context offset
                 }
             },
             { vm_exec_op_t
@@ -124,14 +128,14 @@ namespace
                     opcode_t::movp,
                     { address_mode_t::offset_indirect_mp, 8, 0 }, // Argument list
                     { address_mode_middle_t::none },
-                    { address_mode_t::offset_double_indirect_fp, 24, 36 } // module call frame -> argument list offset
+                    { address_mode_t::offset_double_indirect_fp, 24, second_arg_offset } // module call frame -> argument list offset
                 }
             },
             { vm_exec_op_t
                 {
                     opcode_t::mcall,
                     { address_mode_t::offset_indirect_fp, 24, 0 }, // module call frame
-                    { address_mode_middle_t::small_immediate, 0 },
+                    { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
                 }
             },

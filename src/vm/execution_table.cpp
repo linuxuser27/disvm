@@ -846,7 +846,7 @@ namespace
 
         auto index = vt_ref<word_t>(r.dest);
         if (index < 0 || arr->get_length() <= index)
-            throw out_of_range_memory{ 0, arr->get_length(), index };
+            throw index_out_of_range_memory{ 0, arr->get_length(), index };
 
         // Return the address, not the value
         pt_ref(r.mid) = arr->at(index);
@@ -1577,6 +1577,10 @@ namespace
 
         const auto &function_ref = target_module_ref->get_function_ref(import_function_id);
 
+        // Spawning a built-in module is not permitted
+        if (target_module_ref->is_builtin_module())
+            throw vm_user_exception{ "Spawning a built-in module is not permitted" };
+
         vm.fork(r.thread, *target_module_ref, *spawned_frame, function_ref.entry_pc);
 
         // After the new thread is forked pop off the argument passing frame.
@@ -1685,7 +1689,7 @@ namespace
         auto imported_module = std::shared_ptr<const vm_module_t>{};
 
         // Handle self loading module optimization.
-        if (::strcmp(str->str(), "$self") == 0)
+        if (std::strcmp(str->str(), "$self") == 0)
         {
             imported_module = r.module_ref->module;
         }
