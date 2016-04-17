@@ -24,22 +24,31 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
 {
     debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: start\n");
 
-    // [TODO] Handle cases of when a vm_system_exception is thrown
-
     auto current_thread = std::shared_ptr<thread_instance_t>{};
-    for (;;)
+
+    try
     {
-        current_thread = instance.next_thread(std::move(current_thread));
-        if (current_thread == nullptr)
+        for (;;)
         {
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: stop\n");
-            break;
+            current_thread = instance.next_thread(std::move(current_thread));
+            if (current_thread == nullptr)
+            {
+                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: stop\n");
+                break;
+            }
+
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
+                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: execute: %d\n", current_thread->vm_thread->get_thread_id());
+
+            current_thread->vm_thread->execute(instance._vm, instance._vm_thread_quanta);
         }
+    }
+    catch (const vm_system_exception &se)
+    {
+        std::printf("%s\n", se.what());
 
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: execute: %d\n", current_thread->vm_thread->get_thread_id());
-
-        current_thread->vm_thread->execute(instance._vm, instance._vm_thread_quanta);
+        instance._terminating = true;
+        instance._worker_event.notify_all();
     }
 }
 
@@ -67,7 +76,7 @@ default_scheduler_t::~default_scheduler_t()
         _all_vm_threads.clear();
     }
 
-    // Notify all workers
+    // Notify all worker threads
     _worker_event.notify_all();
 
     // Wait for all worker threads to finish
@@ -80,7 +89,7 @@ default_scheduler_t::~default_scheduler_t()
 bool default_scheduler_t::is_idle() const
 {
     std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-    return _running_vm_thread_count == 0 && _runnable_vm_threads.empty() && _blocked_vm_thread_ids.empty();
+    return _running_vm_thread_count == 0 && _runnable_vm_threads.empty() && _blocked_vm_thread_ids.empty() && !_terminating;
 }
 
 vm_scheduler_control_t &default_scheduler_t::get_controller() const
@@ -306,13 +315,11 @@ void default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
 
     case vm_thread_state_t::broken:
     {
-        // [TODO] What happens when a thread enters this state but no debugger is attached?
         _non_runnable_vm_thread_ids.push_front(thread_id);
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
             debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: broken: %d\n", thread_id);
 
-        assert(false && "Thread has entered broken state");
         break;
     }
 

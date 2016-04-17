@@ -252,7 +252,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t qua
     catch (const unhandled_user_exception &uue)
     {
         // [TODO] Store the exception
-        std::printf("%s - %s in %s at %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
+        std::printf("%s - %s in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
     catch (const index_out_of_range_memory &ioor)
