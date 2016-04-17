@@ -73,6 +73,9 @@ namespace
         e.header.entry_type = 0;
         e.header.runtime_flag = (runtime_flags_t::has_import);
 
+        std::array<uint8_t, 8> mod_name = { "_entry_" };
+        e.module_name = std::make_unique<vm_string_t>(mod_name.size() - 1, mod_name.data());
+
         // Inherit the stack extent from the command module and add the entry frame size.
         e.header.stack_extent = command_module->header.stack_extent + sizeof(vm_entry_frame_t);
 

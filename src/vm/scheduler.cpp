@@ -5,6 +5,7 @@
 //
 
 #include <debug.h>
+#include <sstream>
 #include <exceptions.h>
 #include "scheduler.h"
 
@@ -45,8 +46,24 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
     }
     catch (const vm_system_exception &se)
     {
-        std::printf("%s\n", se.what());
+        std::stringstream err_msg;
+        err_msg << se.what() << "\n";
 
+        if (current_thread != nullptr)
+        {
+            const auto &r = current_thread->vm_thread->get_registers();
+            walk_stack(r, [&err_msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
+            {
+                auto module_name = "<No Name>";
+                if (module_ref.module->module_name != nullptr)
+                    module_name = module_ref.module->module_name->str();
+
+                err_msg << "\t" << module_name << "@" << pc << "\n";
+                return true;
+            });
+        }
+
+        std::fprintf(stderr, "%s\n", err_msg.str().c_str());
         instance._terminating = true;
         instance._worker_event.notify_all();
     }
@@ -89,7 +106,7 @@ default_scheduler_t::~default_scheduler_t()
 bool default_scheduler_t::is_idle() const
 {
     std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-    return _running_vm_thread_count == 0 && _runnable_vm_threads.empty() && _blocked_vm_thread_ids.empty() && !_terminating;
+    return (_terminating) || (_running_vm_thread_count == 0 && _runnable_vm_threads.empty() && _blocked_vm_thread_ids.empty());
 }
 
 vm_scheduler_control_t &default_scheduler_t::get_controller() const

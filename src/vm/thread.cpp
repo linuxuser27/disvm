@@ -153,6 +153,27 @@ vm_registers_t::~vm_registers_t()
     debug::assign_debug_pointer(&module_ref);
 }
 
+void disvm::runtime::walk_stack(const vm_registers_t &r, vm_stack_walk_callback_t callback)
+{
+    assert(callback != nullptr);
+
+    auto current_pc = r.pc;
+    auto current_module = r.module_ref;
+    auto current_frame = r.stack.peek_frame();
+    while (current_frame != nullptr)
+    {
+        if (!callback(current_frame->base(), current_pc, *current_module))
+            break;
+
+        current_pc = current_frame->prev_pc();
+        auto prev_module_maybe = current_frame->prev_module_ref();
+        if (prev_module_maybe != nullptr)
+            current_module = prev_module_maybe;
+
+        current_frame = current_frame->prev_frame();
+    }
+}
+
 std::shared_ptr<const type_descriptor_t> vm_thread_t::type_desc()
 {
     return intrinsic_type_desc::type<vm_thread_t>();
@@ -252,17 +273,17 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t qua
     catch (const unhandled_user_exception &uue)
     {
         // [TODO] Store the exception
-        std::printf("%s - %s in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
+        std::fprintf(stderr, "%s - %s in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
     catch (const index_out_of_range_memory &ioor)
     {
-        std::printf("%s - %d [%d,%d]\n", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
+        std::fprintf(stderr, "%s - %d [%d,%d]\n", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
     catch (const vm_user_exception &ue)
     {
-        std::printf("%s\n", ue.what());
+        std::fprintf(stderr, "%s\n", ue.what());
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
 

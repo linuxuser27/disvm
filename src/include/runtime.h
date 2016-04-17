@@ -656,11 +656,6 @@ namespace disvm
             pointer_t fixed_point_register_2() const;
         };
 
-        // Callback for stack walk.
-        // Returning 'false' during the stack walk will terminate the walk.
-        // The second parameter is reserved for internal use by the VM and should not be manipulated.
-        using vm_stack_walk_callback_t = std::function<bool(const vm_frame_t *f, const void *reserved)>;
-
         // VM stack
         class vm_stack_t final
         {
@@ -679,10 +674,6 @@ namespace disvm
 
             // Return the current top frame.
             vm_frame_t *peek_frame() const;
-
-            // Walk the stack getting a callback for each frame.
-            // This function is __not__ thread safe.
-            void walk_stack(vm_stack_walk_callback_t callback) const;
 
         private:
             std::unique_ptr<vm_alloc_t> _mem;
@@ -740,6 +731,14 @@ namespace disvm
             pointer_t mid;
             pointer_t dest;
         };
+
+        // Callback for stack walk.
+        // Returning 'false' during the stack walk will terminate the walk.
+        using vm_stack_walk_callback_t = std::function<bool(const pointer_t frame, const vm_pc_t pc, const vm_module_ref_t &module_ref)>;
+
+        // Walk the stack getting a callback for each frame.
+        // This function is __not__ thread safe if the vm thread being walked is not stopped.
+        void walk_stack(const vm_registers_t &r, vm_stack_walk_callback_t callback);
 
         // VM thread
         class vm_thread_t final : public vm_alloc_t

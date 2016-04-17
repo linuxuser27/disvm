@@ -295,24 +295,3 @@ vm_frame_t *vm_stack_t::peek_frame() const
     auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
     return layout->top_frame;
 }
-
-void vm_stack_t::walk_stack(vm_stack_walk_callback_t callback) const
-{
-    if (callback == nullptr)
-        return;
-
-    auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
-    auto current_page = layout->top_page;
-    auto current_frame = layout->top_frame;
-
-    while (current_page != nullptr && current_frame != nullptr)
-    {
-        if (!callback(current_frame, current_page))
-            break;
-
-        current_frame = current_frame->prev_frame();
-
-        if (!current_page->contains_frame(current_frame))
-            current_page = current_page->prev_page;
-    }
-}
