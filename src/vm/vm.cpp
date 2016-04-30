@@ -80,6 +80,11 @@ vm_t::~vm_t()
     _gc.reset();
 }
 
+vm_version_t vm_t::get_version() const
+{
+    return{ 1, 0, 0, "alpha" };
+}
+
 namespace
 {
     const runtime::vm_thread_t& _exec(runtime::vm_scheduler_t &s, std::unique_ptr<runtime::vm_module_ref_t> &entry_module_ref)

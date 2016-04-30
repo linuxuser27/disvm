@@ -25,6 +25,16 @@ namespace disvm
     template <typename C>
     using create_vm_interface_callback_t = std::unique_ptr<C>(*)(vm_t &);
 
+    // VM version structure
+    // Adheres to the semantic versioning scheme found at http://semver.org/
+    struct vm_version_t final
+    {
+        const uint32_t major;
+        const uint32_t minor;
+        const uint32_t patch;
+        const char * const label; // Optional
+    };
+
     // Virtual machine
     class vm_t final
     {
@@ -41,6 +51,10 @@ namespace disvm
         ~vm_t();
 
     public:
+        // Get the VM version.
+        // All fields on the input structure will be set.
+        vm_version_t get_version() const;
+
         // Begin execution of the module at the supplied path
         const runtime::vm_thread_t& exec(const char *path);
 
