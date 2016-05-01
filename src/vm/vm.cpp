@@ -12,6 +12,7 @@
 #include <runtime.h>
 #include <exceptions.h>
 #include <builtin_module.h>
+#include <vm_version.h>
 #include "scheduler.h"
 #include "garbage_collector.h"
 
@@ -82,7 +83,7 @@ vm_t::~vm_t()
 
 vm_version_t vm_t::get_version() const
 {
-    return{ 1, 0, 0, "alpha" };
+    return{ DISVM_VERSION_MAJOR, DISVM_VERSION_MINOR, DISVM_VERSION_PATCH, DISVM_VERSION_LABEL };
 }
 
 namespace

@@ -52,7 +52,7 @@ namespace disvm
 
     public:
         // Get the VM version.
-        // All fields on the input structure will be set.
+        // All fields on the output structure will be set.
         vm_version_t get_version() const;
 
         // Begin execution of the module at the supplied path
