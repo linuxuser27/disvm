@@ -71,6 +71,10 @@ namespace disvm
         // Load the module at the supplied path into the virtual machine
         std::shared_ptr<const runtime::vm_module_t> load_module(const char *path);
 
+        // Get a collection of all currently loaded modules.
+        // Note this will only include modules that have been loaded by a call to vm_t::load_module.
+        std::vector<std::shared_ptr<const runtime::vm_module_t>> get_loaded_modules() const;
+
         // Access the scheduler control for this VM.
         runtime::vm_scheduler_control_t &get_scheduler_control() const;
 
@@ -86,7 +90,7 @@ namespace disvm
         class loaded_module_t final
         {
         public:
-            loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<const runtime::vm_module_t> module);
+            loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<runtime::vm_module_t> module);
             loaded_module_t(const loaded_module_t &) = delete;
             loaded_module_t &operator=(const loaded_module_t &) = delete;
 
@@ -97,11 +101,11 @@ namespace disvm
             std::unique_ptr<runtime::vm_string_t> origin;
 
             // Weak reference to a loaded module
-            std::weak_ptr<const runtime::vm_module_t> module;
+            std::weak_ptr<runtime::vm_module_t> module;
         };
 
         using loaded_modules_t = std::forward_list<loaded_module_t>;
-        std::mutex _modules_lock;
+        mutable std::mutex _modules_lock;
         loaded_modules_t _modules;
 
         std::unique_ptr<runtime::vm_scheduler_t> _scheduler;

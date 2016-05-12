@@ -21,7 +21,7 @@
 
 namespace disvm
 {
-    // VM forward declation
+    // Forward declaration
     class vm_t;
 
     namespace runtime
@@ -43,7 +43,7 @@ namespace disvm
         // VM memory management
         //
 
-        // VM forward declation
+        // Forward declaration
         class vm_alloc_t;
 
         // Finalizer callback for allocations.
@@ -75,7 +75,7 @@ namespace disvm
             const vm_alloc_instance_finalizer_t finalizer;
         };
 
-        // Access to type descriptors for VM intrinsic types.
+        // Access to type descriptors for VM intrinsic types
         class intrinsic_type_desc final
         {
         public:
@@ -262,7 +262,7 @@ namespace disvm
             const bool _is_alloc;
         };
 
-        // VM forward declation
+        // Forward declaration
         class vm_channel_t;
 
         // VM request mutex
@@ -299,10 +299,12 @@ namespace disvm
         public: //static
             static std::shared_ptr<const type_descriptor_t> type_desc();
 
+            using data_transfer_func_t = void(*)(pointer_t, pointer_t, const type_descriptor_t *);
+
         public:
             vm_channel_t(
                 std::shared_ptr<const type_descriptor_t> td,
-                std::function<void(pointer_t, pointer_t, const type_descriptor_t *)> transfer,
+                data_transfer_func_t transfer,
                 word_t buffer_len);
             ~vm_channel_t();
 
@@ -331,7 +333,7 @@ namespace disvm
         private:
             std::mutex _data_lock;
             std::shared_ptr<const type_descriptor_t> _data_type;
-            std::function<void(pointer_t, pointer_t, const type_descriptor_t *)> _data_transfer;
+            data_transfer_func_t _data_transfer;
 
             vm_array_t *_data_buffer;
             uint32_t _data_buffer_head; // Next element to remove from buffer
@@ -406,7 +408,7 @@ namespace disvm
         using src_data_t = inst_data_generic_t;
         using dest_data_t = inst_data_generic_t;
 
-        // VM forward declation
+        // Forward declaration
         class vm_registers_t;
 
         // Instruction execution operation
@@ -710,6 +712,7 @@ namespace disvm
 
         // Forward declaration
         class vm_thread_t;
+        class vm_tool_dispatch_t;
 
         // VM registers
         class vm_registers_t
@@ -721,6 +724,7 @@ namespace disvm
             ~vm_registers_t();
 
             const vm_thread_t &thread;
+            std::atomic<vm_tool_dispatch_t *> tool_dispatch;
             vm_stack_t stack;  // Frame pointer access (FP)
             vm_pc_t pc;  // Program counter (Index into module code section)
             vm_alloc_t *mp_base;  // Module data base pointer (MP)
@@ -752,13 +756,17 @@ namespace disvm
                 uint32_t parent_thread_id);
             vm_thread_t(
                 vm_module_ref_t &entry,
+                uint32_t parent_thread_id,
                 const vm_frame_t &initial_frame,
-                vm_pc_t start_pc,
-                uint32_t parent_thread_id);
+                vm_pc_t start_pc);
 
             ~vm_thread_t();
 
-            vm_thread_state_t execute(vm_t &virtual_machine, const uint32_t quanta);
+            vm_thread_state_t execute(vm_t &vm, const uint32_t quanta);
+
+            // There is no way to get the current dispatch value.
+            // Setting the dispatch to 'null' detaches all tool related behavior
+            void set_tool_dispatch(vm_tool_dispatch_t *dispatch);
 
             vm_thread_state_t get_state() const;
 
@@ -834,6 +842,25 @@ namespace disvm
 
         // Create a garbage collector that does nothing.
         std::unique_ptr<vm_garbage_collector_t> create_no_op_gc(vm_t &);
+
+        // Forward declaration
+        class vm_tool_controller_t;
+
+        // VM tool interface
+        // Used to implement tools (e.g. debugger or profiler)
+        class vm_tool_t
+        {
+        public:
+            virtual ~vm_tool_t() = 0;
+
+            // Called when the tool is loaded into the VM
+            virtual void on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t tool_id) = 0;
+
+            // Called when the tool is unloaded from the VM.
+            // Note once the tool has been unloaded the vm and controller references supplied during load
+            // should not be used as they may no longer be valid.
+            virtual void on_unload() = 0;
+        };
     }
 }
 

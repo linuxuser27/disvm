@@ -5,6 +5,7 @@
 //
 
 #include <debug.h>
+#include <iostream>
 #include <sstream>
 #include <exceptions.h>
 #include "scheduler.h"
@@ -52,8 +53,7 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
         if (current_thread != nullptr)
         {
             const auto &r = current_thread->vm_thread->get_registers();
-            walk_stack(r, [&err_msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
-            {
+            walk_stack(r, [&err_msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref) {
                 auto module_name = "<No Name>";
                 if (module_ref.module->module_name != nullptr)
                     module_name = module_ref.module->module_name->str();
@@ -63,7 +63,9 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
             });
         }
 
-        std::fprintf(stderr, "%s\n", err_msg.str().c_str());
+        auto err_str = err_msg.str();
+        std::cerr << err_str.c_str() << std::endl;
+
         instance._terminating = true;
         instance._worker_event.notify_all();
     }
@@ -78,6 +80,11 @@ default_scheduler_t::default_scheduler_t(vm_t &vm, uint32_t system_thread_count,
     , _vm{ vm }
     , _vm_thread_quanta{ thread_quanta }
 {
+    if (_worker_thread_count == 0)
+        throw vm_system_exception{ "Work thread count must be > 0" };
+
+    if (_vm_thread_quanta == 0)
+        throw vm_system_exception{ "Work thread quanta must be > 0" };
 }
 
 default_scheduler_t::~default_scheduler_t()

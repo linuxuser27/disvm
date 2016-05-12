@@ -33,7 +33,7 @@ namespace disvm
             // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
             std::size_t count_codepoints(const uint8_t *str, const std::size_t max_len);
 
-            enum class decode_state
+            enum class decode_state_t
             {
                 accept = 0,
                 reject = 12
@@ -41,7 +41,7 @@ namespace disvm
 
             // Decode a byte at a time to form a codepoint.
             // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-            decode_state decode_step(decode_state &state, rune_t &codepoint, uint8_t byte);
+            decode_state_t decode_step(decode_state_t &state, rune_t &codepoint, uint8_t byte);
 
             // Decode the next codepoint in the supplied string.
             // Returns number of characters in string consumed.

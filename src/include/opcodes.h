@@ -190,9 +190,12 @@ namespace disvm
         expf,
         self,
 
+        // [SPEC] Added opcode for debugging support.
+        brkpt,
+
         // markers
         first_opcode = invalid,
-        last_opcode = self
+        last_opcode = brkpt
     };
 }
 

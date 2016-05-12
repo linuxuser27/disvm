@@ -17,6 +17,7 @@
         'stack.cpp',
         'string.cpp',
         'thread.cpp',
+        'tool_dispatch.cpp',
         'utf8.cpp',
         'vm.cpp',
         'vm_memory.cpp',

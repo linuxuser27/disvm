@@ -29,7 +29,7 @@ std::shared_ptr<const type_descriptor_t> vm_channel_t::type_desc()
 
 vm_channel_t::vm_channel_t(
     std::shared_ptr<const type_descriptor_t> td,
-    std::function<void(pointer_t, pointer_t, const type_descriptor_t *)> transfer,
+    data_transfer_func_t transfer,
     word_t buffer_len)
     : vm_alloc_t(vm_channel_t::type_desc())
     , _data_buffer{ nullptr }

@@ -133,6 +133,7 @@ vm_registers_t::vm_registers_t(
     , thread{ thread }
     , pc{ entry.module->header.entry_pc }
     , stack{ entry.module->header.stack_extent }
+    , tool_dispatch{ nullptr }
     , src{ nullptr }
     , mid{ nullptr }
     , dest{ nullptr }
@@ -203,9 +204,9 @@ vm_thread_t::vm_thread_t(
 
 vm_thread_t::vm_thread_t(
     vm_module_ref_t &entry,
+    uint32_t parent_thread_id,
     const vm_frame_t &initial_frame,
-    vm_pc_t start_pc,
-    uint32_t parent_thread_id)
+    vm_pc_t start_pc)
     : vm_alloc_t(vm_thread_t::type_desc())
     , _parent_thread_id{ parent_thread_id }
     , _registers{ *this, entry }
@@ -236,7 +237,7 @@ vm_thread_t::~vm_thread_t()
         debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
 }
 
-vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t quanta)
+vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
 {
     _registers.current_thread_state = vm_thread_state_t::running;
     assert(_registers.pc != runtime_constants::invalid_program_counter);
@@ -249,7 +250,9 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t qua
         {
             if (_registers.stack.peek_frame() == nullptr)
             {
-                debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "exit: vm thread: stack exhausted: %d\n", _thread_id);
+                if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
+                    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "exit: vm thread: stack exhausted: %d\n", _thread_id);
+
                 _registers.current_thread_state = vm_thread_state_t::empty_stack;
                 break;
             }
@@ -257,14 +260,16 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t qua
             const auto &code_section = _registers.module_ref->code_section;
             assert(static_cast<std::size_t>(_registers.pc) < code_section.size());
 
+            assert(!_registers.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
             const auto &inst = code_section[_registers.pc].op;
-            const auto op_code = static_cast<std::size_t>(inst.opcode);
-            if (static_cast<std::size_t>(opcode_t::last_opcode) < op_code)
+            const auto opcode = static_cast<std::size_t>(inst.opcode);
+            if (static_cast<std::size_t>(opcode_t::last_opcode) < opcode)
                 throw vm_system_exception{ "Unknown op-code" };
 
+            // Instruction is valid, decode and update registers for operation
             decode_address(inst, _registers);
             _registers.pc++;
-            vm_exec_table[op_code](_registers, virtual_machine);
+            vm_exec_table[opcode](_registers, vm);
 
             if (_registers.current_thread_state != vm_thread_state_t::running)
                 break;
@@ -305,6 +310,12 @@ vm_thread_state_t vm_thread_t::execute(vm_t &virtual_machine, const uint32_t qua
         _registers.current_thread_state = vm_thread_state_t::ready;
 
     return _registers.current_thread_state;
+}
+
+void vm_thread_t::set_tool_dispatch(vm_tool_dispatch_t *dispatch)
+{
+    assert((_registers.tool_dispatch.load() == nullptr) != (dispatch == nullptr) && "Dispatch value should toggle between null and non-null");
+    _registers.tool_dispatch = dispatch;
 }
 
 vm_thread_state_t vm_thread_t::get_state() const

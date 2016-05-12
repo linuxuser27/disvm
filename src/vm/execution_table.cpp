@@ -18,6 +18,7 @@
 #include <exceptions.h>
 #include <debug.h>
 #include <builtin_module.h>
+#include "tool_dispatch.h"
 #include "execution_table.h"
 
 using namespace disvm;
@@ -186,7 +187,7 @@ namespace
         auto buffer = std::array<char, sizeof("–2147483648")>{};
 
         const auto w = vt_ref<word_t>(r.src);
-        const auto len = ::sprintf(buffer.data(), "%d", w);
+        const auto len = std::sprintf(buffer.data(), "%d", w);
         assert(static_cast<std::size_t>(len) <= buffer.size());
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
@@ -212,7 +213,7 @@ namespace
         auto buffer = std::array<char, sizeof("-2.2250738585072014e-308")>{};
 
         const auto real = vt_ref<real_t>(r.src);
-        const auto len = ::sprintf(buffer.data(), "%g", real);
+        const auto len = std::sprintf(buffer.data(), "%g", real);
         assert(static_cast<std::size_t>(len) <= buffer.size());
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
@@ -238,7 +239,7 @@ namespace
         auto buffer = std::array<char, sizeof("-9223372036854775808")>{};
 
         const auto b = vt_ref<big_t>(r.src);
-        const auto len = ::sprintf(buffer.data(), "%lld", b);
+        const auto len = std::sprintf(buffer.data(), "%lld", b);
         assert(static_cast<std::size_t>(len) <= buffer.size());
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
@@ -643,6 +644,7 @@ namespace
             break;
         }
 
+        assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
         r.pc = target_pc;
     }
 
@@ -1036,7 +1038,7 @@ namespace
             vm_registers_t &r,
             const vm_t &vm,
             std::shared_ptr<const type_descriptor_t> type_desc,
-            std::function<void(pointer_t, pointer_t, const type_descriptor_t *)> transfer)
+            vm_channel_t::data_transfer_func_t transfer)
         {
             auto buffer_len = word_t{ 0 };
             if (r.mid != r.dest)
@@ -1066,7 +1068,7 @@ namespace
     {
         auto memory_size = vt_ref<word_t>(r.src); 
         auto channel_data_type = type_descriptor_t::create(memory_size); 
-        
+
         _newc_(r, vm, channel_data_type, _channel_movm);
     }
 
@@ -1669,6 +1671,24 @@ namespace
         r.pc = handler_pc;
     }
 
+    // [SPEC] Added to support debugger.
+    // The actual opcode for execution can be retrieved from the tool dispatch interface.
+    // The current register state is for the real opcode, the breakpoint opcode has no inputs/outputs.
+    EXEC_DECL(brkpt)
+    {
+        auto tool_dispatch = r.tool_dispatch.load();
+        if (tool_dispatch == nullptr)
+        {
+            assert(false && "Breakpoint set but no tool dispatcher found" );
+            throw vm_system_exception{ "Breakpoint set but no tool dispatcher found" };
+        }
+
+        const auto original_op = tool_dispatch->on_breakpoint(r, vm);
+
+        // Continue execution
+        vm_exec_table[static_cast<std::size_t>(original_op)](r, vm);
+    }
+
     //
     // Module operations
     //
@@ -1895,4 +1915,5 @@ const vm_exec_t disvm::runtime::vm_exec_table[static_cast<std::size_t>(opcode_t:
     expl,
     expf,
     notimpl, // self,
+    brkpt,
 };

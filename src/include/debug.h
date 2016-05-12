@@ -24,6 +24,7 @@ namespace disvm
             stack,
             channel,
             exception,
+            tool,
             memory, // Noisy component
             addressing, // Noisy component [DEBUG build only]
 

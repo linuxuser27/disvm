@@ -292,21 +292,21 @@ Sys_byte2char(vm_registers_t &r, vm_t &vm)
     fp.ret->t1 = 0;
     fp.ret->t2 = 0;
 
-    auto state = utf8::decode_state::accept;
+    auto state = utf8::decode_state_t::accept;
     auto result = rune_t{};
     const auto buffer_len = buffer->get_length();
     for (auto i = n; i < buffer_len; ++i)
     {
         auto b = buffer->at<byte_t>(i);
         state = utf8::decode_step(state, result, b);
-        if (state == utf8::decode_state::accept)
+        if (state == utf8::decode_state_t::accept)
         {
             fp.ret->t0 = result;
             fp.ret->t1 = (i - n) + 1; // Number of bytes consumed
             fp.ret->t2 = 1;
             return;
         }
-        else if (state == utf8::decode_state::reject)
+        else if (state == utf8::decode_state_t::reject)
         {
             fp.ret->t1 = 1;
             return;

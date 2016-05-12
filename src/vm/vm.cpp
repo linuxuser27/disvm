@@ -19,7 +19,7 @@
 using namespace disvm;
 using namespace disvm::runtime;
 
-vm_t::loaded_module_t::loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<const runtime::vm_module_t> module)
+vm_t::loaded_module_t::loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<runtime::vm_module_t> module)
     : origin{ std::move(origin) }
     , module{ module }
 {
@@ -126,7 +126,7 @@ const runtime::vm_thread_t& vm_t::fork(
     if (initial_pc < 0 || static_cast<vm_pc_t>(module_ref.code_section.size()) <= initial_pc)
         throw vm_system_exception{ "Invalid entry program counter" };
 
-    auto thread = std::make_unique<vm_thread_t>(module_ref, initial_frame, initial_pc, parent.get_thread_id());
+    auto thread = std::make_unique<vm_thread_t>(module_ref, parent.get_thread_id(), initial_frame, initial_pc);
     return _scheduler->schedule_thread(std::move(thread));
 }
 
@@ -177,6 +177,21 @@ std::shared_ptr<const runtime::vm_module_t> vm_t::load_module(const char *path)
     debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
 
     return new_module;
+}
+
+std::vector<std::shared_ptr<const runtime::vm_module_t>> vm_t::get_loaded_modules() const
+{
+    auto result = std::vector<std::shared_ptr<const runtime::vm_module_t>>{};
+
+    std::lock_guard<std::mutex> lock{ _modules_lock };
+    for (auto &m : _modules)
+    {
+        auto loaded_module_maybe = m.module.lock();
+        if (loaded_module_maybe != nullptr)
+            result.push_back(loaded_module_maybe);
+    }
+
+    return result;
 }
 
 runtime::vm_scheduler_control_t &vm_t::get_scheduler_control() const

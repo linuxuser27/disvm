@@ -40,15 +40,15 @@ namespace
 }
 
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-utf8::decode_state disvm::runtime::utf8::decode_step(utf8::decode_state &state, rune_t &codepoint, uint8_t byte)
+utf8::decode_state_t disvm::runtime::utf8::decode_step(utf8::decode_state_t &state, rune_t &codepoint, uint8_t byte)
 {
     auto type = uint32_t{ utf8d[byte] };
 
-    codepoint = (state != utf8::decode_state::accept) ?
+    codepoint = (state != utf8::decode_state_t::accept) ?
         (byte & 0x3fu) | (codepoint << 6) :
         (0xff >> type) & (byte);
 
-    state = static_cast<utf8::decode_state>(utf8d[256 + static_cast<uint32_t>(state) + type]);
+    state = static_cast<utf8::decode_state_t>(utf8d[256 + static_cast<uint32_t>(state) + type]);
     return state;
 }
 
@@ -59,15 +59,15 @@ std::size_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std
     assert(str != nullptr);
     auto single_character = rune_t{};
     auto points = std::size_t{ 0 };
-    auto state = utf8::decode_state::accept;
+    auto state = utf8::decode_state_t::accept;
 
     for (auto i = std::size_t{ 0 }; i < max_len; ++i)
     {
-        if (utf8::decode_state::accept == utf8::decode_step(state, single_character, str[i]))
+        if (utf8::decode_state_t::accept == utf8::decode_step(state, single_character, str[i]))
             points++;
     }
 
-    if (state != utf8::decode_state::accept)
+    if (state != utf8::decode_state_t::accept)
         throw invalid_utf8{};
 
     return points;
@@ -76,7 +76,7 @@ std::size_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std
 std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
 {
     assert(str != nullptr);
-    auto state = utf8::decode_state::accept;
+    auto state = utf8::decode_state_t::accept;
 
     codepoint = 0;
     auto begin = str;
@@ -86,7 +86,7 @@ std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
     {
         curr++;
         state = utf8::decode_step(state, codepoint, c);
-        if (state == utf8::decode_state::accept)
+        if (state == utf8::decode_state_t::accept)
             return (curr - begin);
     }
 
