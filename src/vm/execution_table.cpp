@@ -348,68 +348,83 @@ namespace
     // Undocumented: (http://www.vitanuova.com/inferno/papers/dis.html)
     // Limbo reference: (http://www.vitanuova.com/inferno/papers/addendum.pdf)
 
+    // Fixed point identities
+    //   X = s * x
+    //   Y = t * y
+    //   Z = u * z
+    //
+    // Multiplication:
+    //   uz = sx * ty
+    //    z = (sx/u) * (ty/u)
+    //    z = (st/u) * (xy)
+    //
+    // Division:
+    //   uz = sx/ty
+    //    z = (sx/ty) * (1/u)
+    //    z = (s/tu) * (x/y)
+
     // Multiply for fixed point types with final scaling as a power of 2.
     //  mulx src1 src2 dst
-    //   src1 - integer 1
-    //   src2 - integer 2
-    //   fpr_2 - result scaling factor (2^x)
-    //   dest - result integer
+    //   src1 - integer 1 (y)
+    //   src2 - integer 2 (x)
+    //   fpr_2 - result scaling factor (2^p)
+    //   dest - result integer (z)
     EXEC_DECL(mulx)
     {
-        const auto m = big_t{ vt_ref<word_t>(r.mid) };
-        const auto s = big_t{ vt_ref<word_t>(r.src) };
-        auto result = m * s;
+        const auto x = big_t{ vt_ref<word_t>(r.mid) };
+        const auto y = big_t{ vt_ref<word_t>(r.src) };
+        auto z = x * y;
 
         const auto pow2_scale = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
         if (pow2_scale >= 0)
-            result <<= pow2_scale;
+            z <<= pow2_scale;
         else
-            result >>= (-pow2_scale);
+            z >>= (-pow2_scale);
 
-        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(z);
     }
 
     // Division for fixed point types with final scaling as a power of 2.
     //  divx src1 src2 dst
-    //   src1 - integer 1
-    //   src2 - integer 2
-    //   fpr_2 - result scaling factor (2^x)
-    //   dest - result integer
+    //   src1 - integer 1 (y)
+    //   src2 - integer 2 (x)
+    //   fpr_2 - result scaling factor (2^p)
+    //   dest - result integer (z)
     EXEC_DECL(divx)
     {
-        auto numerator = big_t{ vt_ref<word_t>(r.mid) };
+        auto x = big_t{ vt_ref<word_t>(r.mid) };
         const auto pow2_scale = *reinterpret_cast<word_t *>(r.stack.peek_frame()->fixed_point_register_2());
         if (pow2_scale >= 0)
-            numerator <<= pow2_scale;
+            x <<= pow2_scale;
         else
-            numerator >>= (-pow2_scale);
+            x >>= (-pow2_scale);
 
-        const auto denom = big_t{ vt_ref<word_t>(r.src) };
-        if (denom == 0)
+        const auto y = big_t{ vt_ref<word_t>(r.src) };
+        if (y == 0)
             throw divide_by_zero{};
 
-        const auto result = numerator / denom;
-        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+        const auto z = x / y;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(z);
     }
 
     //  mulx0 src1 src2 dst
-    //   src1 - integer 1
-    //   src2 - integer 2
+    //   src1 - integer 1 (y)
+    //   src2 - integer 2 (x)
     //   fpr_1 - residual factor
-    //   fpr_2 - result scaling factor (2^x)
-    //   dest - result integer
+    //   fpr_2 - result scaling factor (2^p)
+    //   dest - result integer (z)
     EXEC_DECL(mulx0)
     {
-        const auto m = big_t{ vt_ref<word_t>(r.mid) };
-        const auto s = big_t{ vt_ref<word_t>(r.src) };
-        auto tmp = m * s;
+        const auto x = big_t{ vt_ref<word_t>(r.mid) };
+        const auto y = big_t{ vt_ref<word_t>(r.src) };
 
-        if (m == 0 || s == 0)
+        if (x == 0 || y == 0)
         {
             vt_ref<word_t>(r.dest) = 0;
             return;
         }
 
+        auto tmp = x * y;
         const auto frame = r.stack.peek_frame();
         const auto pow2_scale = *reinterpret_cast<word_t *>(frame->fixed_point_register_2());
         if (pow2_scale >= 0)
@@ -420,24 +435,24 @@ namespace
         const auto residual_scale = big_t{ *reinterpret_cast<word_t *>(frame->fixed_point_register_1()) };
         assert(residual_scale != 0);
 
-        const auto result = tmp / residual_scale;
-        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+        const auto z = tmp / residual_scale;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(z);
     }
 
     //  divx0 src1 src2 dst
-    //   src1 - integer 1
-    //   src2 - integer 2
+    //   src1 - integer 1 (y)
+    //   src2 - integer 2 (x)
     //   fpr_1 - residual factor
-    //   fpr_2 - result scaling factor (2^x)
-    //   dest - result integer
+    //   fpr_2 - result scaling factor (2^p)
+    //   dest - result integer (z)
     EXEC_DECL(divx0)
     {
-        const auto m = big_t{ vt_ref<word_t>(r.mid) };
-        const auto s = big_t{ vt_ref<word_t>(r.src) };
-        if (s == 0)
+        const auto x = big_t{ vt_ref<word_t>(r.mid) };
+        const auto y = big_t{ vt_ref<word_t>(r.src) };
+        if (y == 0)
             throw divide_by_zero{};
 
-        if (m == 0)
+        if (x == 0)
         {
             vt_ref<word_t>(r.dest) = 0;
             return;
@@ -446,15 +461,15 @@ namespace
         const auto frame = r.stack.peek_frame();
         const auto residual_scale = big_t{ *reinterpret_cast<word_t *>(frame->fixed_point_register_1()) };
 
-        auto tmp = m * residual_scale;
+        auto tmp = x * residual_scale;
         const auto pow2_scale = *reinterpret_cast<word_t *>(frame->fixed_point_register_2());
         if (pow2_scale >= 0)
             tmp <<= pow2_scale;
         else
             tmp >>= (-pow2_scale);
 
-        const auto result = tmp / s;
-        vt_ref<word_t>(r.dest) = static_cast<word_t>(result);
+        const auto z = tmp / y;
+        vt_ref<word_t>(r.dest) = static_cast<word_t>(z);
     }
 
     //
