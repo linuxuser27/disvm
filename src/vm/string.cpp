@@ -231,7 +231,7 @@ vm_string_t::vm_string_t(const vm_string_t &s1, const vm_string_t &s2)
     , _encoded_str{ nullptr }
     , _is_alloc{ true }
     , _length{ s1._length + s2._length }
-    , _length_max{ s1._length + s2._length }
+    , _length_max{ compute_max_length(s1._length + s2._length) }
     , _mem{}
 {
     _mem.alloc = calloc_memory<uint8_t>(_length_max * _character_size);

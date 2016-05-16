@@ -68,7 +68,7 @@ namespace disvm
 
             // [SPEC] The fixed point registers are defined by their usage in the
             // Inferno implementation. They rely on the 'temp' registers defined below.
-            // See fixed point op-codes in Inferno (libinterp/xec.c).
+            // See fixed point opcodes in Inferno (libinterp/xec.c).
             static const auto fixed_point_register_1_offset = default_register_count * register_size_in_bytes;
             static const auto fixed_point_register_2_offset = fixed_point_register_1_offset + (2 * register_size_in_bytes);
 

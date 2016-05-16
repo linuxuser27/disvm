@@ -391,7 +391,7 @@ test_exceptions()
 
     s = 0;
     {
-        raise_exception_n(7, "a");
+        raise_exception_n(7, "a5");
     } exception e {
         TESTEXCEPTION =>
             (a,b) := e;
