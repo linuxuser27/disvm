@@ -40,6 +40,8 @@ namespace disvm
 
             const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) override final;
 
+            void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) override final;
+
         public: // vm_scheduler_control_t
             void enqueue_blocked_thread(uint32_t thread_id) override final;
 

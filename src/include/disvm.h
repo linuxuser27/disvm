@@ -69,11 +69,11 @@ namespace disvm
             runtime::vm_pc_t initial_pc);
 
         // Load the module at the supplied path into the virtual machine
-        std::shared_ptr<const runtime::vm_module_t> load_module(const char *path);
+        std::shared_ptr<runtime::vm_module_t> load_module(const char *path);
 
         // Get a collection of all currently loaded modules.
         // Note this will only include modules that have been loaded by a call to vm_t::load_module.
-        std::vector<std::shared_ptr<const runtime::vm_module_t>> get_loaded_modules() const;
+        std::vector<std::shared_ptr<runtime::vm_module_t>> get_loaded_modules() const;
 
         // Access the scheduler control for this VM.
         runtime::vm_scheduler_control_t &get_scheduler_control() const;
@@ -85,7 +85,15 @@ namespace disvm
         // Idle is defined as no vm threads executing, scheduled to be executed, or blocked.
         void spin_sleep_till_idle(std::chrono::milliseconds sleep_interval) const;
 
+        // Loads a tool into the VM
+        std::size_t load_tool(std::shared_ptr<runtime::vm_tool_t> tool);
+
+        // Unloads the tool associated with the supplied ID
+        void unload_tool(std::size_t tool_id);
+
     private:
+        const runtime::vm_thread_t &schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread);
+
         // Loaded module reference
         class loaded_module_t final
         {
@@ -110,6 +118,8 @@ namespace disvm
 
         std::unique_ptr<runtime::vm_scheduler_t> _scheduler;
         std::unique_ptr<runtime::vm_garbage_collector_t> _gc;
+        std::unique_ptr<runtime::vm_tool_dispatch_t> _tool_dispatch;
+        std::mutex _tool_dispatch_lock;
     };
 }
 

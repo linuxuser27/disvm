@@ -5,10 +5,10 @@
 //
 
 #include <cassert>
+#include <vector>
 #include <debug.h>
 #include <vm_tools.h>
 #include <exceptions.h>
-#include <unordered_set>
 #include <utils.h>
 #include "tool_dispatch.h"
 
@@ -88,9 +88,66 @@ std::size_t vm_tool_dispatch_t::unload_tool(std::size_t tool_id)
     return _tools.size();
 }
 
-opcode_t vm_tool_dispatch_t::on_breakpoint(vm_registers_t &r, vm_t &vm)
+opcode_t vm_tool_dispatch_t::on_breakpoint(vm_registers_t &r)
 {
-    return get_original_opcode(r.module_ref->module.get(), r.pc - 1);
+    opcode_t original_op;
+    std::size_t cookie_id;
+    std::tie(original_op, cookie_id) = get_original_opcode(r);
+
+    vm_event_context_t cxt{};
+    cxt.value1.registers = &r;
+    cxt.value2.i = cookie_id;
+
+    _events.fire_event_callbacks(vm_event_t::breakpoint, cxt);
+
+    return original_op;
+}
+
+void vm_tool_dispatch_t::on_exception_raised(vm_registers_t &r, const vm_string_t &id, vm_alloc_t &e)
+{
+    vm_event_context_t cxt{};
+    cxt.value1.registers = &r;
+    cxt.value2.str = &id;
+    cxt.value3.alloc = &e;
+
+    _events.fire_event_callbacks(vm_event_t::exception_raised, cxt);
+}
+
+void vm_tool_dispatch_t::on_exception_unhandled(vm_registers_t &r, const vm_string_t &id, vm_alloc_t &e)
+{
+    vm_event_context_t cxt{};
+    cxt.value1.registers = &r;
+    cxt.value2.str = &id;
+    cxt.value3.alloc = &e;
+
+    _events.fire_event_callbacks(vm_event_t::exception_unhandled, cxt);
+}
+
+void vm_tool_dispatch_t::on_module_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path)
+{
+    assert(m != nullptr);
+
+    vm_event_context_t cxt{};
+    cxt.value1.module = &m;
+    cxt.value2.str = &path;
+
+    _events.fire_event_callbacks(vm_event_t::module_load, cxt);
+}
+
+void vm_tool_dispatch_t::on_thread_begin(vm_thread_t &t)
+{
+    vm_event_context_t cxt{};
+    cxt.value1.thread = &t;
+
+    _events.fire_event_callbacks(vm_event_t::thread_begin, cxt);
+}
+
+void vm_tool_dispatch_t::on_thread_end(vm_thread_t &t)
+{
+    vm_event_context_t cxt{};
+    cxt.value1.thread = &t;
+
+    _events.fire_event_callbacks(vm_event_t::thread_end, cxt);
 }
 
 std::size_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t cb)
@@ -133,15 +190,13 @@ void vm_tool_dispatch_t::unsubscribe_event(std::size_t cookie_id)
         debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "unsubscribe: event: %d %d", evt, cookie_id);
 }
 
-std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<const vm_module_t> module, vm_pc_t pc)
+std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc)
 {
     if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to set breakpoint in supplied module" };
 
-    // [TODO] This should be re-considered. Removing 'const' is less than ideal.
-    // Remove the const value since the code section needs to be updated.
-    auto &code_section = const_cast<code_section_t &>(module->code_section);
-    if (pc >= code_section.size())
+    auto &code_section = module->code_section;
+    if (pc >= static_cast<vm_pc_t>(code_section.size()))
         throw vm_system_exception{ "Invalid PC for module" };
 
     const auto real_opcode = code_section[pc].op.opcode;
@@ -158,7 +213,7 @@ std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<const vm_module_t
 
         // Record the original opcode
         auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];
-        pc_map[pc] = real_opcode;
+        pc_map[pc] = std::make_pair(real_opcode, cookie_id);
 
         // Replace the current opcode with breakpoint
         code_section[pc].op.opcode = opcode_t::brkpt;
@@ -190,7 +245,7 @@ void vm_tool_dispatch_t::clear_breakpoint(std::size_t cookie_id)
     auto iter_pc = pc_map.find(target_pc);
     assert(iter_pc != pc_map.cend());
     
-    auto original_opcode = iter_pc->second;
+    auto original_opcode = iter_pc->second.first;
 
     // Replace the breakpoint opcode with the original
     auto &code_section = const_cast<code_section_t &>(mod_pc_pair.first->code_section);
@@ -211,8 +266,11 @@ void vm_tool_dispatch_t::clear_breakpoint(std::size_t cookie_id)
     _breakpoints.cookie_to_modulepc.erase(iter_cookie);
 }
 
-opcode_t vm_tool_dispatch_t::get_original_opcode(const vm_module_t *module, vm_pc_t pc)
+std::tuple<opcode_t, std::size_t> vm_tool_dispatch_t::get_original_opcode(const vm_registers_t &r)
 {
+    const auto module = r.module_ref->module.get();
+    const auto current_pc = r.pc - 1;
+
     if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to determine original opcode in supplied module" };
 
@@ -222,11 +280,30 @@ opcode_t vm_tool_dispatch_t::get_original_opcode(const vm_module_t *module, vm_p
     if (iter_orig != _breakpoints.original_opcodes.cend())
     {
         auto &pc_map = iter_orig->second;
-        auto iter_pc = pc_map.find(pc);
+        auto iter_pc = pc_map.find(current_pc);
         if (iter_pc != pc_map.cend())
             return iter_pc->second;
     }
 
     assert(false && "Why are we missing this information?");
-    return opcode_t::runt; // Return NOP instruction?
+    return std::make_tuple(opcode_t::runt, 0); // Return NOP instruction?
+}
+
+void vm_tool_dispatch_t::events_t::fire_event_callbacks(vm_event_t event_type, vm_event_context_t &cxt)
+{
+    auto event_callbacks = std::vector<vm_event_callback_t>{};
+
+    {
+        std::lock_guard<std::mutex> lock_local{ lock };
+
+        auto &event_callbacks_tmp = callbacks[event_type];
+        for (auto &c : event_callbacks_tmp)
+        {
+            assert(static_cast<bool>(c.second) && "Why is callback empty?");
+            event_callbacks.push_back(c.second);
+        }
+    }
+
+    for (auto &c : event_callbacks)
+        c(event_type, cxt);
 }

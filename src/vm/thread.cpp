@@ -13,6 +13,7 @@
 #include <vm_memory.h>
 #include <debug.h>
 #include "execution_table.h"
+#include "tool_dispatch.h"
 
 using namespace disvm;
 using namespace disvm::runtime;
@@ -254,6 +255,11 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
                     debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "exit: vm thread: stack exhausted: %d\n", _thread_id);
 
                 _registers.current_thread_state = vm_thread_state_t::empty_stack;
+
+                auto tool_dispatch = _registers.tool_dispatch.load();
+                if (tool_dispatch != nullptr)
+                    tool_dispatch->on_thread_end(*this);
+
                 break;
             }
 
@@ -278,7 +284,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
     catch (const unhandled_user_exception &uue)
     {
         // [TODO] Store the exception
-        std::fprintf(stderr, "%s - %s in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
+        std::fprintf(stderr, "%s - '%s' in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
         _registers.current_thread_state = vm_thread_state_t::broken;
     }
     catch (const index_out_of_range_memory &ioor)

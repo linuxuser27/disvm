@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <vector>
 #include <disvm.h>
 #include <vm_memory.h>
 #include <opcodes.h>
@@ -184,7 +185,7 @@ namespace
     EXEC_DECL(cvtwc)
     {
         // String represents the largest possible string from a word.
-        auto buffer = std::array<char, sizeof("–2147483648")>{};
+        auto buffer = std::array<char, sizeof("-2147483648")>{};
 
         const auto w = vt_ref<word_t>(r.src);
         const auto len = std::sprintf(buffer.data(), "%d", w);
@@ -1643,6 +1644,11 @@ namespace
                 debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<\n", exception_id->str());
         }
 
+        // Check if the tool dispatcher has been supplied
+        auto tool_dispatch = r.tool_dispatch.load();
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_exception_raised(r, *exception_id, *e);
+
         const handler_t *handler;
         vm_frame_t *target_frame;
         vm_pc_t handler_pc;
@@ -1652,6 +1658,15 @@ namespace
 
         assert(r.module_ref != nullptr);
         std::tie(handler, target_frame, handler_pc) = find_exception_handler(r.stack, *r.module_ref, faulting_pc, *exception_id);
+        if (handler == nullptr && target_frame == nullptr && handler_pc == runtime_constants::invalid_program_counter)
+        {
+            if (tool_dispatch != nullptr)
+                tool_dispatch->on_exception_unhandled(r, *exception_id, *e);
+
+            auto faulting_module_name = r.module_ref->module->module_name->str();
+            throw unhandled_user_exception{ exception_id->str(), faulting_module_name, faulting_pc };
+        }
+
         assert(target_frame != nullptr);
 
         // Now that we know the exception has a handler, take a reference.
@@ -1694,11 +1709,11 @@ namespace
         auto tool_dispatch = r.tool_dispatch.load();
         if (tool_dispatch == nullptr)
         {
-            assert(false && "Breakpoint set but no tool dispatcher found" );
-            throw vm_system_exception{ "Breakpoint set but no tool dispatcher found" };
+            assert(false && "Breakpoint set but no tool dispatcher found");
+            throw vm_system_exception{ "Breakpoint set but no tool(s) loaded" };
         }
 
-        const auto original_op = tool_dispatch->on_breakpoint(r, vm);
+        const auto original_op = tool_dispatch->on_breakpoint(r);
 
         // Continue execution
         vm_exec_table[static_cast<std::size_t>(original_op)](r, vm);

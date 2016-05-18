@@ -54,7 +54,7 @@ std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_except
         }
 
         // Decrement the frame program counter. See raise instruction for details.
-        current_pc = static_cast<word_t>(current_frame->prev_pc() - 1);
+        current_pc = current_frame->prev_pc() - 1;
 
         // Update the current module if it changes walking up the stack.
         auto prev_mod_ref = current_frame->prev_module_ref();
@@ -66,6 +66,6 @@ std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_except
         ++unwind_depth;
     }
 
-    auto faulting_module_name = faulting_module.module->module_name->str();
-    throw unhandled_user_exception{ exception_id.str(), faulting_module_name, faulting_pc };
+    // No handler found, return all invalid values.
+    return std::make_tuple(nullptr, nullptr, runtime_constants::invalid_program_counter);
 }

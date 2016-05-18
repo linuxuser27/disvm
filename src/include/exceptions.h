@@ -118,7 +118,7 @@ namespace disvm
         {
         public:
             explicit unhandled_user_exception(const char *exception_id, const char *module_name, vm_pc_t current_pc)
-                : vm_user_exception("Unhandled user exception")
+                : vm_user_exception("Unhandled exception")
                 , exception_id{ exception_id }
                 , module_name{ module_name }
                 , program_counter{ current_pc }

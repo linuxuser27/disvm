@@ -321,6 +321,8 @@ namespace disvm
             // Cancel an outstanding request from a thread.
             void cancel_request(uint32_t thread_id);
 
+            word_t get_buffer_size() const;
+
         private:
             // Try to send data into the channel buffer.
             // Returns true if data was sent to buffer, otherwise false.
@@ -682,7 +684,7 @@ namespace disvm
         };
 
         // Walk the supplied stack and faulting module find the handler, handling stack frame, and program counter for the supplied exception ID.
-        // If an exception handler cannot be found an 'unhandled_user_exception' exception will be thrown.
+        // If an exception handler cannot be found, {null, null, invalid_program_counter} will be returned.
         std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> find_exception_handler(
             const vm_stack_t &stack,
             const vm_module_ref_t &faulting_module,
@@ -814,6 +816,10 @@ namespace disvm
 
             // Schedule the supplied thread for execution
             virtual const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) = 0;
+
+            // Set tool dispatch on all threads.
+            // This is a blocking function and will not return until all current threads have been updated.
+            virtual void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) = 0;
         };
 
         // VM garbage collector interface

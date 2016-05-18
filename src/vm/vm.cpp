@@ -15,6 +15,7 @@
 #include <vm_version.h>
 #include "scheduler.h"
 #include "garbage_collector.h"
+#include "tool_dispatch.h"
 
 using namespace disvm;
 using namespace disvm::runtime;
@@ -88,7 +89,7 @@ vm_version_t vm_t::get_version() const
 
 namespace
 {
-    const runtime::vm_thread_t& _exec(runtime::vm_scheduler_t &s, std::unique_ptr<runtime::vm_module_ref_t> &entry_module_ref)
+    std::unique_ptr<runtime::vm_thread_t> _create_thread_safe(std::unique_ptr<runtime::vm_module_ref_t> &entry_module_ref)
     {
         auto thread = std::make_unique<vm_thread_t>(*entry_module_ref, vm_t::root_vm_thread_id);
 
@@ -96,7 +97,7 @@ namespace
         entry_module_ref->release(); // decrement the vm alloc ref count
         entry_module_ref.release(); // release the smart pointer
 
-        return s.schedule_thread(std::move(thread));
+        return thread;
     }
 }
 
@@ -106,7 +107,8 @@ const runtime::vm_thread_t& vm_t::exec(const char *path)
     auto entry_module = load_module(path);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(entry_module);
-    return _exec(*_scheduler, entry_module_ref);
+    auto thread = _create_thread_safe(entry_module_ref);
+    return schedule_thread(std::move(thread));
 }
 
 const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> entry_module)
@@ -114,7 +116,8 @@ const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> ent
     assert(entry_module != nullptr);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(std::move(entry_module));
-    return _exec(*_scheduler, entry_module_ref);
+    auto thread = _create_thread_safe(entry_module_ref);
+    return schedule_thread(std::move(thread));
 }
 
 const runtime::vm_thread_t& vm_t::fork(
@@ -127,10 +130,10 @@ const runtime::vm_thread_t& vm_t::fork(
         throw vm_system_exception{ "Invalid entry program counter" };
 
     auto thread = std::make_unique<vm_thread_t>(module_ref, parent.get_thread_id(), initial_frame, initial_pc);
-    return _scheduler->schedule_thread(std::move(thread));
+    return schedule_thread(std::move(thread));
 }
 
-std::shared_ptr<const runtime::vm_module_t> vm_t::load_module(const char *path)
+std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
 {
     if (path == nullptr)
         throw vm_user_exception{ "Invalid module path" };
@@ -172,6 +175,13 @@ std::shared_ptr<const runtime::vm_module_t> vm_t::load_module(const char *path)
     }
 
     auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));
+    if (_tool_dispatch != nullptr)
+    {
+        std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
+        if (_tool_dispatch != nullptr)
+            _tool_dispatch->on_module_load(new_module, *path_local);
+    }
+
     _modules.push_front(std::move(loaded_module_t{ std::move(path_local), new_module }));
 
     debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
@@ -179,9 +189,9 @@ std::shared_ptr<const runtime::vm_module_t> vm_t::load_module(const char *path)
     return new_module;
 }
 
-std::vector<std::shared_ptr<const runtime::vm_module_t>> vm_t::get_loaded_modules() const
+std::vector<std::shared_ptr<runtime::vm_module_t>> vm_t::get_loaded_modules() const
 {
-    auto result = std::vector<std::shared_ptr<const runtime::vm_module_t>>{};
+    auto result = std::vector<std::shared_ptr<runtime::vm_module_t>>{};
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
     for (auto &m : _modules)
@@ -209,4 +219,52 @@ void vm_t::spin_sleep_till_idle(std::chrono::milliseconds sleep_interval) const
     do
         std::this_thread::sleep_for(sleep_interval);
     while (!_scheduler->is_idle());
+}
+
+std::size_t vm_t::load_tool(std::shared_ptr<runtime::vm_tool_t> tool)
+{
+    std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
+
+    if (_tool_dispatch == nullptr)
+    {
+        _tool_dispatch = std::make_unique<vm_tool_dispatch_t>(*this);
+
+        // Attach to all threads
+        _scheduler->set_tool_dispatch_on_all_threads(_tool_dispatch.get());
+    }
+
+    return _tool_dispatch->load_tool(std::move(tool));
+}
+
+void vm_t::unload_tool(std::size_t tool_id)
+{
+    std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
+
+    if (_tool_dispatch == nullptr)
+        return;
+
+    const auto tool_count = _tool_dispatch->unload_tool(tool_id);
+    if (tool_count == 0)
+    {
+        // Detach from all threads
+        _scheduler->set_tool_dispatch_on_all_threads(nullptr);
+        _tool_dispatch.reset();
+    }
+}
+
+const runtime::vm_thread_t &vm_t::schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread)
+{
+    assert(thread != nullptr);
+
+    if (_tool_dispatch != nullptr)
+    {
+        std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
+        if (_tool_dispatch != nullptr)
+        {
+            _tool_dispatch->on_thread_begin(*thread);
+            thread->set_tool_dispatch(_tool_dispatch.get());
+        }
+    }
+
+    return _scheduler->schedule_thread(std::move(thread));
 }

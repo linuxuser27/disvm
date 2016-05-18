@@ -4,7 +4,8 @@
       'target_name': 'disvm-exec',
       'type': 'executable',
       'sources': [
-        'main.cpp'
+        'main.cpp',
+        'debugger.cpp'
       ],
       'configurations': {
         'Release': {

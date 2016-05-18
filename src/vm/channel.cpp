@@ -238,6 +238,14 @@ void vm_channel_t::cancel_request(uint32_t thread_id)
         debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: cancel: request: %d\n", thread_id);
 }
 
+word_t vm_channel_t::get_buffer_size() const
+{
+    if (_data_buffer == nullptr)
+        return 0;
+    else
+        return _data_buffer->get_length();
+}
+
 bool vm_channel_t::try_send_to_buffer(vm_channel_request_t &send_request)
 {
     assert(_data_buffer != nullptr);

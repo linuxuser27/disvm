@@ -155,6 +155,52 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
     return *(new_thread->vm_thread);
 }
 
+void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch)
+{
+    std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+
+    auto threads_to_set = std::queue<uint32_t>{};
+
+    // Set all threads possible and queue the rest
+    for (auto entry : _all_vm_threads)
+    {
+        auto t = entry.second->vm_thread;
+        if (!entry.second->system_thread_ownership.try_lock())
+        {
+            threads_to_set.push(t->get_thread_id());
+            continue;
+        }
+
+        t->set_tool_dispatch(dispatch);
+    }
+
+    // Loop until all threads have been set
+    auto count = threads_to_set.size();
+    while (!threads_to_set.empty())
+    {
+        if (count == 0)
+        {
+            // Reset count and sleep since all the current threads have been attempted.
+            count = threads_to_set.size();
+            std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+        }
+
+        const auto thread_id = threads_to_set.front();
+        threads_to_set.pop();
+        count--;
+
+        const auto iter = _all_vm_threads.find(thread_id);
+        assert(iter != _all_vm_threads.cend());
+        if (!iter->second->system_thread_ownership.try_lock())
+        {
+            threads_to_set.push(thread_id);
+            continue;
+        }
+
+        iter->second->vm_thread->set_tool_dispatch(dispatch);
+    }
+}
+
 void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
 {
     all_thread_map_t::iterator thread_to_enqueue;
@@ -211,13 +257,15 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
     // Check if the passed in thread should be re-enqueued
     if (prev_thread != nullptr)
     {
-        std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-        --_running_vm_thread_count;
-        auto current_state = prev_thread->vm_thread->get_state();
-
+        const auto current_state = prev_thread->vm_thread->get_state();
         // This system thread releases ownership of the vm thread
         prev_thread->system_thread_ownership.unlock();
-        enqueue_thread_unsafe(std::move(prev_thread), current_state);
+
+        {
+            std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+            --_running_vm_thread_count;
+            enqueue_thread_unsafe(std::move(prev_thread), current_state);
+        }
     }
 
     for (;;)
@@ -255,7 +303,9 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
         if (_terminating)
             return{};
 
-        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting\n");
+        if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting\n");
+
         _worker_event.wait(lock);
 
         if (_terminating)

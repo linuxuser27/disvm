@@ -8,6 +8,8 @@
 #include <atomic>
 #include <bitset>
 #include <mutex>
+#include <limits>
+#include <vector>
 #include <condition_variable>
 #include <cinttypes>
 #include <vm_memory.h>

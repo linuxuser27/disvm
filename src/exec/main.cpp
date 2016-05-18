@@ -4,12 +4,14 @@
 // Author: arr
 //
 
-#include <cstdio>
+#include <iostream>
 #include <cassert>
 #include <array>
-#include <disvm.h>
+#include <memory>
 #include <builtin_module.h>
 #include <debug.h>
+#include <exceptions.h>
+#include "exec.h"
 
 using namespace disvm;
 using namespace disvm::runtime;
@@ -26,13 +28,10 @@ namespace
 
     const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x06 };
 
-    std::shared_ptr<const runtime::vm_module_t> command_module;
+    std::shared_ptr<const vm_module_t> command_module;
 
-    std::unique_ptr<vm_module_t> create_entry_module(disvm::vm_t &vm, int argc, char* argv[])
+    std::unique_ptr<vm_module_t> create_entry_module(vm_t &vm, int argc, char* argv[])
     {
-        if (argc == 0)
-            return{};
-
         // First argument is the module to load
         auto command_module_path = new vm_string_t{ std::strlen(argv[0]), reinterpret_cast<uint8_t *>(argv[0]) };
 
@@ -168,14 +167,37 @@ namespace
 
 int main(int argc, char* argv[])
 {
-    disvm::vm_t vm;
+    // [TODO] Handle command line arguments
+    assert(argc > 1);
 
-    // Ignore the process name
-    auto entry = create_entry_module(vm, argc - 1, argv + 1);
+    vm_t vm;
 
-    vm.exec(std::move(entry));
+    //vm.load_tool(std::make_shared<debugger>());
 
-    vm.spin_sleep_till_idle(std::chrono::milliseconds(100));
+    try
+    {
+        // Ignore the process name
+        auto entry = create_entry_module(vm, argc - 1, argv + 1);
+
+        vm.exec(std::move(entry));
+
+        vm.spin_sleep_till_idle(std::chrono::milliseconds(100));
+    }
+    catch (vm_user_exception &ue)
+    {
+        std::cout << ue.what() << std::endl;
+
+        return EXIT_FAILURE;
+    }
+    catch (vm_system_exception &se)
+    {
+        std::cout
+            << "Internal exception:\n\t"
+            << se.what()
+            << std::endl;
+
+        return EXIT_FAILURE;
+    }
 
     return 0;
 }
