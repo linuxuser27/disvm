@@ -19,7 +19,7 @@ using namespace disvm::runtime;
 
 namespace
 {
-    std::string to_string_stack(vm_registers_t &r)
+    std::string stack_to_string(const vm_registers_t &r)
     {
         auto msg = std::stringstream{};
         walk_stack(r, [&msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
@@ -33,6 +33,20 @@ namespace
         });
 
         return msg.str();
+    }
+
+    std::string registers_to_string(const vm_registers_t &r)
+    {
+        auto register_string = std::stringstream{};
+
+        register_string
+            << "Registers:\n"
+            << "      Thread ID:  " << r.thread.get_thread_id() << "\n"
+            << "         Module:  " << r.module_ref->module->module_name->str() << "\n"
+            << "Program counter:  " << r.pc << "\n"
+            << "         Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
+
+        return register_string.str();
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_string_t *s)
@@ -76,81 +90,6 @@ namespace
         return ss;
     }
 
-    std::ostream& operator<<(std::ostream &ss, const inst_data_generic_t &m)
-    {
-        switch (m.mode)
-        {
-        case address_mode_t::offset_indirect_mp:
-            ss << m.register1 << "(mp)";
-            break;
-        case address_mode_t::offset_indirect_fp:
-            ss << m.register1 << "(fp)";
-            break;
-        case address_mode_t::immediate:
-            ss << "$" << m.register1;
-            break;
-        case address_mode_t::none:
-            ss << "_";
-            break;
-        case address_mode_t::offset_double_indirect_mp:
-            ss << m.register2 << "(" << m.register1 << "(mp))";
-            break;
-        case address_mode_t::offset_double_indirect_fp:
-            ss << m.register2 << "(" << m.register1 << "(fp))";
-            break;
-
-        case address_mode_t::reserved_1:
-        case address_mode_t::reserved_2:
-        default:
-            ss << "??";
-        }
-
-        return ss;
-    }
-
-    std::ostream& operator<<(std::ostream &ss, const middle_data_t &m)
-    {
-        switch (m.mode)
-        {
-        case address_mode_middle_t::none:
-            ss << "_";
-            break;
-        case address_mode_middle_t::small_immediate:
-            ss << "$" << m.register1;
-            break;
-        case address_mode_middle_t::small_offset_indirect_fp:
-            ss << m.register1 << "(fp)";
-            break;
-        case address_mode_middle_t::small_offset_indirect_mp:
-            ss << m.register1 << "(mp)";
-            break;
-        default:
-            ss << "??";
-        }
-
-        return ss;
-    }
-
-    std::ostream& operator<<(std::ostream &ss, const vm_exec_op_t &m)
-    {
-        const auto print_d = m.destination.mode != address_mode_t::none;
-        const auto print_m = print_d || m.middle.mode != address_mode_middle_t::none;
-        const auto print_s = print_m || m.source.mode != address_mode_t::none;
-
-        ss << assembly::opcode_to_token(m.opcode);
-
-        if (print_s)
-            ss << " " << m.source;
-
-        if (print_m)
-            ss << " " << m.middle;
-
-        if (print_d)
-            ss << " " << m.destination;
-
-        return ss;
-    }
-
     std::string to_string_frame_pointers(vm_registers_t &r)
     {
         auto frame = r.stack.peek_frame();
@@ -176,20 +115,6 @@ namespace
         });
 
         return frame_string.str();
-    }
-
-    std::string to_string_registers(const vm_registers_t &r)
-    {
-        auto register_string = std::stringstream{};
-
-        register_string
-            << "Registers:\n"
-            << "      Thread ID:  " << r.thread.get_thread_id() << "\n"
-            << "         Module:  " << r.module_ref->module->module_name->str() << "\n"
-            << "Program counter:  " << r.pc << "\n"
-            << "         Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
-
-        return register_string.str();
     }
 
     namespace console_modifiers
@@ -276,22 +201,13 @@ R"(Help:
             auto c = std::toupper(cmd[0], loc);
             if (c == 'R')
             {
-                auto r_str = to_string_registers(r);
-                debug_print_info(r_str);
+                auto str = registers_to_string(r);
+                debug_print_info(str);
             }
             else if (c == 'W')
             {
-                auto msg = std::stringstream{};
-                walk_stack(r, [&msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref) {
-                    auto module_name = "<No Name>";
-                    if (module_ref.module->module_name != nullptr)
-                        module_name = module_ref.module->module_name->str();
-
-                    msg << "\t" << module_name << "@" << pc << "\n";
-                    return true;
-                });
-
-                debug_print_info(msg.str());
+                auto str = stack_to_string(r);
+                debug_print_info(str);
             }
             else if (c == 'C')
             {

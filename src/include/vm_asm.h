@@ -9,6 +9,7 @@
 
 #include <iosfwd>
 #include "opcodes.h"
+#include "runtime.h"
 
 namespace disvm
 {
@@ -20,6 +21,14 @@ namespace disvm
         // Get the opcode from this string.
         // If the supplied string cannot be resolved or if it is null, the 'invalid' opcode is returned.
         disvm::opcode_t token_to_opcode(const char *);
+    }
+
+    namespace runtime
+    {
+        // Operators for printing bytecode instructions
+        std::ostream& operator<<(std::ostream &, const disvm::runtime::inst_data_generic_t &);
+        std::ostream& operator<<(std::ostream &, const disvm::runtime::middle_data_t &);
+        std::ostream& operator<<(std::ostream &, const disvm::runtime::vm_exec_op_t &);
     }
 }
 
