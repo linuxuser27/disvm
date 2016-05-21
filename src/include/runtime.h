@@ -444,6 +444,7 @@ namespace disvm
             has_handler = 1 << 5,
             has_import = 1 << 6,
 
+            // [SPEC] Added to handle built-in modules
             builtin = 1 << 7,
         };
 

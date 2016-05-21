@@ -1,6 +1,6 @@
 //
 // Dis VM
-// File: loader.cpp
+// File: module_loader.cpp
 // Author: arr
 //
 
@@ -380,7 +380,7 @@ namespace
             auto vm_module_type = modobj.type_section[module_constants::vm_module_type_desc_number];
             if (vm_module_type->size_in_bytes != modobj.header.data_size) throw module_reader_exception{ "Invalid type desc for MP" };
 
-            // The Dis VM spec does not guarantee the MP segment (i.e. data segment) of the loaded
+            // [SPEC] The Dis VM spec does not guarantee the MP segment (i.e. data segment) of the loaded
             // module will be initialized to zero, but it is the C/C++ approach so defer to that.
             modobj.original_mp.reset(vm_alloc_t::allocate(vm_module_type, vm_alloc_t::zero_memory));
         }
@@ -652,7 +652,7 @@ namespace
             // [SPEC] The operand read above contains two pieces of data.
             // The higher 16-bits represent the number of exception cases that catch exception types.
             // The lower 16-bits represent the total number of handled cases.
-            // In the limbo language strings and exceptions can be caught in an exception handler.
+            // In the limbo language, strings and exceptions can be caught in an exception handler.
             // Based on Inferno implementation libinterp/load.c.
             handler.exception_type_count = word_t{ handler_cases >> 16 };
             const auto total_count = (handler_cases & 0xffff);

@@ -11,6 +11,7 @@
 #include <vm_tools.h>
 #include <utils.h>
 #include <vm_memory.h>
+#include <vm_asm.h>
 #include "exec.h"
 
 using namespace disvm;
@@ -136,8 +137,7 @@ namespace
         const auto print_m = print_d || m.middle.mode != address_mode_middle_t::none;
         const auto print_s = print_m || m.source.mode != address_mode_t::none;
 
-        // [TODO] Convert the opcode value to a string
-        ss << static_cast<uint32_t>(m.opcode);
+        ss << assembly::opcode_to_token(m.opcode);
 
         if (print_s)
             ss << " " << m.source;
@@ -246,15 +246,20 @@ namespace
 R"(Help:
     c C - continue
     r R - print registers
-    w W - stack walk
+    w W - print stack
      ?  - help
 )";
 
     void prompt(const vm_registers_t &r)
     {
+        std::cout
+            << console_modifiers::green_font
+            << console_modifiers::bold
+            << "'?' for help\n"
+            << console_modifiers::reset_all;
+
         std::locale loc;
         std::string cmd;
-
         for (;;)
         {
             std::cout

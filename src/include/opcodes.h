@@ -7,8 +7,6 @@
 #ifndef _DISVM_SRC_INCLUDE_OPCODES_H_
 #define _DISVM_SRC_INCLUDE_OPCODES_H_
 
-#include <cstdint>
-
 namespace disvm
 {
     // Instruction codes for the Dis VM
