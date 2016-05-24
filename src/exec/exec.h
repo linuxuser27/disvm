@@ -19,6 +19,7 @@ public: // vm_tool_t
     void on_unload();
 
 private:
+    disvm::vm_t *_vm;
     std::size_t _tool_id;
     disvm::runtime::vm_tool_controller_t *_controller;
     std::vector<std::size_t> _event_cookies;
