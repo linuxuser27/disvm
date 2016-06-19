@@ -166,6 +166,7 @@ namespace disvm
             // Returns this string.
             vm_string_t &append(const vm_string_t &other);
 
+            // Returns the character length of the string.
             word_t get_length() const;
 
             rune_t get_rune(word_t index) const;

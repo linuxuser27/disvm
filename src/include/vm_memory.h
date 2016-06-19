@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <cassert>
+#include <limits>
 #include <mutex>
 #include <memory>
 #include <bitset>
@@ -89,7 +90,7 @@ namespace disvm
                 {
                     const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
 
-                    // Enumerating the flags in reverse order so memory access is linear.
+                    // Enumerating the flags in reverse order so memory access is sequential.
                     if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]));
                     if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]));
                     if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]));
@@ -100,6 +101,30 @@ namespace disvm
                     if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]));
                 }
             }
+        }
+
+        // Check if a specific pointer-sized offset in a type represents a pointer
+        inline bool is_offset_pointer(const type_descriptor_t &type_desc, std::size_t offset)
+        {
+            if (type_desc.size_in_bytes == 0)
+                return false;
+
+            assert(offset < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
+            const auto byte_offset = static_cast<word_t>(offset / 8);
+
+            // Highest order bit is the first field
+            const auto bit_offset = 7 - (offset % 8);
+            if (byte_offset < type_desc.map_in_bytes)
+            {
+                const auto words8 = type_desc.pointer_map[byte_offset];
+                if (words8 != 0)
+                {
+                    const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+                    return flags[bit_offset];
+                }
+            }
+
+            return false;
         }
     }
 }

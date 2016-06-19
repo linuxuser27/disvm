@@ -73,8 +73,26 @@ namespace
             << "\n";
     }
 
+    // Debug command context
+    struct dbg_cmd_cxt_t
+    {
+        dbg_cmd_cxt_t(const vm_t &v, const vm_registers_t &r)
+            : initial_register{ r }
+            , exit_break{ false }
+            , vm{ v }
+        {
+            current_register = &initial_register;
+        }
+
+        bool exit_break;
+
+        const vm_t &vm;
+        const vm_registers_t *current_register;
+        const vm_registers_t &initial_register;
+    };
+
     // Debug command exec operation
-    using dbg_cmd_exec_t = bool(*)(const std::vector<std::string> &, const vm_t &, const vm_registers_t &);
+    using dbg_cmd_exec_t = void(*)(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt);
 
     // Debug command
     struct dbg_cmd_t
@@ -118,9 +136,49 @@ namespace
 
     std::ostream& operator<<(std::ostream &ss, const vm_string_t *s)
     {
+        auto escaped_string = std::stringstream{};
+        auto str = s->str();
+        if (str != nullptr)
+        {
+            while (*str != '\0')
+            {
+                switch (*str)
+                {
+                case '\\':
+                    escaped_string << "\\\\";
+                    break;
+                case '\a':
+                    escaped_string << "\\a";
+                    break;
+                case '\b':
+                    escaped_string << "\\b";
+                    break;
+                case '\f':
+                    escaped_string << "\\f";
+                    break;
+                case '\n':
+                    escaped_string << "\\n";
+                    break;
+                case '\r':
+                    escaped_string << "\\r";
+                    break;
+                case '\t':
+                    escaped_string << "\\t";
+                    break;
+                case '\v':
+                    escaped_string << "\\v";
+                    break;
+                default:
+                    escaped_string << *str;
+                }
+
+                str++;
+            }
+        }
+
         ss << "string\n"
            << "\tlength:  " << s->get_length() << "\n"
-           << "\tvalue:   " << s->str() << "\n";
+           << "\tvalue:   \"" << escaped_string.str() << "\"\n";
 
         return ss;
     }
@@ -149,10 +207,33 @@ namespace
             return ss;
     }
 
-    std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *a)
+    std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
     {
-        ss << "alloc\n"
-           << "\tsize:  " << a->alloc_type->size_in_bytes << "\n";
+        if (alloc == nullptr)
+        {
+            ss << "<nil>";
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_string_t>(alloc->get_allocation());
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_array_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_array_t>(alloc->get_allocation());
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_list_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_list_t>(alloc->get_allocation());
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_channel_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_channel_t>(alloc->get_allocation());
+        }
+        else
+        {
+            ss << "alloc\n"
+                << "\tsize:  " << alloc->alloc_type->size_in_bytes << "\n";
+        }
 
         return ss;
     }
@@ -210,72 +291,54 @@ namespace
         auto frame_string = std::stringstream{};
         enum_pointer_fields(*frame->frame_type, frame->base(), [&frame_string](pointer_t p)
         {
-            frame_string << std::showbase << std::hex << reinterpret_cast<uintptr_t>(p) << " : " << std::dec;
-
-            auto alloc = vm_alloc_t::from_allocation(p);
-            if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
-                frame_string << vm_alloc_t::from_allocation<vm_string_t>(p);
-            else if (alloc->alloc_type == intrinsic_type_desc::type<vm_array_t>())
-                frame_string << vm_alloc_t::from_allocation<vm_array_t>(p);
-            else if (alloc->alloc_type == intrinsic_type_desc::type<vm_list_t>())
-                frame_string << vm_alloc_t::from_allocation<vm_list_t>(p);
-            else if (alloc->alloc_type == intrinsic_type_desc::type<vm_channel_t>())
-                frame_string << vm_alloc_t::from_allocation<vm_channel_t>(p);
-            else
-                frame_string << alloc;
+            frame_string << std::showbase << std::hex << reinterpret_cast<uintptr_t>(p) << " : " << std::dec << vm_alloc_t::from_allocation(p);
         });
 
         return frame_string.str();
     }
 
-    bool cmd_continue(const std::vector<std::string> &, const vm_t &, const vm_registers_t &)
+    void cmd_continue(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
-        return false;
+        cxt.exit_break = true;
     }
 
-    bool cmd_print_registers(const std::vector<std::string> &, const vm_t &, const vm_registers_t &r)
+    void cmd_print_registers(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
-        auto s = registers_to_string(r);
+        auto s = registers_to_string(*cxt.current_register);
         debug_print_info(s);
-
-        return true;
     }
 
-    bool cmd_print_threads(const std::vector<std::string> &, const vm_t &vm, const vm_registers_t &)
+    void cmd_print_threads(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         auto msg = std::stringstream{};
         msg << "Threads:\n";
-        for (auto t : vm.get_scheduler_control().get_all_threads())
+        for (auto t : cxt.vm.get_scheduler_control().get_all_threads())
             msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_state() << "\n";
 
         debug_print_info(msg.str());
-
-        return true;
     }
 
-    bool cmd_print_modules(const std::vector<std::string> &, const vm_t &vm, const vm_registers_t &)
+    void cmd_print_modules(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         auto msg = std::stringstream{};
         msg << "Modules:\n";
-        for (auto m : vm.get_loaded_modules())
+        for (auto m : cxt.vm.get_loaded_modules())
             msg << "  " << m->module_name->str() << "\n";
 
         debug_print_info(msg.str());
-
-        return true;
     }
 
-    bool cmd_stacktrace(const std::vector<std::string> &a, const vm_t &vm, const vm_registers_t &r)
+    void cmd_stacktrace(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         auto thread_registers = std::map<uint32_t, const vm_registers_t*>{};
         if (a.size() == 1)
         {
-            thread_registers[r.thread.get_thread_id()] = &r;
+            thread_registers[cxt.current_register->thread.get_thread_id()] = cxt.current_register;
         }
         else
         {
             uint32_t thread_id;
-            auto all_threads = vm.get_scheduler_control().get_all_threads();
+            auto all_threads = cxt.vm.get_scheduler_control().get_all_threads();
             if (a[1].compare("*") == 0)
             {
                 thread_id = 0;
@@ -289,7 +352,7 @@ namespace
                 catch (...)
                 {
                     debug_print_error("Invalid thread ID format");
-                    return true;
+                    return;
                 }
             }
 
@@ -311,7 +374,7 @@ namespace
         if (thread_registers.empty())
         {
             debug_print_error("Unknown thread ID");
-            return true;
+            return;
         }
 
         auto msg = std::stringstream{};
@@ -323,19 +386,14 @@ namespace
         }
 
         debug_print_info(msg.str());
-
-        return true;
     }
 
-    // Forward declaration
-    void prompt(const vm_t &, const vm_registers_t &);
-
-    bool cmd_switchthread(const std::vector<std::string> &a, const vm_t &vm, const vm_registers_t &r)
+    void cmd_switchthread(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         if (a.size() == 1)
         {
             debug_print_error("Must supply a target thread ID");
-            return true;
+            return;
         }
 
         uint32_t thread_id;
@@ -346,10 +404,10 @@ namespace
         catch (...)
         {
             debug_print_error("Invalid thread ID format");
-            return true;
+            return;
         }
 
-        auto all_threads = vm.get_scheduler_control().get_all_threads();
+        auto all_threads = cxt.vm.get_scheduler_control().get_all_threads();
 
         // Find the thread
         for (auto t : all_threads)
@@ -357,18 +415,15 @@ namespace
             const auto tid = t->get_thread_id();
             if (tid == thread_id)
             {
-                prompt(vm, t->get_registers());
-
-                // If we are returning from a thread switch we are not continuing, so return false to indicate as such.
-                return false;
+                cxt.current_register = &t->get_registers();
+                return;
             }
         }
 
         debug_print_error("Unknown thread ID");
-        return true;
     }
 
-    bool cmd_disassemble(const std::vector<std::string> &a, const vm_t &, const vm_registers_t &r)
+    void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         auto disassemble_length = 1;
         if (a.size() > 1)
@@ -380,10 +435,11 @@ namespace
             catch (...)
             {
                 debug_print_error("Invalid disassemble count format");
-                return true;
+                return;
             }
         }
 
+        const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
         auto begin_index = static_cast<std::size_t>(r.pc);
@@ -404,21 +460,122 @@ namespace
             msg << "  " << std::setw(5) << i << ": " << code_section[i].op << "\n";
 
         debug_print_info(msg.str());
+    }
 
-        return true;
+    void cmd_examine(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
+    {
+        if (a.size() < 3)
+        {
+            debug_print_error("Invalid number of arguments");
+            return;
+        }
+
+        std::shared_ptr<const type_descriptor_t> base_type;
+        word_t *base_pointer;
+        auto &base_ptr_id = a[1];
+        if (base_ptr_id.compare("mp") == 0)
+        {
+            base_type = cxt.current_register->mp_base->alloc_type;
+            base_pointer = reinterpret_cast<word_t *>(cxt.current_register->mp_base->get_allocation());
+        }
+        else if (base_ptr_id.compare("fp") == 0)
+        {
+            auto frame = cxt.current_register->stack.peek_frame();
+            if (frame == nullptr)
+            {
+                debug_print_error("Invalid frame pointer ");
+                return;
+            }
+
+            base_type = frame->frame_type;
+            base_pointer = reinterpret_cast<word_t *>(frame->base());
+        }
+        else
+        {
+            debug_print_error("Invalid memory base pointer");
+            return;
+        }
+
+        assert(base_type != nullptr && base_pointer != nullptr);
+
+        const auto pointer_size = static_cast<int>(sizeof(pointer_t));
+        auto byte_offset1 = int{ 0 };
+        auto byte_offset2 = int{ -1 };
+        try
+        {
+            byte_offset1 = std::stoi(a[2]);
+
+            // The 4th argument is optional
+            if (a.size() >= 4)
+                byte_offset2 = std::stoi(a[3]);
+        }
+        catch (...)
+        {
+            debug_print_error("Invalid memory offset format");
+            return;
+        }
+
+        if (0 > byte_offset1 || byte_offset1 >= base_type->size_in_bytes)
+        {
+            debug_print_error("First offset out of range");
+            return;
+        }
+
+        auto msg = std::stringstream{};
+        if (byte_offset2 != -1)
+            msg << "  " << byte_offset2 << "(" << byte_offset1 << "(" << a[1] << ")):\n";
+        else
+            msg << "  " << byte_offset1 << "(" << a[1] << "):\n";
+
+        auto value_is_pointer = bool{ false };
+        const auto pointer_offset1 = byte_offset1 / pointer_size;
+        auto value_to_examine = reinterpret_cast<pointer_t>(base_pointer[pointer_offset1]);
+        if (runtime::is_offset_pointer(*base_type, pointer_offset1))
+        {
+            value_is_pointer = true;
+            auto alloc_to_examine = vm_alloc_t::from_allocation(value_to_examine);
+            if (byte_offset2 != -1)
+            {
+                if (alloc_to_examine == nullptr)
+                {
+                    debug_print_error("First offset is nil");
+                    return;
+                }
+
+                if (0 > byte_offset2 || byte_offset2 >= alloc_to_examine->alloc_type->size_in_bytes)
+                {
+                    debug_print_error("Second offset out of range");
+                    return;
+                }
+
+                // Update data pointer for 2nd indirection
+                base_pointer = reinterpret_cast<word_t *>(alloc_to_examine->get_allocation());
+                base_type = alloc_to_examine->alloc_type;
+
+                const auto pointer_offset2 = byte_offset2 / pointer_size;
+                value_to_examine = reinterpret_cast<pointer_t>(base_pointer[pointer_offset2]);
+                value_is_pointer = runtime::is_offset_pointer(*base_type, pointer_offset2);
+            }
+        }
+
+        if (value_is_pointer)
+            msg << "  " << vm_alloc_t::from_allocation(value_to_examine);
+        else
+            msg << "  " << std::setw(8) << std::showbase << std::hex << value_to_examine << std::dec;
+
+        debug_print_info(msg.str());
     }
 
     // Forward declaration
     void print_help();
 
-    bool cmd_help(const std::vector<std::string> &, const vm_t &, const vm_registers_t &)
+    void cmd_help(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
         print_help();
-        return true;
     }
 
-    // Easter egg
-    bool cmd_tlk_tilde_star(const std::vector<std::string> &, const vm_t &, const vm_registers_t &)
+    // ee
+    void cmd_tlk_tilde_star(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
         std::cout
             << console_modifiers::black_font
@@ -460,8 +617,6 @@ namespace
             << console_modifiers::bold
             << "!\n"
             << console_modifiers::reset_all;
-
-        return true;
     }
 
     const dbg_cmd_t cmds[] =
@@ -473,7 +628,10 @@ namespace
         { "sw", "Stack walk/back trace", "bt ([0-9]+|\\*)?", "bt, bt 34, bt *", cmd_stacktrace },
         { "st", "Switch to thread", "st [0-9]+", "st 42", cmd_switchthread },
         { "d", "Disassemble the next/previous N instructions", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
+        { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
         { "?", "Print help", nullptr, nullptr, cmd_help },
+
+        // Undocumented commands
         { "tlk~*", nullptr, nullptr, nullptr, cmd_tlk_tilde_star }
     };
 
@@ -548,12 +706,14 @@ namespace
 
         std::locale loc;
         std::string cmd;
+
+        dbg_cmd_cxt_t cxt{ vm, r };
         for (;;)
         {
             std::cout
                 << console_modifiers::green_font
                 << console_modifiers::bold
-                << r.thread.get_thread_id()
+                << cxt.current_register->thread.get_thread_id()
                 << " >>> "
                 << console_modifiers::reset_all;
 
@@ -566,16 +726,15 @@ namespace
                 continue;
 
             auto cmd_exec = find_cmd(cmd_tokens[0]);
-            if (cmd_exec != nullptr)
+            if (cmd_exec == nullptr)
             {
-                if (!cmd_exec(cmd_tokens, vm, r))
-                    break;
+                debug_print_error("Unknown command. '?' for help.");
+                continue;
             }
-            else
-            {
-                debug_print_error("Unknown command");
-                print_help();
-            }
+
+            cmd_exec(cmd_tokens, cxt);
+            if (cxt.exit_break)
+                break;
         }
     }
 }
