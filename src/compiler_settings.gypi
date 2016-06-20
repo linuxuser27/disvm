@@ -15,6 +15,9 @@
             'VCCLCompilerTool': {
               'ExceptionHandling': 1,
               'Optimization': 3, # Full optimizations
+              'PreprocessorDefinitions':  [
+                'NDEBUG'
+              ]
             }
           }
         },
