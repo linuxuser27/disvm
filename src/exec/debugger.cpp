@@ -322,8 +322,15 @@ namespace
     {
         auto msg = std::stringstream{};
         msg << "Modules:\n";
-        for (auto m : cxt.vm.get_loaded_modules())
-            msg << "  " << m->module_name->str() << "\n";
+
+        cxt.vm.enum_loaded_modules([&msg](const loaded_vm_module_t &m)
+        {
+            auto module_instance = m.module.lock();
+            if (module_instance == nullptr)
+                return;
+
+            msg << std::setw(24) <<  module_instance->module_name->str() << std::setw(0) << "    " << m.origin->str() << "\n";
+        });
 
         debug_print_info(msg.str());
     }
@@ -625,7 +632,7 @@ namespace
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
         { "t", "Print all threads", nullptr, nullptr, cmd_print_threads },
         { "m", "Print all loaded modules", nullptr, nullptr, cmd_print_modules },
-        { "sw", "Stack walk/back trace", "bt ([0-9]+|\\*)?", "bt, bt 34, bt *", cmd_stacktrace },
+        { "bt", "Stack walk/back trace for the current or supplied thread", "bt ([0-9]+|\\*)?", "bt, bt 34, bt *", cmd_stacktrace },
         { "st", "Switch to thread", "st [0-9]+", "st 42", cmd_switchthread },
         { "d", "Disassemble the next/previous N instructions", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },

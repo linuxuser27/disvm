@@ -422,7 +422,9 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             free_memory(const_cast<byte_t *>(td->pointer_map));
             debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
 
-            debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: type descriptor\n");
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: type descriptor\n");
+
             free_memory(td);
         }
     } deleter;
@@ -451,5 +453,6 @@ type_descriptor_t::type_descriptor_t(
     , pointer_map{ pointer_map }
     , finalizer{ finalizer }
 {
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor\n");
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor\n");
 }

@@ -35,6 +35,19 @@ namespace disvm
         const char * const label; // Optional
     };
 
+    // Loaded module reference
+    class loaded_vm_module_t final
+    {
+    public:
+        // Origin of module
+        std::unique_ptr<runtime::vm_string_t> origin;
+
+        // Weak reference to a loaded module
+        std::weak_ptr<runtime::vm_module_t> module;
+    };
+
+    using loaded_vm_module_callback_t = std::function<void(const loaded_vm_module_t&)>;
+
     // Virtual machine
     class vm_t final
     {
@@ -71,9 +84,11 @@ namespace disvm
         // Load the module at the supplied path into the virtual machine
         std::shared_ptr<runtime::vm_module_t> load_module(const char *path);
 
-        // Get a collection of all currently loaded modules.
-        // Note this will only include modules that have been loaded by a call to vm_t::load_module.
-        std::vector<std::shared_ptr<runtime::vm_module_t>> get_loaded_modules() const;
+        // Enumerate all loaded modules - this can include references to modules that
+        // have been unloaded due to no longer being used. If the module instance is null, the
+        // module is no longer loaded.
+        // Note this will only enumerate modules that have been loaded by a call to vm_t::load_module.
+        void enum_loaded_modules(loaded_vm_module_callback_t callback) const;
 
         // Access the scheduler control for this VM.
         runtime::vm_scheduler_control_t &get_scheduler_control() const;
@@ -94,25 +109,7 @@ namespace disvm
     private:
         const runtime::vm_thread_t &schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread);
 
-        // Loaded module reference
-        class loaded_module_t final
-        {
-        public:
-            loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<runtime::vm_module_t> module);
-            loaded_module_t(const loaded_module_t &) = delete;
-            loaded_module_t &operator=(const loaded_module_t &) = delete;
-
-            loaded_module_t(loaded_module_t &&);
-            ~loaded_module_t();
-
-            // Origin of module
-            std::unique_ptr<runtime::vm_string_t> origin;
-
-            // Weak reference to a loaded module
-            std::weak_ptr<runtime::vm_module_t> module;
-        };
-
-        using loaded_modules_t = std::forward_list<loaded_module_t>;
+        using loaded_modules_t = std::forward_list<loaded_vm_module_t>;
         mutable std::mutex _modules_lock;
         loaded_modules_t _modules;
 

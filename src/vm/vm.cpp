@@ -20,25 +20,6 @@
 using namespace disvm;
 using namespace disvm::runtime;
 
-vm_t::loaded_module_t::loaded_module_t(std::unique_ptr<runtime::vm_string_t> origin, std::shared_ptr<runtime::vm_module_t> module)
-    : origin{ std::move(origin) }
-    , module{ module }
-{
-    assert(this->origin != nullptr);
-}
-
-vm_t::loaded_module_t::loaded_module_t(loaded_module_t &&other)
-    : origin{ std::move(other.origin) }
-    , module{ std::move(other.module) }
-{
-}
-
-vm_t::loaded_module_t::~loaded_module_t()
-{
-    if (origin != nullptr)
-        origin->release();
-}
-
 vm_t::vm_t(
     create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler,
     create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc)
@@ -80,6 +61,13 @@ vm_t::~vm_t()
     // Release the scheduler first since it could be using the gc instance.
     _scheduler.reset();
     _gc.reset();
+
+    std::lock_guard<std::mutex> lock{ _modules_lock };
+    for (auto &m : _modules)
+    {
+        if (m.origin != nullptr)
+            m.origin->release();
+    }
 }
 
 vm_version_t vm_t::get_version() const
@@ -139,7 +127,7 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
         throw vm_user_exception{ "Invalid module path" };
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
-    
+
     // Check if the module is already loaded.
     auto iter = std::begin(_modules);
     while (iter != std::end(_modules))
@@ -182,26 +170,21 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
             _tool_dispatch->on_module_load(new_module, *path_local);
     }
 
-    _modules.push_front(std::move(loaded_module_t{ std::move(path_local), new_module }));
+    _modules.push_front(std::move(loaded_vm_module_t{ std::move(path_local), new_module }));
 
     debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
 
     return new_module;
 }
 
-std::vector<std::shared_ptr<runtime::vm_module_t>> vm_t::get_loaded_modules() const
+void vm_t::enum_loaded_modules(loaded_vm_module_callback_t callback) const
 {
-    auto result = std::vector<std::shared_ptr<runtime::vm_module_t>>{};
+    if (callback == nullptr)
+        throw vm_system_exception{ "Callback should not be null" };
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
     for (auto &m : _modules)
-    {
-        auto loaded_module_maybe = m.module.lock();
-        if (loaded_module_maybe != nullptr)
-            result.push_back(loaded_module_maybe);
-    }
-
-    return result;
+        callback(m);
 }
 
 runtime::vm_scheduler_control_t &vm_t::get_scheduler_control() const
