@@ -481,7 +481,7 @@ namespace
                 if (arr_maybe->alloc_type != vm_array_t::type_desc())
                     throw module_reader_exception{ "Data index not an array type" };
 
-                auto arr = dynamic_cast<vm_array_t *>(arr_maybe);
+                auto arr = static_cast<vm_array_t *>(arr_maybe);
 
                 auto array_index = word_t{};
                 std::tie(success, array_index) = read_next_word(reader);

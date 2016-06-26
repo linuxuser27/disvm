@@ -107,7 +107,7 @@ namespace disvm
             {
                 auto alloc_inst = vm_alloc_t::from_allocation(allocation);
                 assert(alloc_inst == nullptr || alloc_inst->alloc_type == intrinsic_type_desc::type<T>());
-                return dynamic_cast<T *>(alloc_inst);
+                return static_cast<T *>(alloc_inst);
             }
 
         protected:
@@ -199,9 +199,9 @@ namespace disvm
             static std::shared_ptr<const type_descriptor_t> type_desc();
 
         public:
-            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count);
-            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count, const zero_memory_t&);
-            vm_array_t(vm_array_t *original, word_t begin_index, word_t count);
+            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length);
+            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&);
+            vm_array_t(vm_array_t *original, word_t begin_index, word_t length);
             vm_array_t(const vm_string_t *s);
             ~vm_array_t();
 

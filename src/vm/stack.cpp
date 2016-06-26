@@ -203,7 +203,7 @@ vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> fra
     assert(frame_type != nullptr);
     assert(sizeof(vm_frame_base_alloc_t) < frame_type->size_in_bytes && "Requested frame size less than VM frame base size");
 
-    auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
+    auto layout = static_cast<vm_stack_layout *>(_mem.get());
 
     auto page_top_frame = layout->top_page->page_top_frame;
     const auto new_frame_size = sizeof(vm_frame_t) + frame_type->size_in_bytes;
@@ -236,7 +236,7 @@ vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> fra
 
 vm_frame_t *vm_stack_t::push_frame()
 {
-    auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
+    auto layout = static_cast<vm_stack_layout *>(_mem.get());
 
     auto current_top_frame = layout->top_frame;
     auto new_top_frame = layout->top_page->page_top_frame;
@@ -252,7 +252,7 @@ vm_frame_t *vm_stack_t::push_frame()
 
 vm_frame_t *vm_stack_t::pop_frame()
 {
-    auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
+    auto layout = static_cast<vm_stack_layout *>(_mem.get());
 
     auto current_frame = layout->top_frame;
     if (current_frame == nullptr)
@@ -292,6 +292,6 @@ vm_frame_t *vm_stack_t::pop_frame()
 
 vm_frame_t *vm_stack_t::peek_frame() const
 {
-    auto layout = dynamic_cast<vm_stack_layout *>(_mem.get());
+    auto layout = static_cast<vm_stack_layout *>(_mem.get());
     return layout->top_frame;
 }

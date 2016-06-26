@@ -66,8 +66,22 @@ namespace
     EXEC_DECL(shlw) { vt_ref<word_t>(r.dest) = vt_ref<word_t>(r.mid) << vt_ref<word_t>(r.src); }
     EXEC_DECL(shll) { vt_ref<big_t>(r.dest) = vt_ref<big_t>(r.mid) << vt_ref<big_t>(r.src); }
     EXEC_DECL(shrb) { vt_ref<byte_t>(r.dest) = vt_ref<byte_t>(r.mid) >> vt_ref<byte_t>(r.src); }
-    EXEC_DECL(shrw) { vt_ref<word_t>(r.dest) = vt_ref<word_t>(r.mid) >> vt_ref<word_t>(r.src); }
-    EXEC_DECL(shrl) { vt_ref<big_t>(r.dest) = vt_ref<big_t>(r.mid) >> vt_ref<big_t>(r.src); }
+    EXEC_DECL(shrw)
+    {
+        vt_ref<word_t>(r.dest) = vt_ref<word_t>(r.mid) >> vt_ref<word_t>(r.src);
+        // Right shifting a negative number is implementation dependent in C++.
+        // Assert the current compiler defaults to arithmetic shifting, not logical.
+        assert(vt_ref<word_t>(r.mid) >= 0 || (vt_ref<word_t>(r.mid) < 0 && vt_ref<word_t>(r.dest) < 0));
+    }
+
+    EXEC_DECL(shrl)
+    {
+        vt_ref<big_t>(r.dest) = vt_ref<big_t>(r.mid) >> vt_ref<big_t>(r.src);
+        // Right shifting a negative number is implementation dependent in C++.
+        // Assert the current compiler defaults to arithmetic shifting, not logical.
+        assert(vt_ref<word_t>(r.mid) >= 0 || (vt_ref<word_t>(r.mid) < 0 && vt_ref<word_t>(r.dest) < 0));
+    }
+
     EXEC_DECL(lsrw) { vt_ref<word_t>(r.dest) = vt_ref<uword_t>(r.mid) >> vt_ref<word_t>(r.src); }
     EXEC_DECL(lsrl) { vt_ref<big_t>(r.dest) = vt_ref<ubig_t>(r.mid) >> vt_ref<big_t>(r.src); }
 
@@ -75,14 +89,14 @@ namespace
     // Conversion operations
     //
 
-    EXEC_DECL(cvtbw) { vt_ref<word_t>(r.dest) = std::numeric_limits<byte_t>::max() & vt_ref<byte_t>(r.src); }
-    EXEC_DECL(cvtwb) { vt_ref<byte_t>(r.dest) = std::numeric_limits<byte_t>::max() & vt_ref<word_t>(r.src); }
-    EXEC_DECL(cvtwl) { vt_ref<big_t>(r.dest) = std::numeric_limits<word_t>::max() & vt_ref<word_t>(r.src); }
-    EXEC_DECL(cvtlw) { vt_ref<word_t>(r.dest) = std::numeric_limits<word_t>::max() & vt_ref<big_t>(r.src); }
+    EXEC_DECL(cvtbw) { vt_ref<word_t>(r.dest) = vt_ref<byte_t>(r.src); }
+    EXEC_DECL(cvtwb) { vt_ref<byte_t>(r.dest) = vt_ref<word_t>(r.src); }
+    EXEC_DECL(cvtwl) { vt_ref<big_t>(r.dest) = vt_ref<word_t>(r.src); }
+    EXEC_DECL(cvtlw) { vt_ref<word_t>(r.dest) = static_cast<word_t>(vt_ref<big_t>(r.src)); }
     EXEC_DECL(cvtrf) { vt_ref<short_real_t>(r.dest) = static_cast<short_real_t>(vt_ref<real_t>(r.src)); }
     EXEC_DECL(cvtfr) { vt_ref<real_t>(r.dest) = static_cast<real_t>(vt_ref<short_real_t>(r.src)); }
-    EXEC_DECL(cvtws) { vt_ref<short_word_t>(r.dest) = std::numeric_limits<short_word_t>::max() & vt_ref<word_t>(r.src); }
-    EXEC_DECL(cvtsw) { vt_ref<word_t>(r.dest) = std::numeric_limits<short_word_t>::max() & vt_ref<short_word_t>(r.src); }
+    EXEC_DECL(cvtws) { vt_ref<short_word_t>(r.dest) = vt_ref<word_t>(r.src); }
+    EXEC_DECL(cvtsw) { vt_ref<word_t>(r.dest) = vt_ref<short_word_t>(r.src); }
     EXEC_DECL(cvtlf) { vt_ref<real_t>(r.dest) = static_cast<real_t>(vt_ref<big_t>(r.src)); }
     EXEC_DECL(cvtfl)
     {
@@ -1626,7 +1640,7 @@ namespace
         if (e->alloc_type == vm_string_t::type_desc())
         {
             // String
-            exception_id = dynamic_cast<vm_string_t *>(e);
+            exception_id = static_cast<vm_string_t *>(e);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
                 debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: string: >>%s<<\n", exception_id->str());

@@ -17,11 +17,11 @@ std::shared_ptr<const type_descriptor_t> vm_array_t::type_desc()
     return intrinsic_type_desc::type<vm_array_t>();
 }
 
-vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count)
+vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
     , _element_type{ td }
-    , _length{ count }
+    , _length{ length }
     , _original{ nullptr }
 {
     assert(_element_type != nullptr);
@@ -43,11 +43,11 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d\n", array_len);
 }
 
-vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count, const zero_memory_t&)
+vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
     , _element_type{ td }
-    , _length{ count }
+    , _length{ length }
     , _original{ nullptr }
 {
     assert(_element_type != nullptr);
@@ -56,16 +56,16 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t count
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm array: %d\n", _length);
 }
 
-vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t count)
+vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
     , _element_type{ original->get_element_type() }
-    , _length{ count }
+    , _length{ length }
     , _original{ original }
 {
     assert(_original != nullptr);
     assert(0 <= begin_index && begin_index < _original->get_length());
-    assert(_length >= 0 && (count - begin_index) < _original->get_length());
+    assert(_length >= 0 && (_length + begin_index) <= _original->get_length());
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d\n", begin_index, _length);
