@@ -26,11 +26,11 @@ namespace disvm
             ~default_garbage_collector_t();
 
         public: // vm_garbage_collector_t
-            void track_allocation(vm_alloc_t *alloc) override final;
+            void track_allocation(vm_alloc_t *alloc) override;
 
-            void enum_tracked_allocations(vm_alloc_callback_t callback) const override final;
+            void enum_tracked_allocations(vm_alloc_callback_t callback) const override;
 
-            bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads) override final;
+            bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads) override;
 
         private:
             vm_t &_vm;

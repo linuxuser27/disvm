@@ -34,18 +34,18 @@ namespace disvm
             ~default_scheduler_t();
 
         public: // vm_scheduler_t
-            bool is_idle() const override final;
+            bool is_idle() const override;
 
-            vm_scheduler_control_t &get_controller() const override final;
+            vm_scheduler_control_t &get_controller() const override;
 
-            const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) override final;
+            const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) override;
 
-            void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) override final;
+            void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) override;
 
         public: // vm_scheduler_control_t
-            void enqueue_blocked_thread(uint32_t thread_id) override final;
+            void enqueue_blocked_thread(uint32_t thread_id) override;
 
-            std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override final;
+            std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override;
 
         private:
             struct thread_instance_t final

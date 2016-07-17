@@ -42,8 +42,11 @@ namespace disvm
             // Callback on an unhandled exception
             void on_exception_unhandled(vm_registers_t &r, const vm_string_t &id, vm_alloc_t &e);
 
-            // Callback on module load
-            void on_module_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path);
+            // Callback for when the VM loads a module from disk
+            void on_module_vm_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path);
+
+            // Callback for when a thread loads a module into its scope
+            void on_module_thread_load(vm_registers_t &r, std::shared_ptr<vm_module_t> &m);
 
             // Callback when thread lifetime begins.
             // The thread has not been scheduled and no opcodes have been executed.
@@ -53,14 +56,17 @@ namespace disvm
             void on_thread_end(vm_thread_t &t);
 
         public: // vm_tool_controller_t
-            std::size_t subscribe_event(vm_event_t evt, vm_event_callback_t cb) override final;
-            void unsubscribe_event(std::size_t cookie_id) override final;
+            vm_t& get_vm_instance() const override;
 
-            std::size_t set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc) override final;
-            void clear_breakpoint(std::size_t cookie_id) override final;
+            cookie_t subscribe_event(vm_event_t evt, vm_event_callback_t cb) override;
+            void unsubscribe_event(cookie_t cookie_id) override;
+
+            cookie_t set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc) override;
+            breakpoint_details_t get_breakpoint_details(cookie_t) const override;
+            void clear_breakpoint(cookie_t cookie_id) override;
 
         private:
-            std::tuple<opcode_t, std::size_t> get_original_opcode(const vm_registers_t &r);
+            std::tuple<opcode_t, cookie_t> get_original_opcode_and_cookie(const vm_registers_t &r);
 
         private:
             vm_t &_vm;
@@ -73,28 +79,28 @@ namespace disvm
             {
                 void fire_event_callbacks(vm_event_t, vm_event_context_t &);
 
-                using cookie_to_callback_map_t = std::unordered_map<std::size_t, vm_event_callback_t>;
+                using cookie_to_callback_map_t = std::unordered_map<cookie_t, vm_event_callback_t>;
                 using event_to_callbacks_map_t = std::unordered_map<vm_event_t, cookie_to_callback_map_t>;
                 event_to_callbacks_map_t callbacks;
 
-                using cookie_to_event_map_t = std::unordered_map<std::size_t, vm_event_t>;
+                using cookie_to_event_map_t = std::unordered_map<cookie_t, vm_event_t>;
                 cookie_to_event_map_t cookie_to_event;
 
-                std::mutex lock;
-                std::size_t cookie_counter;
+                mutable std::mutex lock;
+                cookie_t cookie_counter;
             } _events;
 
             struct
             {
-                using cookie_to_modulepc_t = std::unordered_map<std::size_t, std::pair<std::shared_ptr<const vm_module_t>, vm_pc_t>>;
-                cookie_to_modulepc_t cookie_to_modulepc;
+                using cookie_to_details_t = std::unordered_map<cookie_t, breakpoint_details_t>;
+                cookie_to_details_t cookie_to_details;
 
-                using pc_to_opcode_cookie_map_t = std::unordered_map<vm_pc_t, std::pair<opcode_t, std::size_t>>;
+                using pc_to_opcode_cookie_map_t = std::unordered_map<vm_pc_t, std::pair<opcode_t, cookie_t>>;
                 using module_to_pc_map_t = std::unordered_map<std::uintptr_t, pc_to_opcode_cookie_map_t>;
                 module_to_pc_map_t original_opcodes;
 
-                std::mutex lock;
-                std::size_t cookie_counter;
+                mutable std::mutex lock;
+                cookie_t cookie_counter;
             } _breakpoints;
         };
     }

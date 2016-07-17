@@ -170,13 +170,13 @@ void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
 
 namespace
 {
-    void dec_ref_and_free_pointer_field(pointer_t pointer_field)
+    void dec_ref_and_free_pointer_field(pointer_t pointer_field, std::size_t)
     {
         assert(pointer_field != nullptr);
         dec_ref_count_and_free(vm_alloc_t::from_allocation(pointer_field));
     }
 
-    void add_ref_pointer_field(pointer_t pointer_field)
+    void add_ref_pointer_field(pointer_t pointer_field, std::size_t)
     {
         assert(pointer_field != nullptr);
         vm_alloc_t::from_allocation(pointer_field)->add_ref();

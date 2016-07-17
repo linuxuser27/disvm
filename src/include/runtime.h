@@ -824,13 +824,12 @@ namespace disvm
             virtual void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) = 0;
         };
 
+        // The supplied allocation is guaranteed to be valid for the lifetime of the callback.
+        using vm_alloc_callback_t = std::function<void(const vm_alloc_t *)>;
+
         // VM garbage collector interface
         class vm_garbage_collector_t
         {
-        public:
-            // The supplied allocation is guaranteed to be valid for the lifetime of the callback.
-            using vm_alloc_callback_t = std::function<void(const vm_alloc_t *)>;
-
         public:
             virtual ~vm_garbage_collector_t() = 0;
 
@@ -862,7 +861,7 @@ namespace disvm
             virtual ~vm_tool_t() = 0;
 
             // Called when the tool is loaded into the VM
-            virtual void on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t tool_id) = 0;
+            virtual void on_load(vm_tool_controller_t &controller, std::size_t tool_id) = 0;
 
             // Called when the tool is unloaded from the VM.
             // Note once the tool has been unloaded the vm and controller references supplied during load

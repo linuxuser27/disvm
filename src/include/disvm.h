@@ -39,6 +39,8 @@ namespace disvm
     class loaded_vm_module_t final
     {
     public:
+        std::size_t load_id;
+
         // Origin of module
         std::unique_ptr<runtime::vm_string_t> origin;
 
@@ -46,7 +48,8 @@ namespace disvm
         std::weak_ptr<runtime::vm_module_t> module;
     };
 
-    using loaded_vm_module_callback_t = std::function<void(const loaded_vm_module_t&)>;
+    // Callback for enumerating loaded modules - return 'false' to stop enumeration, otherwise 'true'
+    using loaded_vm_module_callback_t = std::function<bool(const loaded_vm_module_t&)>;
 
     // Virtual machine
     class vm_t final

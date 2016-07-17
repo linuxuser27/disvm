@@ -126,53 +126,63 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
     if (path == nullptr)
         throw vm_user_exception{ "Invalid module path" };
 
-    std::lock_guard<std::mutex> lock{ _modules_lock };
-
-    // Check if the module is already loaded.
-    auto iter = std::begin(_modules);
-    while (iter != std::end(_modules))
+    auto new_module_iter = loaded_modules_t::const_iterator{};
+    auto new_module = std::shared_ptr<vm_module_t>{};
     {
-        if (0 == ::strcmp(iter->origin->str(), path))
+        std::lock_guard<std::mutex> lock{ _modules_lock };
+
+        // Check if the module is already loaded.
+        auto iter = std::begin(_modules);
+        while (iter != std::end(_modules))
         {
-            auto module = iter->module.lock();
-
-            // If an entry exists but is null, the module was loaded before. Read the module again and return.
-            if (module == nullptr)
+            if (0 == ::strcmp(iter->origin->str(), path))
             {
-                module = std::shared_ptr<vm_module_t>{ std::move(read_module(path)) };
-                iter->module = module;
+                auto module = iter->module.lock();
 
-                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<\n", path);
+                // If an entry exists but is null, the module was loaded before. Read the module again and return.
+                if (module == nullptr)
+                {
+                    module = std::shared_ptr<vm_module_t>{ std::move(read_module(path)) };
+                    iter->module = module;
+
+                    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<\n", path);
+                }
+
+                return module;
             }
 
-            return module;
+            ++iter;
         }
 
-        ++iter;
+        if (path[0] == BUILTIN_MODULE_PREFIX_CHAR)
+        {
+            new_module = std::move(builtin::get_builtin_module(path));
+        }
+        else
+        {
+            // Read in the module
+            new_module = std::move(read_module(path));
+        }
+
+        auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));
+
+        auto load_id_next = std::size_t{ 0 };
+        if (!_modules.empty())
+            load_id_next = (_modules.front().load_id + 1);
+
+        _modules.push_front(std::move(loaded_vm_module_t{ load_id_next, std::move(path_local), new_module }));
+        new_module_iter = _modules.begin();
     }
 
-    auto new_module = std::shared_ptr<vm_module_t>{};
-    if (path[0] == BUILTIN_MODULE_PREFIX_CHAR)
-    {
-        new_module = std::move(builtin::get_builtin_module(path));
-    }
-    else
-    {
-        // Read in the module
-        new_module = std::move(read_module(path));
-    }
-
-    auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));
     if (_tool_dispatch != nullptr)
     {
         std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
         if (_tool_dispatch != nullptr)
-            _tool_dispatch->on_module_load(new_module, *path_local);
+            _tool_dispatch->on_module_vm_load(new_module, *new_module_iter->origin);
     }
 
-    _modules.push_front(std::move(loaded_vm_module_t{ std::move(path_local), new_module }));
-
-    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
+        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
 
     return new_module;
 }
@@ -184,7 +194,10 @@ void vm_t::enum_loaded_modules(loaded_vm_module_callback_t callback) const
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
     for (auto &m : _modules)
-        callback(m);
+    {
+        if (!callback(m))
+            return;
+    }
 }
 
 runtime::vm_scheduler_control_t &vm_t::get_scheduler_control() const

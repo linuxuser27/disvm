@@ -9,9 +9,7 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
-#include <locale>
 #include <map>
-#include <vm_tools.h>
 #include <utils.h>
 #include <vm_memory.h>
 #include <vm_asm.h>
@@ -76,16 +74,18 @@ namespace
     // Debug command context
     struct dbg_cmd_cxt_t
     {
-        dbg_cmd_cxt_t(const vm_t &v, const vm_registers_t &r)
-            : initial_register{ r }
+        dbg_cmd_cxt_t(debugger &d, const vm_registers_t &r)
+            : dbg{ d }
             , exit_break{ false }
-            , vm{ v }
+            , initial_register{ r }
+            , vm{ d.controller->get_vm_instance() }
         {
             current_register = &initial_register;
         }
 
         bool exit_break;
 
+        debugger &dbg;
         const vm_t &vm;
         const vm_registers_t *current_register;
         const vm_registers_t &initial_register;
@@ -125,10 +125,8 @@ namespace
         auto register_string = std::stringstream{};
 
         register_string
-            << "Registers:\n"
             << "  Thread ID:  " << r.thread.get_thread_id() << "\n"
-            << "     Module:  " << r.module_ref->module->module_name->str() << "\n"
-            << "         PC:  " << r.pc << "\n"
+            << "     Module:  " << r.module_ref->module->module_name->str() << "  PC: " << r.pc << "\n"
             << "     Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
 
         return register_string.str();
@@ -231,8 +229,12 @@ namespace
         }
         else
         {
-            ss << "alloc\n"
-                << "\tsize:  " << alloc->alloc_type->size_in_bytes << "\n";
+            ss << "alloc - size:  " << alloc->alloc_type->size_in_bytes << "\n";
+
+            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss](pointer_t p, std::size_t o)
+            {
+                ss << "  [" << o << "]  " << vm_alloc_t::from_allocation(p);
+            });
         }
 
         return ss;
@@ -282,21 +284,6 @@ namespace
         return ss;
     }
 
-    std::string to_string_frame_pointers(vm_registers_t &r)
-    {
-        auto frame = r.stack.peek_frame();
-        if (frame == nullptr)
-            return "<empty>";
-
-        auto frame_string = std::stringstream{};
-        enum_pointer_fields(*frame->frame_type, frame->base(), [&frame_string](pointer_t p)
-        {
-            frame_string << std::showbase << std::hex << reinterpret_cast<uintptr_t>(p) << " : " << std::dec << vm_alloc_t::from_allocation(p);
-        });
-
-        return frame_string.str();
-    }
-
     void cmd_continue(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         cxt.exit_break = true;
@@ -311,7 +298,6 @@ namespace
     void cmd_print_threads(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         auto msg = std::stringstream{};
-        msg << "Threads:\n";
         for (auto t : cxt.vm.get_scheduler_control().get_all_threads())
             msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_state() << "\n";
 
@@ -321,21 +307,146 @@ namespace
     void cmd_print_modules(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         auto msg = std::stringstream{};
-        msg << "Modules:\n";
-
         cxt.vm.enum_loaded_modules([&msg](const loaded_vm_module_t &m)
         {
             auto module_instance = m.module.lock();
-            if (module_instance == nullptr)
-                return;
+            if (module_instance != nullptr)
+            {
+                msg << std::setw(3) << m.load_id << ": "
+                    << std::setw(16) << module_instance->module_name->str()
+                    << std::setw(0) << "  -  " << m.origin->str() << "\n";
+            }
 
-            msg << std::setw(24) <<  module_instance->module_name->str() << std::setw(0) << "    " << m.origin->str() << "\n";
+            return true;
         });
 
         debug_print_info(msg.str());
     }
 
-    void cmd_stacktrace(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
+    void cmd_breakpoint_set(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
+    {
+        if (a.size() < 3)
+        {
+            debug_print_error("Must supply an IP and module ID");
+            return;
+        }
+
+        vm_pc_t pc;
+        try
+        {
+            pc = std::stoul(a[1]);
+        }
+        catch (...)
+        {
+            debug_print_error("Invalid IP format");
+            return;
+        }
+
+        uint32_t module_id;
+        try
+        {
+            module_id = std::stoul(a[2]);
+        }
+        catch (...)
+        {
+            debug_print_error("Invalid module ID format");
+            return;
+        }
+
+        auto module = std::shared_ptr<vm_module_t>{};
+        cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
+        {
+            if (module_id != m.load_id)
+                return true;
+
+            // Found the matching ID so stop
+            module = m.module.lock();
+            return false;
+        });
+
+        if (module == nullptr)
+        {
+            debug_print_error("Invalid module ID");
+            return;
+        }
+        else if (util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
+        {
+            debug_print_error("Unable to set breakpoint in built-in module");
+            return;
+        }
+
+        if (pc < 0 || module->code_section.size() <= static_cast<std::size_t>(pc))
+        {
+            debug_print_error("Invalid IP for module");
+            return;
+        }
+
+        cxt.dbg.breakpoint_cookies.push_back(cxt.dbg.controller->set_breakpoint(module, pc));
+    }
+
+    void cmd_breakpoint_clear(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
+    {
+        if (a.size() == 1)
+        {
+            debug_print_error("Must supply a breakpoint ID or wildcard");
+            return;
+        }
+
+        auto controller = cxt.dbg.controller;
+        if (a[1].compare("*") == 0)
+        {
+            // Clear all breakpoints
+            for (auto cookie : cxt.dbg.breakpoint_cookies)
+                controller->clear_breakpoint(cookie);
+
+            cxt.dbg.breakpoint_cookies.clear();
+            return;
+        }
+
+        // Clear specific breakpoint
+        cookie_t breakpoint_cookie;
+        try
+        {
+            breakpoint_cookie = static_cast<cookie_t>(std::stoul(a[1]));
+        }
+        catch (...)
+        {
+            debug_print_error("Invalid breakpoint ID format");
+            return;
+        }
+
+        auto cookie_iter = std::find_if(
+            std::begin(cxt.dbg.breakpoint_cookies),
+            std::end(cxt.dbg.breakpoint_cookies),
+            [breakpoint_cookie] (const cookie_t c) { return c == breakpoint_cookie; });
+        if (cookie_iter == cxt.dbg.breakpoint_cookies.end())
+        {
+            debug_print_error("Unknown breakpoint ID");
+            return;
+        }
+
+        // Clear the breakpoint
+        controller->clear_breakpoint(breakpoint_cookie);
+
+        // Remove the cookie from the list
+        cxt.dbg.breakpoint_cookies.erase(cookie_iter);
+    }
+
+    void cmd_breakpoint_list(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
+    {
+        auto msg = std::stringstream{};
+        for (auto cookie : cxt.dbg.breakpoint_cookies)
+        {
+            const auto details = cxt.dbg.controller->get_breakpoint_details(cookie);
+            msg << std::setw(3) << cookie << ": "
+                << std::setw(16) << details.module->module_name->str()
+                << std::setw(0) << " @ " << details.pc << "\n";
+        }
+
+        debug_print_info(msg.str());
+    }
+
+    void cmd_stackwalk(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         auto thread_registers = std::map<uint32_t, const vm_registers_t*>{};
         if (a.size() == 1)
@@ -345,7 +456,6 @@ namespace
         else
         {
             uint32_t thread_id;
-            auto all_threads = cxt.vm.get_scheduler_control().get_all_threads();
             if (a[1].compare("*") == 0)
             {
                 thread_id = 0;
@@ -354,7 +464,7 @@ namespace
             {
                 try
                 {
-                    thread_id = std::stoi(a[1]);
+                    thread_id = std::stoul(a[1]);
                 }
                 catch (...)
                 {
@@ -364,6 +474,7 @@ namespace
             }
 
             // Find the thread(s)
+            auto all_threads = cxt.vm.get_scheduler_control().get_all_threads();
             for (auto t : all_threads)
             {
                 const auto tid = t->get_thread_id();
@@ -406,7 +517,7 @@ namespace
         uint32_t thread_id;
         try
         {
-            thread_id = std::stoi(a[1]);
+            thread_id = std::stoul(a[1]);
         }
         catch (...)
         {
@@ -432,7 +543,7 @@ namespace
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        auto disassemble_length = 1;
+        auto disassemble_length = int{ 1 };
         if (a.size() > 1)
         {
             try
@@ -629,11 +740,17 @@ namespace
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
+
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
         { "t", "Print all threads", nullptr, nullptr, cmd_print_threads },
         { "m", "Print all loaded modules", nullptr, nullptr, cmd_print_modules },
-        { "bt", "Stack walk/back trace for the current or supplied thread", "bt ([0-9]+|\\*)?", "bt, bt 34, bt *", cmd_stacktrace },
-        { "st", "Switch to thread", "st [0-9]+", "st 42", cmd_switchthread },
+
+        { "bs", "Set breakpoint at the specified IP in a loaded module", "bs [0-9]+ [0-9]+", "bs 3 5 (Breakpoint at IP 3 in module 5)", cmd_breakpoint_set },
+        { "bc", "Clear breakpoint(s)", "bc ([0-9]+|\\*)", "bc 3, bc *", cmd_breakpoint_clear },
+        { "bl", "List breakpoints", nullptr, nullptr, cmd_breakpoint_list },
+
+        { "sw", "Stack walk for the current or supplied thread", "sw ([0-9]+|\\*)?", "sw, sw 34, sw *", cmd_stackwalk },
+        { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
         { "d", "Disassemble the next/previous N instructions", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
         { "?", "Print help", nullptr, nullptr, cmd_help },
@@ -703,7 +820,7 @@ namespace
         return split_string;
     }
 
-    void prompt(const vm_t &vm, const vm_registers_t &r)
+    void prompt(debugger &debugger, const vm_registers_t &r)
     {
         std::cout
             << console_modifiers::green_font
@@ -711,10 +828,9 @@ namespace
             << "'?' for help\n"
             << console_modifiers::reset_all;
 
-        std::locale loc;
         std::string cmd;
 
-        dbg_cmd_cxt_t cxt{ vm, r };
+        dbg_cmd_cxt_t cxt{ debugger, r };
         for (;;)
         {
             std::cout
@@ -746,12 +862,17 @@ namespace
     }
 }
 
-void debugger::on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t tool_id)
+debugger::debugger()
+    : _tool_id{ 0 }
+    , controller{ nullptr }
+{ }
+
+void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 {
     _tool_id = tool_id;
-    _vm = &vm;
+    controller = &controller_;
 
-    _event_cookies.push_back(controller.subscribe_event(vm_event_t::thread_begin, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::thread_begin, [](vm_event_t, vm_event_context_t &cxt)
     {
         auto t = cxt.value1.thread;
         auto ss = std::stringstream{};
@@ -765,7 +886,7 @@ void debugger::on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t t
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller.subscribe_event(vm_event_t::thread_end, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::thread_end, [](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Thread "
@@ -775,7 +896,7 @@ void debugger::on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t t
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller.subscribe_event(vm_event_t::exception_raised, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_raised, [](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Exception '"
@@ -785,7 +906,7 @@ void debugger::on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t t
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller.subscribe_event(vm_event_t::exception_unhandled, [&](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_unhandled, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Unhandled exception '"
@@ -793,37 +914,46 @@ void debugger::on_load(vm_t &vm, vm_tool_controller_t &controller, std::size_t t
             << "'";
 
         debug_print_error(ss.str());
-        prompt(*_vm, *cxt.value1.registers);
+        prompt(*this, *cxt.value1.registers);
     }));
 
-    _event_cookies.push_back(controller.subscribe_event(vm_event_t::module_load, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
     {
-        auto m = (*cxt.value1.module);
+        auto m = (*cxt.value2.module);
         auto ss = std::stringstream{};
         ss << "Module "
             << m->module_name->str()
-            << " loaded (";
+            << " loaded";
 
-        if (!util::has_flag(m->header.runtime_flag, runtime_flags_t::builtin))
-            ss << cxt.value2.str->str();
-        else
-            ss << "built-in";
+        if (util::has_flag(m->header.runtime_flag, runtime_flags_t::builtin))
+            ss << " (built-in)";
 
-        ss << ")";
 
         debug_print_info(ss.str());
     }));
 
-    _controller = &controller;
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::breakpoint, [&](vm_event_t, vm_event_context_t &cxt)
+    {
+        auto ss = std::stringstream{};
+        ss << "Breakpoint hit";
+        if (cxt.value2.cookie != 0)
+            ss << " [" << cxt.value2.cookie << "]";
+
+        debug_print_info(ss.str());
+
+        auto reg_str = registers_to_string(*cxt.value1.registers);
+        debug_print_info(reg_str);
+
+        prompt(*this, *cxt.value1.registers);
+    }));
 }
 
 void debugger::on_unload()
 {
-    assert(_controller != nullptr);
+    assert(controller != nullptr);
 
     for (auto ec : _event_cookies)
-        _controller->unsubscribe_event(ec);
+        controller->unsubscribe_event(ec);
 
-    _controller = nullptr;
-    _vm = nullptr;
+    controller = nullptr;
 }

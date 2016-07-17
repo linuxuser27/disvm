@@ -10,20 +10,25 @@
 #include <cstdint>
 #include <vector>
 #include <disvm.h>
+#include <vm_tools.h>
 
 class debugger final : public disvm::runtime::vm_tool_t
 {
-public: // vm_tool_t
-    void on_load(disvm::vm_t &vm, disvm::runtime::vm_tool_controller_t &controller, std::size_t tool_id);
+public:
+    debugger();
 
-    void on_unload();
+public: // vm_tool_t
+    void on_load(disvm::runtime::vm_tool_controller_t &controller, std::size_t tool_id) override;
+
+    void on_unload() override;
+
+public:
+    disvm::runtime::vm_tool_controller_t *controller;
+    std::vector<disvm::runtime::cookie_t> breakpoint_cookies;
 
 private:
-    disvm::vm_t *_vm;
     std::size_t _tool_id;
-    disvm::runtime::vm_tool_controller_t *_controller;
-    std::vector<std::size_t> _event_cookies;
-    std::vector<std::size_t> _breakpoint_cookies;
+    std::vector<disvm::runtime::cookie_t> _event_cookies;
 };
 
 #endif // _DISVM_SRC_EXEC_EXEC_H_

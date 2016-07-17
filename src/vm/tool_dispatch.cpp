@@ -50,7 +50,7 @@ std::size_t vm_tool_dispatch_t::load_tool(std::shared_ptr<runtime::vm_tool_t> to
     {
         // [TODO] For debug builds, it might be useful to wrap the controller in a proxy that records
         // the subscribed callbacks and asserts they are all properly unsubscribed during agent unload.
-        tool->on_load(_vm, *this, current_id);
+        tool->on_load(*this, current_id);
     }
     catch (...)
     {
@@ -91,12 +91,12 @@ std::size_t vm_tool_dispatch_t::unload_tool(std::size_t tool_id)
 opcode_t vm_tool_dispatch_t::on_breakpoint(vm_registers_t &r)
 {
     opcode_t original_op;
-    std::size_t cookie_id;
-    std::tie(original_op, cookie_id) = get_original_opcode(r);
+    cookie_t cookie_id;
+    std::tie(original_op, cookie_id) = get_original_opcode_and_cookie(r);
 
     vm_event_context_t cxt{};
     cxt.value1.registers = &r;
-    cxt.value2.i = cookie_id;
+    cxt.value2.cookie = cookie_id;
 
     _events.fire_event_callbacks(vm_event_t::breakpoint, cxt);
 
@@ -123,7 +123,7 @@ void vm_tool_dispatch_t::on_exception_unhandled(vm_registers_t &r, const vm_stri
     _events.fire_event_callbacks(vm_event_t::exception_unhandled, cxt);
 }
 
-void vm_tool_dispatch_t::on_module_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path)
+void vm_tool_dispatch_t::on_module_vm_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path)
 {
     assert(m != nullptr);
 
@@ -131,7 +131,18 @@ void vm_tool_dispatch_t::on_module_load(std::shared_ptr<vm_module_t> &m, const v
     cxt.value1.module = &m;
     cxt.value2.str = &path;
 
-    _events.fire_event_callbacks(vm_event_t::module_load, cxt);
+    _events.fire_event_callbacks(vm_event_t::module_vm_load, cxt);
+}
+
+void vm_tool_dispatch_t::on_module_thread_load(vm_registers_t &r, std::shared_ptr<vm_module_t> &m)
+{
+    assert(m != nullptr);
+
+    vm_event_context_t cxt{};
+    cxt.value1.registers = &r;
+    cxt.value2.module = &m;
+
+    _events.fire_event_callbacks(vm_event_t::module_thread_load, cxt);
 }
 
 void vm_tool_dispatch_t::on_thread_begin(vm_thread_t &t)
@@ -150,7 +161,12 @@ void vm_tool_dispatch_t::on_thread_end(vm_thread_t &t)
     _events.fire_event_callbacks(vm_event_t::thread_end, cxt);
 }
 
-std::size_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t cb)
+vm_t& vm_tool_dispatch_t::get_vm_instance() const
+{
+    return _vm;
+}
+
+cookie_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t cb)
 {
     if (!cb)
         throw vm_system_exception{ "Invalid callback for event" };
@@ -172,7 +188,7 @@ std::size_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callbac
     return cookie_id;
 }
 
-void vm_tool_dispatch_t::unsubscribe_event(std::size_t cookie_id)
+void vm_tool_dispatch_t::unsubscribe_event(cookie_t cookie_id)
 {
     std::lock_guard<std::mutex> lock{ _events.lock };
 
@@ -190,7 +206,7 @@ void vm_tool_dispatch_t::unsubscribe_event(std::size_t cookie_id)
         debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "unsubscribe: event: %d %d", evt, cookie_id);
 }
 
-std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc)
+cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc)
 {
     if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to set breakpoint in supplied module" };
@@ -209,7 +225,7 @@ std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> modu
         const auto cookie_id = _breakpoints.cookie_counter++;
 
         // Map the cookie to the module/pc pair.
-        _breakpoints.cookie_to_modulepc[cookie_id] = std::make_pair(module, pc);
+        _breakpoints.cookie_to_details[cookie_id] = { module, pc };
 
         // Record the original opcode
         auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];
@@ -225,20 +241,30 @@ std::size_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> modu
     }
 }
 
-void vm_tool_dispatch_t::clear_breakpoint(std::size_t cookie_id)
+breakpoint_details_t vm_tool_dispatch_t::get_breakpoint_details(cookie_t cookie_id) const
 {
     std::lock_guard<std::mutex> lock{ _breakpoints.lock };
 
-    // Resolve the cookie to the module/pc pair
-    auto iter_cookie = _breakpoints.cookie_to_modulepc.find(cookie_id);
-    if (iter_cookie == _breakpoints.cookie_to_modulepc.cend())
-        return;
+    auto iter_cookie = _breakpoints.cookie_to_details.find(cookie_id);
+    if (iter_cookie == _breakpoints.cookie_to_details.cend())
+        throw vm_system_exception{ "Unknown breakpoint cookie" };
 
-    auto mod_pc_pair = iter_cookie->second;
-    const auto target_pc = mod_pc_pair.second;
+    return iter_cookie->second;
+}
+
+void vm_tool_dispatch_t::clear_breakpoint(cookie_t cookie_id)
+{
+    std::lock_guard<std::mutex> lock{ _breakpoints.lock };
+
+    auto iter_cookie = _breakpoints.cookie_to_details.find(cookie_id);
+    if (iter_cookie == _breakpoints.cookie_to_details.cend())
+        throw vm_system_exception{ "Unknown breakpoint cookie" };
+
+    auto details = iter_cookie->second;
+    const auto target_pc = details.pc;
 
     // Determine the original opcode
-    auto iter_orig = _breakpoints.original_opcodes.find(reinterpret_cast<std::uintptr_t>(mod_pc_pair.first.get()));
+    auto iter_orig = _breakpoints.original_opcodes.find(reinterpret_cast<std::uintptr_t>(details.module.get()));
     assert(iter_orig != _breakpoints.original_opcodes.cend());
 
     auto &pc_map = iter_orig->second;
@@ -248,12 +274,12 @@ void vm_tool_dispatch_t::clear_breakpoint(std::size_t cookie_id)
     auto original_opcode = iter_pc->second.first;
 
     // Replace the breakpoint opcode with the original
-    auto &code_section = const_cast<code_section_t &>(mod_pc_pair.first->code_section);
+    auto &code_section = const_cast<code_section_t &>(details.module->code_section);
     assert(code_section[target_pc].op.opcode == opcode_t::brkpt);
     code_section[target_pc].op.opcode = original_opcode;
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "breakpoint: unset: %d %d >>%s<<", cookie_id, target_pc, mod_pc_pair.first->module_name->str());
+        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "breakpoint: unset: %d %d >>%s<<", cookie_id, target_pc, details.module->module_name->str());
 
     // Clean-up the PC mapping to opcode
     pc_map.erase(iter_pc);
@@ -263,10 +289,10 @@ void vm_tool_dispatch_t::clear_breakpoint(std::size_t cookie_id)
         _breakpoints.original_opcodes.erase(iter_orig);
 
     // Remove the cookie map
-    _breakpoints.cookie_to_modulepc.erase(iter_cookie);
+    _breakpoints.cookie_to_details.erase(iter_cookie);
 }
 
-std::tuple<opcode_t, std::size_t> vm_tool_dispatch_t::get_original_opcode(const vm_registers_t &r)
+std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cookie(const vm_registers_t &r)
 {
     const auto module = r.module_ref->module.get();
     const auto current_pc = r.pc - 1;

@@ -22,7 +22,7 @@ vm_garbage_collector_t::~vm_garbage_collector_t()
 
 std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
 {
-    class no_op_gc : public vm_garbage_collector_t
+    class no_op_gc final : public vm_garbage_collector_t
     {
     public:
         void track_allocation(vm_alloc_t *) override
@@ -118,7 +118,7 @@ namespace
     {
         std::queue<vm_alloc_t *> allocs;
 
-        auto add_pointer_to_queue = std::function<void(pointer_t p)>{ [&allocs](pointer_t p) -> void
+        auto add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
         {
             auto a = vm_alloc_t::from_allocation(p);
             allocs.push(a);
@@ -155,7 +155,7 @@ namespace
             debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR "\n", allocs.size());
 
             // If logging is enabled update the callback with logging
-            add_pointer_to_queue = std::function<void(pointer_t p)>{ [&allocs](pointer_t p) -> void
+            add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
             {
                 auto a = vm_alloc_t::from_allocation(p);
                 debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "\tref: %#" PRIxPTR "\n", a);
