@@ -22,8 +22,9 @@ The source tree is as follows:
 
  - `limbo/` - Source code written in limbo for testing the VM
  - `src/`
+     - `asm/` - Library for manipulating byte code
      - `include/` - Global include files
-     - `exec/` - Hosting binary for VM
+     - `exec/` - Hosting binary for VM (includes debugger)
      - `vm/` - VM as a static library
 
 
