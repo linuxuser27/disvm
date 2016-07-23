@@ -13,6 +13,7 @@
 #include <utils.h>
 #include <vm_memory.h>
 #include <vm_asm.h>
+#include <exceptions.h>
 #include "exec.h"
 
 using namespace disvm;
@@ -287,6 +288,11 @@ namespace
     void cmd_continue(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         cxt.exit_break = true;
+    }
+
+    void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
+    {
+        throw vm_user_exception{ "Debugger signaled VM termination" };
     }
 
     void cmd_print_registers(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
@@ -740,6 +746,7 @@ namespace
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
+        { "term", "Terminate the VM instance", nullptr, nullptr, cmd_term },
 
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
         { "t", "Print all threads", nullptr, nullptr, cmd_print_threads },
@@ -862,8 +869,18 @@ namespace
     }
 }
 
-debugger::debugger()
-    : _tool_id{ 0 }
+std::ostream& operator<<(std::ostream &ss, const debugger_options o)
+{
+    ss << "Break on enter: " << std::boolalpha << o.break_on_enter << "\n"
+       << "Break on module load: " << std::boolalpha << o.break_on_module_load << "\n"
+       << "Break on exception: " << std::boolalpha << o.break_on_exception << "\n";
+
+    return ss;
+}
+
+debugger::debugger(const debugger_options &opt)
+    : _options{ opt }
+    , _tool_id{ 0 }
     , controller{ nullptr }
 { }
 
@@ -896,7 +913,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_raised, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_raised, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Exception '"
@@ -904,6 +921,9 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
             << "' thrown.";
 
         debug_print_info(ss.str());
+
+        if (_options.break_on_exception)
+            prompt(*this, *cxt.value1.registers);
     }));
 
     _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_unhandled, [&](vm_event_t, vm_event_context_t &cxt)
@@ -928,8 +948,20 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         if (util::has_flag(m->header.runtime_flag, runtime_flags_t::builtin))
             ss << " (built-in)";
 
-
         debug_print_info(ss.str());
+
+        // If the break on enter flag was set, it will be true
+        // and the first module load will be the user entry module.
+        if (_options.break_on_enter)
+        {
+            // Reset the break on enter flag and set a breakpoint
+            // on the entry PC for the module - 'break on enter'
+            _options.break_on_enter = false;
+            controller->set_breakpoint(m, m->header.entry_pc);
+        }
+
+        if (_options.break_on_module_load)
+            prompt(*this, *cxt.value1.registers);
     }));
 
     _event_cookies.push_back(controller->subscribe_event(vm_event_t::breakpoint, [&](vm_event_t, vm_event_context_t &cxt)

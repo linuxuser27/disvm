@@ -30,10 +30,14 @@ namespace
 
     std::shared_ptr<const vm_module_t> command_module;
 
-    std::unique_ptr<vm_module_t> create_entry_module(vm_t &vm, int argc, char* argv[])
+    std::unique_ptr<vm_module_t> create_entry_module(vm_t &vm, const std::vector<char *> &vm_args)
     {
+        if (vm_args.size() == 0)
+            throw vm_user_exception{ "Entry module not supplied" };
+
         // First argument is the module to load
-        auto command_module_path = new vm_string_t{ std::strlen(argv[0]), reinterpret_cast<uint8_t *>(argv[0]) };
+        auto entry_module_path = vm_args[0];
+        auto command_module_path = new vm_string_t{ std::strlen(entry_module_path), reinterpret_cast<uint8_t *>(entry_module_path) };
 
         // Pre-load the command module in the VM.
         command_module = vm.load_module(command_module_path->str());
@@ -41,9 +45,9 @@ namespace
         // Convert arguments to a list
         vm_list_t *args = nullptr;
         vm_list_t *last = nullptr;
-        for (auto i = 1; i < argc; ++i)
+        for (auto i = std::size_t{ 1 }; i < vm_args.size(); ++i)
         {
-            auto tmp = argv[i];
+            auto tmp = vm_args[i];
             auto arg = new vm_string_t{ std::strlen(tmp), reinterpret_cast<uint8_t *>(tmp) };
             if (args == nullptr)
             {
@@ -165,39 +169,160 @@ namespace
     }
 }
 
+struct arg_exception_t : std::runtime_error
+{
+    arg_exception_t(const char *m, const char *arg)
+        : std::runtime_error{ m }
+        , arg{ arg }
+    { }
+
+    const char * const arg;
+};
+
+struct exec_options
+{
+    std::vector<char *> vm_args;
+
+    bool print_help;
+    bool quiet_start;
+    bool enabled_debugger;
+    debugger_options debugger;
+};
+
+void print_banner(const exec_options &options)
+{
+    std::cout
+        << "DisVM\n"
+        << "----------------\n"
+        << "Debugger enabled: " << std::boolalpha << options.enabled_debugger << "\n";
+
+    if (options.enabled_debugger)
+        std::cout << options.debugger << "\n";
+
+    std::cout << std::endl;
+}
+
+void print_help()
+{
+    std::cout
+        << "Usage: disvm-exec [-d[e|m|x]*] [-q] [-?] <entry module> <args>*\n"
+        << "    d - Enable debugger\n"
+        << "         e - Break on entry\n"
+        << "         m - Break on module load\n"
+        << "         x - Break on exception (first chance)\n"
+        << "    q - Suppress banner and configuration\n"
+        << "    ? - Print help\n";
+}
+
+void process_arg(char* arg, std::function<char *()> next, exec_options &options)
+{
+    assert(arg != nullptr && next != nullptr);
+    if (arg[0] != '-')
+    {
+        for (; arg != nullptr; arg = next())
+            options.vm_args.push_back(arg);
+
+        return;
+    }
+
+    auto arg_len = std::strlen(arg);
+    if (arg_len < 2)
+        throw arg_exception_t{ "Invalid flag format", arg };
+
+    switch (arg[1])
+    {
+    case 'd':
+        options.enabled_debugger = true;
+        for (auto i = std::size_t{ 2 }; i < arg_len; ++i)
+        {
+            switch (arg[i])
+            {
+            case 'e': options.debugger.break_on_enter = true;
+                break;
+            case 'm': options.debugger.break_on_module_load = true;
+                break;
+            case 'x': options.debugger.break_on_exception = true;
+                break;
+            }
+        }
+
+        break;
+
+    case 'q':
+        options.quiet_start = true;
+        break;
+
+    case '?':
+        options.print_help = true;
+        break;
+
+    default:
+        throw arg_exception_t{ "Unknown flag", arg };
+    }
+}
+
 int main(int argc, char* argv[])
 {
-    // [TODO] Handle command line arguments
-    assert(argc > 1);
-
-    vm_t vm;
-
-    //vm.load_tool(std::make_shared<debugger>());
+    exec_options options = {};
 
     try
     {
         // Ignore the process name
-        auto entry = create_entry_module(vm, argc - 1, argv + 1);
+        auto arg_idx = int{ 1 };
+        auto next_arg = [&]()
+        {
+            return arg_idx < argc ? argv[arg_idx++] : nullptr;
+        };
+
+        for (auto curr_arg = next_arg(); curr_arg != nullptr; curr_arg = next_arg())
+            process_arg(curr_arg, next_arg, options);
+    }
+    catch (const arg_exception_t &ae)
+    {
+        std::cerr << ae.what();
+        if (ae.arg != nullptr)
+            std::cerr << ": " << ae.arg << std::endl;
+
+        return EXIT_FAILURE;
+    }
+
+    if (!options.quiet_start)
+        print_banner(options);
+
+    if (options.print_help)
+    {
+        print_help();
+        return EXIT_SUCCESS;
+    }
+
+    vm_t vm;
+
+    if (options.enabled_debugger)
+        vm.load_tool(std::make_shared<debugger>(options.debugger));
+
+    try
+    {
+        auto entry = create_entry_module(vm, options.vm_args);
 
         vm.exec(std::move(entry));
 
         vm.spin_sleep_till_idle(std::chrono::milliseconds(100));
     }
-    catch (vm_user_exception &ue)
+    catch (const vm_user_exception &ue)
     {
-        std::cout << ue.what() << std::endl;
+        std::cerr << ue.what() << std::endl;
 
         return EXIT_FAILURE;
     }
-    catch (vm_system_exception &se)
+    catch (const vm_system_exception &se)
     {
-        std::cout
-            << "Internal exception:\n\t"
+        std::cerr
+            << "Internal exception:\n    "
             << se.what()
             << std::endl;
 
         return EXIT_FAILURE;
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }

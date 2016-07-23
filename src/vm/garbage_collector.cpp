@@ -158,7 +158,7 @@ namespace
             add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
             {
                 auto a = vm_alloc_t::from_allocation(p);
-                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "\tref: %#" PRIxPTR "\n", a);
+                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "    ref: %#" PRIxPTR "\n", a);
                 allocs.push(a);
             } };
         }
