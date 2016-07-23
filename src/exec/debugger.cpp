@@ -51,7 +51,14 @@ namespace
 #undef CSI
     }
 
-    void debug_print_error(const std::string &str)
+    struct debug_cmd_error_t : std::runtime_error
+    {
+        debug_cmd_error_t(const char *message)
+            : std::runtime_error{ message }
+        { }
+    };
+
+    void debug_print_error(const char *str)
     {
         std::cout
             << console_modifiers::red_font
@@ -60,6 +67,11 @@ namespace
             << str
             << console_modifiers::reset_all
             << "\n";
+    }
+
+    void debug_print_error(const std::string &str)
+    {
+        debug_print_error(str.c_str());
     }
 
     void debug_print_info(const std::string &str)
@@ -290,7 +302,7 @@ namespace
         cxt.exit_break = true;
     }
 
-    void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
+    void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
         throw vm_user_exception{ "Debugger signaled VM termination" };
     }
@@ -332,10 +344,7 @@ namespace
     void cmd_breakpoint_set(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         if (a.size() < 3)
-        {
-            debug_print_error("Must supply an IP and module ID");
-            return;
-        }
+            throw debug_cmd_error_t{ "Must supply an IP and module ID" };
 
         vm_pc_t pc;
         try
@@ -344,8 +353,7 @@ namespace
         }
         catch (...)
         {
-            debug_print_error("Invalid IP format");
-            return;
+            throw debug_cmd_error_t{ "Invalid IP format" };
         }
 
         uint32_t module_id;
@@ -355,8 +363,7 @@ namespace
         }
         catch (...)
         {
-            debug_print_error("Invalid module ID format");
-            return;
+            throw debug_cmd_error_t{ "Invalid module ID format" };
         }
 
         auto module = std::shared_ptr<vm_module_t>{};
@@ -372,20 +379,15 @@ namespace
 
         if (module == nullptr)
         {
-            debug_print_error("Invalid module ID");
-            return;
+            throw debug_cmd_error_t{ "Invalid module ID" };
         }
         else if (util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         {
-            debug_print_error("Unable to set breakpoint in built-in module");
-            return;
+            throw debug_cmd_error_t{ "Unable to set breakpoint in built-in module" };
         }
 
         if (pc < 0 || module->code_section.size() <= static_cast<std::size_t>(pc))
-        {
-            debug_print_error("Invalid IP for module");
-            return;
-        }
+            throw debug_cmd_error_t{ "Invalid IP for module" };
 
         cxt.dbg.breakpoint_cookies.push_back(cxt.dbg.controller->set_breakpoint(module, pc));
     }
@@ -393,10 +395,7 @@ namespace
     void cmd_breakpoint_clear(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         if (a.size() == 1)
-        {
-            debug_print_error("Must supply a breakpoint ID or wildcard");
-            return;
-        }
+            throw debug_cmd_error_t{ "Must supply a breakpoint ID or wildcard" };
 
         auto controller = cxt.dbg.controller;
         if (a[1].compare("*") == 0)
@@ -417,8 +416,7 @@ namespace
         }
         catch (...)
         {
-            debug_print_error("Invalid breakpoint ID format");
-            return;
+            throw debug_cmd_error_t{ "Invalid breakpoint ID format" };
         }
 
         auto cookie_iter = std::find_if(
@@ -426,10 +424,7 @@ namespace
             std::end(cxt.dbg.breakpoint_cookies),
             [breakpoint_cookie] (const cookie_t c) { return c == breakpoint_cookie; });
         if (cookie_iter == cxt.dbg.breakpoint_cookies.end())
-        {
-            debug_print_error("Unknown breakpoint ID");
-            return;
-        }
+            throw debug_cmd_error_t{ "Unknown breakpoint ID" };
 
         // Clear the breakpoint
         controller->clear_breakpoint(breakpoint_cookie);
@@ -446,7 +441,7 @@ namespace
             const auto details = cxt.dbg.controller->get_breakpoint_details(cookie);
             msg << std::setw(3) << cookie << ": "
                 << std::setw(16) << details.module->module_name->str()
-                << std::setw(0) << " @ " << details.pc << "\n";
+                << std::setw(0) << "@" << details.pc << "\n";
         }
 
         debug_print_info(msg.str());
@@ -474,8 +469,7 @@ namespace
                 }
                 catch (...)
                 {
-                    debug_print_error("Invalid thread ID format");
-                    return;
+                    throw debug_cmd_error_t{ "Invalid thread ID format" };
                 }
             }
 
@@ -496,10 +490,7 @@ namespace
         }
 
         if (thread_registers.empty())
-        {
-            debug_print_error("Unknown thread ID");
-            return;
-        }
+            throw debug_cmd_error_t{ "Unknown thread ID" };
 
         auto msg = std::stringstream{};
         for (auto t : thread_registers)
@@ -515,10 +506,7 @@ namespace
     void cmd_switchthread(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         if (a.size() == 1)
-        {
-            debug_print_error("Must supply a target thread ID");
-            return;
-        }
+            throw debug_cmd_error_t{ "Must supply a target thread ID" };
 
         uint32_t thread_id;
         try
@@ -527,8 +515,7 @@ namespace
         }
         catch (...)
         {
-            debug_print_error("Invalid thread ID format");
-            return;
+            throw debug_cmd_error_t{ "Invalid thread ID format" };
         }
 
         auto all_threads = cxt.vm.get_scheduler_control().get_all_threads();
@@ -544,7 +531,7 @@ namespace
             }
         }
 
-        debug_print_error("Unknown thread ID");
+        throw debug_cmd_error_t{ "Unknown thread ID" };
     }
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
@@ -558,8 +545,7 @@ namespace
             }
             catch (...)
             {
-                debug_print_error("Invalid disassemble count format");
-                return;
+                throw debug_cmd_error_t{ "Invalid disassemble count format" };
             }
         }
 
@@ -589,10 +575,7 @@ namespace
     void cmd_examine(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
         if (a.size() < 3)
-        {
-            debug_print_error("Invalid number of arguments");
-            return;
-        }
+            throw debug_cmd_error_t{ "Invalid number of arguments" };
 
         std::shared_ptr<const type_descriptor_t> base_type;
         word_t *base_pointer;
@@ -606,18 +589,14 @@ namespace
         {
             auto frame = cxt.current_register->stack.peek_frame();
             if (frame == nullptr)
-            {
-                debug_print_error("Invalid frame pointer ");
-                return;
-            }
+                throw debug_cmd_error_t{ "Invalid frame pointer " };
 
             base_type = frame->frame_type;
             base_pointer = reinterpret_cast<word_t *>(frame->base());
         }
         else
         {
-            debug_print_error("Invalid memory base pointer");
-            return;
+            throw debug_cmd_error_t{ "Invalid memory base pointer" };
         }
 
         assert(base_type != nullptr && base_pointer != nullptr);
@@ -635,15 +614,11 @@ namespace
         }
         catch (...)
         {
-            debug_print_error("Invalid memory offset format");
-            return;
+            throw debug_cmd_error_t{ "Invalid memory offset format" };
         }
 
         if (0 > byte_offset1 || byte_offset1 >= base_type->size_in_bytes)
-        {
-            debug_print_error("First offset out of range");
-            return;
-        }
+            throw debug_cmd_error_t{ "First offset out of range" };
 
         auto msg = std::stringstream{};
         if (byte_offset2 != -1)
@@ -661,16 +636,10 @@ namespace
             if (byte_offset2 != -1)
             {
                 if (alloc_to_examine == nullptr)
-                {
-                    debug_print_error("First offset is nil");
-                    return;
-                }
+                    throw debug_cmd_error_t{ "First offset is nil" };
 
                 if (0 > byte_offset2 || byte_offset2 >= alloc_to_examine->alloc_type->size_in_bytes)
-                {
-                    debug_print_error("Second offset out of range");
-                    return;
-                }
+                    throw debug_cmd_error_t{ "Second offset out of range" };
 
                 // Update data pointer for 2nd indirection
                 base_pointer = reinterpret_cast<word_t *>(alloc_to_examine->get_allocation());
@@ -862,9 +831,16 @@ namespace
                 continue;
             }
 
-            cmd_exec(cmd_tokens, cxt);
-            if (cxt.exit_break)
-                break;
+            try
+            {
+                cmd_exec(cmd_tokens, cxt);
+                if (cxt.exit_break)
+                    break;
+            }
+            catch (const debug_cmd_error_t &e)
+            {
+                debug_print_error(e.what());
+            }
         }
     }
 }
