@@ -307,6 +307,8 @@ unsigned int len;
       (((UINT4)input[j+2]) << 16) | (((UINT4)input[j+3]) << 24);
 }
 
+#include <string.h>
+
 /* Note: Replace "for loop" with standard memcpy if possible.
  */
 static void MD5_memcpy (output, input, len)
@@ -314,10 +316,12 @@ POINTER output;
 POINTER input;
 unsigned int len;
 {
-  unsigned int i;
-  
-  for (i = 0; i < len; i++)
-    output[i] = input[i];
+  //unsigned int i;
+  //
+  //for (i = 0; i < len; i++)
+  //  output[i] = input[i];
+
+  memcpy(output, input, len);
 }
 
 /* Note: Replace "for loop" with standard memset if possible.
@@ -327,8 +331,10 @@ POINTER output;
 int value;
 unsigned int len;
 {
-  unsigned int i;
-  
-  for (i = 0; i < len; i++)
-    ((char *)output)[i] = (char)value;
+  //unsigned int i;
+  //
+  //for (i = 0; i < len; i++)
+  //  ((char *)output)[i] = (char)value;
+
+  memset(output, value, len);
 }
