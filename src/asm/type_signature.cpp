@@ -184,7 +184,7 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, Tfunction &
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tfunction &f)
 {
-    assert(!f._fully_defined && "Incomplete function");
+    assert(f._fully_defined && "Incomplete function");
     return os << f._s;
 }
 
@@ -198,6 +198,6 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, Tfunction_v
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tfunction_varargs &f)
 {
-    assert(!f._fully_defined && "Incomplete function");
+    assert(f._fully_defined && "Incomplete function");
     return os << f._s;
 }
