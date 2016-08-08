@@ -1,13 +1,12 @@
-implement Command;
+implement Exec;
 
 include "sys.m";
-include "draw.m";
-include "Command.m";
+include "Exec.m";
 include "external_module.m";
 
 sys : Sys;
 
-init(cxt: ref Draw->Context, args: list of string)
+init(args: list of string)
 {
     a := "foobar!";
     sys = load Sys Sys->PATH;

@@ -11,10 +11,12 @@
 #include <builtin_module.h>
 #include <debug.h>
 #include <exceptions.h>
+#include <vm_asm.h>
 #include "exec.h"
 
 using namespace disvm;
 using namespace disvm::runtime;
+using namespace disvm::assembly::sigkind;
 
 namespace
 {
@@ -88,20 +90,16 @@ namespace
         };
 
         // Initialize the module base register
-        const auto mp_type = type_descriptor_t::create(12, { 0xe0 });
+        const auto mp_type = type_descriptor_t::create(8, { 0xc0 });
         e.original_mp.reset(vm_alloc_t::allocate(mp_type, vm_alloc_t::zero_memory));
         auto mp_base = e.original_mp->get_allocation<pointer_t>();
         mp_base[0] = command_module_path->get_allocation();
 
-        // [TODO] Implement the UI context for the command
-        mp_base[1] = nullptr;
-
         if (args != nullptr)
-            mp_base[2] = args->get_allocation();
+            mp_base[1] = args->get_allocation();
 
         // Define the frame offsets for the two arguments
         const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset;
-        const auto second_arg_offset = first_arg_offset + vm_frame_constants::register_size_in_bytes;
 
         e.code_section =
         {
@@ -124,17 +122,9 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::movp,
-                    { address_mode_t::offset_indirect_mp, 4, 0 }, // UI context
+                    { address_mode_t::offset_indirect_mp, 4, 0 }, // Argument list
                     { address_mode_middle_t::none },
-                    { address_mode_t::offset_double_indirect_fp, 24, first_arg_offset } // module call frame -> UI context offset
-                }
-            },
-            { vm_exec_op_t
-                {
-                    opcode_t::movp,
-                    { address_mode_t::offset_indirect_mp, 8, 0 }, // Argument list
-                    { address_mode_middle_t::none },
-                    { address_mode_t::offset_double_indirect_fp, 24, second_arg_offset } // module call frame -> argument list offset
+                    { address_mode_t::offset_double_indirect_fp, 24, first_arg_offset } // module call frame -> argument list offset
                 }
             },
             { vm_exec_op_t
@@ -148,13 +138,21 @@ namespace
             { vm_exec_op_t{ opcode_t::ret,{ address_mode_t::none },{ address_mode_middle_t::none },{ address_mode_t::none } } },
         };
 
-        // Create import section for Command
-        // See limbo/Command.m for type details
+        // Create import section for Exec
+        // See limbo/Exec.m for type details
         {
-            import_function_t func{};
+            import_function_t func;
 
-            // [TODO] Create mechanism to generated type signatures
-            func.sig = 0x4244b354;
+            const auto exec_init_sig = 0x2e01144a;
+
+            // Validate the hard-coded type signature on debug builds.
+#if !defined(NDEBUG)
+            sig_stream_t m;
+            m << Tfunction::create(Tlist::create(Tstring::id)).returns(Tnone::id);
+            assert(exec_init_sig == m.get_signature_hash());
+            assert(exec_init_sig == sig_stream_t::compute_signature_hash("f(Ls)n"));
+#endif
+            func.sig = exec_init_sig;
 
             std::array<uint8_t, 5> func_name = { "init" };
             func.name = std::make_unique<vm_string_t>(func_name.size() - 1, func_name.data());

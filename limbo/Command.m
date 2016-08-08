@@ -1,5 +1,5 @@
 #
-# Command module definition for disvm-exec program
+# Command module definition for the Dis VM shell
 #
 
 # Sys and Draw modules must be included before this file in modules.
