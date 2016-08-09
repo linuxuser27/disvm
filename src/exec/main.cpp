@@ -261,7 +261,7 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
 
 int main(int argc, char* argv[])
 {
-    exec_options options = {};
+    exec_options options{};
 
     try
     {

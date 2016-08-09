@@ -30,10 +30,13 @@ namespace disvm
         namespace sigkind
         {
             // Signature stream
-            class sig_stream_t
+            class sig_stream_t final
             {
             public: // static
                 static uint32_t compute_signature_hash(const char *);
+
+                // Type delimiter
+                static const char delim = ',';
 
             public:
                 std::string get_signature() const;
@@ -42,10 +45,11 @@ namespace disvm
 
                 sig_stream_t &operator<<(const char);
                 sig_stream_t &operator<<(const char *);
+                sig_stream_t &operator<<(const uint32_t);
                 sig_stream_t &operator<<(const sig_stream_t &);
 
             private:
-                std::stringstream _ss;
+                mutable std::stringstream _ss;
             };
 
             // Type context modifiers
@@ -55,12 +59,12 @@ namespace disvm
                 cycle = 'y',
             };
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::modifier_id_t &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::modifier_id_t &);
 
             // Instrinsic VM types
             enum class type_id_t : uint8_t
             {
-                unknown = 0,
+                unknown = 0, // This will be interpreted as a 'null' value which will help debug where the type building failed.
                 none = 'n',
                 byte = 'b',
                 integer = 'i',
@@ -74,14 +78,14 @@ namespace disvm
                 list = 'L',
                 channel = 'C',
                 adt = 'a',
-                //adtpick = 'p',
+                adt_pick_tag = 'p',
                 tuple = 't',
                 module = 'm',
                 function = 'f',
                 function_varargs = 0xff, // "f*"
             };
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::type_id_t &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::type_id_t &);
 
             template<type_id_t T>
             struct Tbasic_type
@@ -102,7 +106,7 @@ namespace disvm
             using Tstring = Tbasic_type<type_id_t::string>;
             using Tpoly = Tbasic_type<type_id_t::poly>;
 
-            class Tfixed : public Tbasic_type<type_id_t::fixed>
+            class Tfixed final : public Tbasic_type<type_id_t::fixed>
             {
             public:
                 Tfixed(double scale);
@@ -113,7 +117,7 @@ namespace disvm
                 const double _scale;
             };
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tfixed &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tfixed &);
 
             // Type that contains/modifies another type
             template <type_id_t ID>
@@ -141,14 +145,18 @@ namespace disvm
             using Tlist = Tbasic_aggregate_type<type_id_t::list>;
             using Tchannel = Tbasic_aggregate_type<type_id_t::channel>;
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tarray &);
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tref &);
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tlist &);
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tchannel &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tarray &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tref &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tlist &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tchannel &);
 
             // Reference to another previously defined type in the current signature
-            struct Ttype_ref
+            class Ttype_ref final
             {
+            public: // static
+                static const char id = '@';
+
+            public:
                 Ttype_ref(uint32_t num);
 
                 friend sig_stream_t &operator<<(sig_stream_t &os, const Ttype_ref &);
@@ -157,23 +165,25 @@ namespace disvm
                 const uint32_t _num;
             };
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Ttype_ref &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Ttype_ref &);
 
             // Named member type
-            struct Tm
+            class Tm final
             {
-                Tm(const char *name, const type_id_t &type_id);
-                Tm(const char *name, const char *type_id);
+            public:
+                template <typename T>
+                Tm(const char *name, const T &type)
+                {
+                    _s << name << ':' << type;
+                }
 
                 friend sig_stream_t &operator<<(sig_stream_t &os, const Tm &);
 
             private:
-                const char *_type_id_str;
-                const type_id_t _type_id;
-                const char *_name;
+                sig_stream_t _s;
             };
 
-            sig_stream_t & operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tm &);
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tm &);
 
             inline void nested_type(const sig_stream_t &)
             {
@@ -190,7 +200,7 @@ namespace disvm
             template<typename T1, typename T2, typename ...S>
             void nested_type(sig_stream_t &ss, const T1 &t1, const T2 &t2, const S&...s)
             {
-                ss << t1 << ',';
+                ss << t1 << sig_stream_t::type_delim;
                 nested_type(ss, t2, s...);
             }
 
@@ -198,7 +208,7 @@ namespace disvm
             template <type_id_t ID>
             class Tnested_aggregate_type : public Tbasic_type<ID>
             {
-            public:
+            public:  // static
                 static const char begin;
                 static const char end;
 
@@ -215,26 +225,96 @@ namespace disvm
                     return Tnested_aggregate_type{ ss };
                 }
 
+            public:
+                Tnested_aggregate_type(sig_stream_t &s)
+                    : _s{ std::move(s) }
+                { }
+
                 friend sig_stream_t &operator<<(sig_stream_t &, const Tnested_aggregate_type &);
 
             private:
                 sig_stream_t _s;
-                Tnested_aggregate_type(sig_stream_t &s) : _s{ std::move(s) } { }
             };
 
             using Ttuple = Tnested_aggregate_type<type_id_t::tuple>;
-            using Tadt = Tnested_aggregate_type<type_id_t::adt>;
             using Tmodule = Tnested_aggregate_type<type_id_t::module>;
 
             sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Ttuple &);
-            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tadt &);
             sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tmodule &);
+
+            // Abstract data type (ADT) pick tag
+            // Note: This type should only be a part of an ADT instance.
+            class Tadt_pick_tag final : public Tbasic_type<type_id_t::adt_pick_tag>
+            {
+            public:  // static
+                static const char *tag_delim;
+                static const char begin = '(';
+                static const char end = ')';
+
+                static Tadt_pick_tag create(const char *pick_tag, uint32_t adt_ref, std::initializer_list<const Tm> tms);
+
+                friend sig_stream_t &operator<<(sig_stream_t &, const Tadt_pick_tag &);
+
+            private:
+                sig_stream_t _s;
+                Tadt_pick_tag(sig_stream_t &s) : _s{ std::move(s) } { }
+            };
+
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tadt_pick_tag &);
+
+            // Abstract data type (ADT)
+            class Tadt final : public Tnested_aggregate_type<type_id_t::adt>
+            {
+            public: // static
+                // Unhide base class version of function
+                using Tnested_aggregate_type::create;
+
+                // Create an ADT with a single pick tag
+                static Tadt create(const Tadt_pick_tag &p)
+                {
+                    sig_stream_t ss;
+                    ss << Tbasic_type::id
+                        << Tadt::begin
+                        << sig_stream_t::delim
+                        << p
+                        << Tadt::end;
+
+                    return Tadt{ ss };
+                }
+
+                template<typename T, typename ...NT>
+                static Tadt create(const Tadt_pick_tag &p, const T &t, const NT&... nestedTypes)
+                {
+                    // [SPEC] When generating type signatures, the Limbo compiler
+                    // doesn't identify the case where a pick tag is the first type
+                    // so it always prefixes the nested signature with a leading ','.
+                    // We special case this scenario to maintain compatibility. The
+                    // single pick tag for an ADT must also be handled (above).
+                    sig_stream_t ss;
+                    ss << Tbasic_type::id
+                        << Tadt::begin
+                        << sig_stream_t::delim
+                        << p
+                        << sig_stream_t::delim;
+
+                    nested_type(ss, t, nestedTypes...);
+
+                    ss << Tadt::end;
+
+                    return Tadt{ ss };
+                }
+
+            private:
+                Tadt(sig_stream_t &s) : Tnested_aggregate_type{ std::move(s) } { }
+            };
+
+            sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tnested_aggregate_type<type_id_t::adt> &);
 
             // Function type
             template<type_id_t T>
-            class Tfunction_base_type : public Tbasic_type<T>
+            class Tfunction_base_type final : public Tbasic_type<T>
             {
-            public:
+            public: // static
                 static const char begin = '(';
                 static const char end = ')';
 
@@ -250,6 +330,7 @@ namespace disvm
                     return a;
                 }
 
+            public:
                 template<typename RT>
                 Tfunction_base_type &returns(RT r)
                 {

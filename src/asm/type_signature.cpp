@@ -63,9 +63,18 @@ sig_stream_t &sig_stream_t::operator<<(const char *s)
     return *this;
 }
 
+sig_stream_t &sig_stream_t::operator<<(const uint32_t i)
+{
+    _ss << i;
+    return *this;
+}
+
 sig_stream_t &sig_stream_t::operator<<(const sig_stream_t &ss)
 {
     _ss << ss._ss.rdbuf();
+
+    // Reset the input stream so it can be inserted in another stream.
+    ss._ss.seekg(0);
     return *this;
 }
 
@@ -121,40 +130,16 @@ Ttype_ref::Ttype_ref(uint32_t num)
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Ttype_ref &r)
 {
-    return os << '@' << r._num;
+    return os << Tref::id << r._num;
 }
-
-Tm::Tm(const char *name, const type_id_t &type_id)
-    : _name{ name }
-    , _type_id{ type_id }
-    , _type_id_str{ nullptr }
-{ }
-
-Tm::Tm(const char *name, const char *type_id)
-    : _name{ name }
-    , _type_id{ type_id_t::unknown }
-    , _type_id_str{ type_id }
-{ }
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tm &m)
 {
-    if (m._type_id_str == nullptr)
-    {
-        assert(m._type_id != type_id_t::unknown);
-        return os << m._name << ':' << m._type_id;
-    }
-    else
-    {
-        assert(m._type_id == type_id_t::unknown);
-        return os << m._name << ':' << m._type_id_str;
-    }
+    return os << m._s;
 }
 
 const char Ttuple::begin = '(';
 const char Ttuple::end = ')';
-
-const char Tadt::begin = '(';
-const char Tadt::end = ')';
 
 const char Tmodule::begin = '{';
 const char Tmodule::end = '}';
@@ -164,14 +149,43 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Ttupl
     return os << t._s;
 }
 
-sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tadt &a)
-{
-    return os << a._s;
-}
-
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tmodule &m)
 {
     return os << m._s;
+}
+
+const char *Tadt_pick_tag::tag_delim = "=>";
+
+Tadt_pick_tag Tadt_pick_tag::create(const char *pick_tag, uint32_t adt_ref, std::initializer_list<const Tm> tms)
+{
+    sig_stream_t ss;
+    ss << pick_tag << Tadt_pick_tag::tag_delim << Tbasic_type::id << Tadt_pick_tag::begin;
+
+    auto tm = tms.begin();
+    for (auto c = 0; tm != tms.end(); tm++, c++)
+    {
+        if (c > 0)
+            ss << sig_stream_t::delim;
+
+        ss << *tm;
+    }
+
+    ss << Tadt_pick_tag::end << Tref::id << adt_ref;
+
+    return Tadt_pick_tag{ ss };
+}
+
+sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tadt_pick_tag &t)
+{
+    return os << t._s;
+}
+
+const char Tnested_aggregate_type<type_id_t::adt>::begin = '(';
+const char Tnested_aggregate_type<type_id_t::adt>::end = ')';
+
+sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tnested_aggregate_type<type_id_t::adt> &a)
+{
+    return os << a._s;
 }
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, Tfunction &f)
