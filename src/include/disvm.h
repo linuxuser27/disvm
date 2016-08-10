@@ -84,7 +84,7 @@ namespace disvm
 
         // Begin execution of a child thread in the supplied module at the indicated program counter
         const runtime::vm_thread_t& fork(
-            const runtime::vm_thread_t &parent,
+            const uint32_t parent_tid,
             runtime::vm_module_ref_t &module_ref,
             const runtime::vm_frame_t &initial_frame,
             runtime::vm_pc_t initial_pc);

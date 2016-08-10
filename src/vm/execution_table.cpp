@@ -1584,7 +1584,7 @@ namespace
         const auto starting_pc = vt_ref<vm_pc_t>(r.dest);
 
         assert(r.module_ref != nullptr);
-        vm.fork(r.thread, *r.module_ref, *spawned_frame, starting_pc);
+        vm.fork(r.thread.get_thread_id(), *r.module_ref, *spawned_frame, starting_pc);
 
         // After the new thread is forked pop off the argument passing frame.
         r.stack.pop_frame();
@@ -1613,7 +1613,7 @@ namespace
         if (target_module_ref->is_builtin_module())
             throw vm_user_exception{ "Spawning a built-in module is not permitted" };
 
-        vm.fork(r.thread, *target_module_ref, *spawned_frame, function_ref.entry_pc);
+        vm.fork(r.thread.get_thread_id(), *target_module_ref, *spawned_frame, function_ref.entry_pc);
 
         // After the new thread is forked pop off the argument passing frame.
         r.stack.pop_frame();

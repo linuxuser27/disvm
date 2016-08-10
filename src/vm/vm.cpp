@@ -104,7 +104,7 @@ const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> ent
 }
 
 const runtime::vm_thread_t& vm_t::fork(
-    const runtime::vm_thread_t &parent,
+    const uint32_t parent_tid,
     runtime::vm_module_ref_t &module_ref,
     const runtime::vm_frame_t &initial_frame,
     runtime::vm_pc_t initial_pc)
@@ -112,7 +112,7 @@ const runtime::vm_thread_t& vm_t::fork(
     if (initial_pc < 0 || static_cast<vm_pc_t>(module_ref.code_section.size()) <= initial_pc)
         throw vm_system_exception{ "Invalid entry program counter" };
 
-    auto thread = std::make_unique<vm_thread_t>(module_ref, parent.get_thread_id(), initial_frame, initial_pc);
+    auto thread = std::make_unique<vm_thread_t>(module_ref, parent_tid, initial_frame, initial_pc);
     return schedule_thread(std::move(thread));
 }
 
