@@ -34,12 +34,7 @@ vm_t::vm_t(
 
     if (create_scheduler == nullptr)
     {
-        const auto system_thread_count = uint32_t{ 1 };
-
-        // The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
-        const auto thread_quanta = uint32_t{ 2048 };
-
-        _scheduler = std::make_unique<default_scheduler_t>(*this, system_thread_count, thread_quanta);
+        _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
     }
     else
     {

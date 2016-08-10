@@ -57,6 +57,11 @@ namespace disvm
     public: // static
         static const auto root_vm_thread_id = uint32_t{ 0 };
 
+        static const auto default_system_thread_count = uint32_t{ 1 };
+
+        // The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
+        static const auto default_thread_quanta = uint32_t{ 2048 };
+
     public:
         explicit vm_t(
             create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler = nullptr,

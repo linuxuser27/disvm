@@ -12,6 +12,7 @@
 #include <debug.h>
 #include <exceptions.h>
 #include <vm_asm.h>
+#include <vm_version.h>
 #include "exec.h"
 
 using namespace disvm;
@@ -169,7 +170,7 @@ namespace
 
 struct arg_exception_t : std::runtime_error
 {
-    arg_exception_t(const char *m, const char *arg)
+    arg_exception_t(const char *m, const char *arg = nullptr)
         : std::runtime_error{ m }
         , arg{ arg }
     { }
@@ -179,7 +180,19 @@ struct arg_exception_t : std::runtime_error
 
 struct exec_options
 {
+    exec_options()
+        : debugger{}
+        , enabled_debugger{ false }
+        , quiet_start{ false }
+        , print_help{ false }
+        , sys_thread_count{ vm_t::default_system_thread_count }
+        , thread_quanta{ vm_t::default_thread_quanta }
+    { }
+
     std::vector<char *> vm_args;
+
+    uint32_t sys_thread_count;
+    uint32_t thread_quanta;
 
     bool print_help;
     bool quiet_start;
@@ -189,10 +202,15 @@ struct exec_options
 
 void print_banner(const exec_options &options)
 {
+    std::cout << "DisVM " << DISVM_VERSION_MAJOR << '.' << DISVM_VERSION_MINOR << '.' << DISVM_VERSION_PATCH;
+
+    if (DISVM_VERSION_LABEL != nullptr)
+        std::cout << '-' << DISVM_VERSION_LABEL;
+
     std::cout
-        << "DisVM\n"
-        << "----------------\n"
-        << "Debugger enabled: " << std::boolalpha << options.enabled_debugger << "\n";
+        << "\n----------------\n"
+        << "Debugger enabled: " << std::boolalpha << options.enabled_debugger << "\n"
+        << "System thread usage: " << options.sys_thread_count << "\n";
 
     if (options.enabled_debugger)
         std::cout << options.debugger << "\n";
@@ -203,12 +221,13 @@ void print_banner(const exec_options &options)
 void print_help()
 {
     std::cout
-        << "Usage: disvm-exec [-d[e|m|x]*] [-q] [-?] <entry module> <args>*\n"
+        << "Usage: disvm-exec [-d[e|m|x]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
         << "    d - Enable debugger\n"
         << "         e - Break on entry\n"
         << "         m - Break on module load\n"
         << "         x - Break on exception (first chance)\n"
         << "    q - Suppress banner and configuration\n"
+        << "    t - Specify the number of system threads to use (0 < x <= 4)\n"
         << "    ? - Print help\n";
 }
 
@@ -243,7 +262,21 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
                 break;
             }
         }
+        break;
 
+    case 't':
+        {
+            auto sys_threads_str = next();
+            if (sys_threads_str == nullptr)
+                throw arg_exception_t{ "System thread requires count" };
+
+            char *end;
+            auto sys_threads = ::strtol(sys_threads_str, &end, 10);
+            if (sys_threads <= 0 || 4 < sys_threads)
+                throw arg_exception_t{ "Invalid system thread value", sys_threads_str };
+
+            options.sys_thread_count = sys_threads;
+        }
         break;
 
     case 'q':
@@ -293,7 +326,7 @@ int main(int argc, char* argv[])
         return EXIT_SUCCESS;
     }
 
-    vm_t vm;
+    vm_t vm{ options.sys_thread_count, options.thread_quanta };
 
     if (options.enabled_debugger)
         vm.load_tool(std::make_shared<debugger>(options.debugger));
