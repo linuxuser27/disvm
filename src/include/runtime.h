@@ -417,10 +417,16 @@ namespace disvm
         // Instruction execution operation
         using vm_exec_t = void(*)(vm_registers_t &, vm_t &);
 
+        // Addressing code - defines addressing mode for all registers
+        // bit  7  6  5  4  3  2  1  0
+        //     m1 m0 s2 s1 s0 d2 d1 d0
+        using addr_code_t = uint8_t;
+
         // Opcode execution operation
         struct vm_exec_op_t
         {
             opcode_t opcode;
+            addr_code_t addr_code;
             src_data_t source;
             middle_data_t middle;
             dest_data_t destination;

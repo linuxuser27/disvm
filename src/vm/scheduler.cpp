@@ -182,7 +182,7 @@ void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *d
         {
             // Reset count and sleep since all the current threads have been attempted.
             count = threads_to_set.size();
-            std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+            std::this_thread::sleep_for(std::chrono::milliseconds{ 50 });
         }
 
         const auto thread_id = threads_to_set.front();

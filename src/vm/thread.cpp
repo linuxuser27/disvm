@@ -20,87 +20,12 @@ using namespace disvm::runtime;
 
 namespace
 {
+#include "address_decoding.inc"
+
     // Update VM registers based on the instruction.
     void decode_address(const vm_exec_op_t &inst, vm_registers_t &reg)
     {
-        switch (inst.source.mode)
-        {
-        case address_mode_t::offset_indirect_fp:
-            reg.src = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.source.register1);
-            break;
-        case address_mode_t::offset_indirect_mp:
-            reg.src = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.source.register1);
-            break;
-        case address_mode_t::offset_double_indirect_fp:
-        {
-            const auto frame_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.source.register1);
-            reg.src = reinterpret_cast<pointer_t>(frame_offset + inst.source.register2);
-            break;
-        }
-        case address_mode_t::offset_double_indirect_mp:
-        {
-            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.source.register1);
-            reg.src = reinterpret_cast<pointer_t>(mp_offset + inst.source.register2);
-            break;
-        }
-        case address_mode_t::immediate:
-            reg.src = reinterpret_cast<pointer_t>(const_cast<word_t *>(&inst.source.register1));
-            break;
-        case address_mode_t::none:
-            reg.src = nullptr;
-            break;
-        default:
-            assert(false && "Unknown source addressing");
-        }
-
-        switch (inst.destination.mode)
-        {
-        case address_mode_t::offset_indirect_fp:
-            reg.dest = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.destination.register1);
-            break;
-        case address_mode_t::offset_indirect_mp:
-            reg.dest = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.destination.register1);
-            break;
-        case address_mode_t::offset_double_indirect_fp:
-        {
-            const auto frame_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.destination.register1);
-            reg.dest = reinterpret_cast<pointer_t>(frame_offset + inst.destination.register2);
-            break;
-        }
-        case address_mode_t::offset_double_indirect_mp:
-        {
-            const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.destination.register1);
-            reg.dest = reinterpret_cast<pointer_t>(mp_offset + inst.destination.register2);
-            break;
-        }
-        case address_mode_t::immediate:
-            reg.dest = reinterpret_cast<pointer_t>(const_cast<word_t *>(&inst.destination.register1));
-            break;
-        case address_mode_t::none:
-            reg.dest = nullptr;
-            break;
-        default:
-            assert(false && "Unknown destination addressing");
-        }
-
-        switch (inst.middle.mode)
-        {
-        case address_mode_middle_t::small_offset_indirect_fp:
-            reg.mid = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.middle.register1);
-            break;
-        case address_mode_middle_t::small_offset_indirect_mp:
-            reg.mid = reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.middle.register1);
-            break;
-        case address_mode_middle_t::small_immediate:
-            reg.mid = reinterpret_cast<pointer_t>(const_cast<word_t *>(&inst.middle.register1));
-            break;
-        case address_mode_middle_t::none:
-            // [SPEC] This is an undocumented expectation but required in many operations (e.g. i++).
-            reg.mid = reg.dest;
-            break;
-        default:
-            assert(false && "Unknown middle addressing");
-        }
+        decode_table[inst.addr_code](inst, reg);
 
 #ifndef NDEBUG
         // This is a perf critical function so logging is only available in debug builds

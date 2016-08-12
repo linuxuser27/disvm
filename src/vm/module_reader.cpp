@@ -191,16 +191,13 @@ namespace
         return dest;
     }
 
-    std::tuple<address_mode_middle_t, address_mode_t, address_mode_t> convert_to_address_mode(uint8_t instr_addr_mode)
+    std::tuple<address_mode_middle_t, address_mode_t, address_mode_t> convert_to_address_mode(addr_code_t instr_addr_mode)
     {
-        // Taken from Dis VM specification
-        // bit  7  6  5  4  3  2  1  0
-        //     m1 m0 s2 s1 s0 d2 d1 d0
-
+        // See definition of addr_code_t
         static const auto mid_mask = uint8_t{ 0xc0 };
         static const auto src_mask = uint8_t{ 0x38 };
         static const auto dest_mask = uint8_t{ 0x07 };
-        assert((mid_mask | src_mask | dest_mask) == std::numeric_limits<uint8_t>::max());
+        assert((mid_mask | src_mask | dest_mask) == std::numeric_limits<addr_code_t>::max());
 
         const auto mid = static_cast<address_mode_middle_t>((instr_addr_mode & mid_mask) >> 6);
         const auto src = static_cast<address_mode_t>((instr_addr_mode & src_mask) >> 3);
@@ -286,6 +283,7 @@ namespace
 
             instr.opcode = static_cast<opcode_t>(op_and_addrmode[0]);
             assert(opcode_t::first_opcode <= instr.opcode && instr.opcode <= opcode_t::last_opcode);
+            instr.addr_code = op_and_addrmode[1];
 
             std::tie(instr.middle.mode, instr.source.mode, instr.destination.mode) = convert_to_address_mode(op_and_addrmode[1]);
 

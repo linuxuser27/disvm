@@ -107,6 +107,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::load,
+                    assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_mp, 0, 0 }, // command module path
                     { address_mode_middle_t::small_immediate, 0 }, // import table index
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
@@ -115,6 +116,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::mframe,
+                    assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_fp, 20, 0 }, // module reference
                     { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 24, 0 } // module call frame
@@ -123,6 +125,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::movp,
+                    assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::none, address_mode_t::offset_double_indirect_fp),
                     { address_mode_t::offset_indirect_mp, 4, 0 }, // Argument list
                     { address_mode_middle_t::none },
                     { address_mode_t::offset_double_indirect_fp, 24, first_arg_offset } // module call frame -> argument list offset
@@ -131,12 +134,21 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::mcall,
+                    assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_fp, 24, 0 }, // module call frame
                     { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
                 }
             },
-            { vm_exec_op_t{ opcode_t::ret,{ address_mode_t::none },{ address_mode_middle_t::none },{ address_mode_t::none } } },
+            { vm_exec_op_t
+                {
+                    opcode_t::ret,
+                    assembly::construct_address_code(address_mode_t::none, address_mode_middle_t::none, address_mode_t::none),
+                    { address_mode_t::none },
+                    { address_mode_middle_t::none },
+                    { address_mode_t::none }
+                }
+            },
         };
 
         // Create import section for Exec

@@ -18,6 +18,15 @@ namespace disvm
 {
     namespace assembly
     {
+        // Construct a single address code from the addressing enumerations
+        constexpr disvm::runtime::addr_code_t construct_address_code(
+            disvm::runtime::address_mode_t src,
+            disvm::runtime::address_mode_middle_t mid,
+            disvm::runtime::address_mode_t dest)
+        {
+            return static_cast<uint8_t>(mid) << 6 | static_cast<uint8_t>(src) << 3 | static_cast<uint8_t>(dest);
+        }
+
         // Get string repsentation of opcode
         const char *opcode_to_token(disvm::opcode_t);
 
