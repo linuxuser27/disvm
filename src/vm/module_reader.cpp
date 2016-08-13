@@ -197,7 +197,7 @@ namespace
         static const auto mid_mask = uint8_t{ 0xc0 };
         static const auto src_mask = uint8_t{ 0x38 };
         static const auto dest_mask = uint8_t{ 0x07 };
-        assert((mid_mask | src_mask | dest_mask) == std::numeric_limits<addr_code_t>::max());
+        static_assert((mid_mask | src_mask | dest_mask) == std::numeric_limits<addr_code_t>::max(), "Incomplete masks for addressing modes");
 
         const auto mid = static_cast<address_mode_middle_t>((instr_addr_mode & mid_mask) >> 6);
         const auto src = static_cast<address_mode_t>((instr_addr_mode & src_mask) >> 3);

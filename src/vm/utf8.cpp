@@ -56,7 +56,12 @@ utf8::decode_state_t disvm::runtime::utf8::decode_step(utf8::decode_state_t &sta
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 std::size_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std::size_t max_len)
 {
-    assert(str != nullptr);
+    if (str == nullptr)
+    {
+        assert(max_len == 0);
+        return std::size_t{ 0 };
+    }
+
     auto single_character = rune_t{};
     auto points = std::size_t{ 0 };
     auto state = utf8::decode_state_t::accept;

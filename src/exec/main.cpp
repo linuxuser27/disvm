@@ -38,22 +38,18 @@ namespace
         if (vm_args.size() == 0)
             throw vm_user_exception{ "Entry module not supplied" };
 
-        // First argument is the module to load
-        auto entry_module_path = vm_args[0];
-        auto command_module_path = new vm_string_t{ std::strlen(entry_module_path), reinterpret_cast<uint8_t *>(entry_module_path) };
-
-        // Pre-load the command module in the VM.
-        command_module = vm.load_module(command_module_path->str());
-
         // Convert arguments to a list
+        vm_string_t *command_module_path = nullptr;
         vm_list_t *args = nullptr;
         vm_list_t *last = nullptr;
-        for (auto i = std::size_t{ 1 }; i < vm_args.size(); ++i)
+        for (auto i = std::size_t{ 0 }; i < vm_args.size(); ++i)
         {
             auto tmp = vm_args[i];
             auto arg = new vm_string_t{ std::strlen(tmp), reinterpret_cast<uint8_t *>(tmp) };
             if (args == nullptr)
             {
+                // First argument is the module to load
+                command_module_path = arg;
                 assert(last == nullptr);
                 args = new vm_list_t{ intrinsic_type_desc::type<vm_string_t>() };
                 last = args;
@@ -70,7 +66,12 @@ namespace
             pt_ref(last->value()) = arg->get_allocation();
         }
 
-        // Create the module
+        assert(args != nullptr);
+
+        // Pre-load the command module in the VM.
+        command_module = vm.load_module(command_module_path->str());
+
+        // Create the entry module
         auto entry_module = std::make_unique<vm_module_t>();
         auto &e = *entry_module;
 
@@ -94,12 +95,13 @@ namespace
         const auto mp_type = type_descriptor_t::create(8, { 0xc0 });
         e.original_mp.reset(vm_alloc_t::allocate(mp_type, vm_alloc_t::zero_memory));
         auto mp_base = e.original_mp->get_allocation<pointer_t>();
+
+        // Take a reference on the command module path and store it on the entry frame
+        command_module_path->add_ref();
         mp_base[0] = command_module_path->get_allocation();
+        mp_base[1] = args->get_allocation();
 
-        if (args != nullptr)
-            mp_base[1] = args->get_allocation();
-
-        // Define the frame offsets for the two arguments
+        // Define the frame offset for the argument
         const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset;
 
         e.code_section =
@@ -360,7 +362,7 @@ int main(int argc, char* argv[])
     catch (const vm_system_exception &se)
     {
         std::cerr
-            << "Internal exception:\n    "
+            << "Internal exception:\n"
             << se.what()
             << std::endl;
 
