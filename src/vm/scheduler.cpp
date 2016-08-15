@@ -95,7 +95,7 @@ default_scheduler_t::~default_scheduler_t()
         std::lock_guard<std::mutex> lock{ _vm_threads_lock };
         _terminating = true;
 
-        _runnable_vm_threads.clear();
+        _runnable_vm_thread_ids.clear();
         _all_vm_threads.clear();
     }
 
@@ -112,7 +112,7 @@ default_scheduler_t::~default_scheduler_t()
 bool default_scheduler_t::is_idle() const
 {
     std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-    return (_terminating) || (_running_vm_thread_count == 0 && _runnable_vm_threads.empty() && _blocked_vm_thread_ids.empty());
+    return (_terminating) || (_running_vm_thread_count == 0 && _runnable_vm_thread_ids.empty() && _blocked_vm_thread_ids.empty());
 }
 
 vm_scheduler_control_t &default_scheduler_t::get_controller() const
@@ -146,7 +146,7 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
     // Allocate a new container and set the thread entry
     _all_vm_threads[new_thread_id] = new_thread;
 
-    _runnable_vm_threads.push_back(new_thread);
+    _runnable_vm_thread_ids.push_back(new_thread_id);
 
     // Notify the worker a thread has been enqueued.
     lock.unlock();
@@ -244,7 +244,7 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
         debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue blocked: %d\n", thread_id);
 
-    const bool runnable_thread = enqueue_thread_unsafe(thread_container, vm_thread_state_t::ready);
+    const bool runnable_thread = enqueue_thread_unsafe(std::move(thread_container), vm_thread_state_t::ready);
     if (runnable_thread)
     {
         lock_all.unlock();
@@ -271,8 +271,12 @@ std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_runnabl
 
     {
         std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-        for (auto &r : _runnable_vm_threads)
-            result.push_back(r->vm_thread);
+        for (auto id : _runnable_vm_thread_ids)
+        {
+            auto iter = _all_vm_threads.find(id);
+            assert(iter != _all_vm_threads.cend());
+            result.push_back(iter->second->vm_thread);
+        }
     }
 
     return result;
@@ -314,10 +318,15 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
             perform_gc(is_gc_thread, lock);
         }
 
-        if (!_runnable_vm_threads.empty())
+        if (!_runnable_vm_thread_ids.empty())
         {
-            next_thread = _runnable_vm_threads.front();
-            _runnable_vm_threads.pop_front();
+            const auto thread_id = _runnable_vm_thread_ids.front();
+            _runnable_vm_thread_ids.pop_front();
+
+            auto iter = _all_vm_threads.find(thread_id);
+            assert(iter != _all_vm_threads.cend());
+            next_thread = iter->second;
+
             ++_running_vm_thread_count;
             ++_gc_counter;
 
@@ -383,7 +392,7 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
     case vm_thread_state_t::ready:
     case vm_thread_state_t::debug:
     {
-        _runnable_vm_threads.push_back(thread_instance);
+        _runnable_vm_thread_ids.push_back(thread_id);
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
             debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue: %d\n", thread_id);

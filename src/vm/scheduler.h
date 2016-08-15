@@ -11,6 +11,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
 #include <deque>
 #include <forward_list>
 #include <unordered_set>
@@ -86,7 +87,7 @@ namespace disvm
 
             const uint32_t _vm_thread_quanta;
             mutable std::mutex _vm_threads_lock;
-            std::deque<std::shared_ptr<thread_instance_t>> _runnable_vm_threads;
+            std::deque<uint32_t> _runnable_vm_thread_ids;
             std::size_t _running_vm_thread_count;
 
             std::mutex _gc_wait;

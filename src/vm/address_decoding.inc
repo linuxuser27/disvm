@@ -54,7 +54,9 @@ template<>
 void dec_src<address_mode_t::none>(const vm_exec_op_t &inst, vm_registers_t &reg)
 {
     assert(inst.source.mode == address_mode_t::none);
+#ifndef NDEBUG
     reg.src = nullptr;
+#endif
 }
 
 // Decode destination register
@@ -105,7 +107,9 @@ template<>
 void dec_dest<address_mode_t::none>(const vm_exec_op_t &inst, vm_registers_t &reg)
 {
     assert(inst.destination.mode == address_mode_t::none);
+#ifndef NDEBUG
     reg.dest = nullptr;
+#endif
 }
 
 // Decode middle register
