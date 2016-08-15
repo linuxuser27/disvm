@@ -239,7 +239,11 @@ void vm_t::unload_tool(std::size_t tool_id)
     {
         // Detach from all threads
         _scheduler->set_tool_dispatch_on_all_threads(nullptr);
-        _tool_dispatch.reset();
+
+        // Note that the tool dispatcher instance is _not_ freed.
+        // This is done to ease scheduler implementations that are
+        // unable to fully guarantee no vm threads have a handle to
+        // the dispatcher instance.
     }
 }
 

@@ -1466,7 +1466,9 @@ namespace
             r.mp_base = r.module_ref->mp_base;
         }
 
-        r.stack.pop_frame();
+        auto new_frame = r.stack.pop_frame();
+        if (new_frame == nullptr)
+            r.current_thread_state = vm_thread_state_t::empty_stack;
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
             debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "exit: function\n");
@@ -1587,7 +1589,9 @@ namespace
         vm.fork(r.thread.get_thread_id(), *r.module_ref, *spawned_frame, starting_pc);
 
         // After the new thread is forked pop off the argument passing frame.
-        r.stack.pop_frame();
+        auto new_frame = r.stack.pop_frame();
+        if (new_frame == nullptr)
+            r.current_thread_state = vm_thread_state_t::empty_stack;
     }
 
     EXEC_DECL(mspawn)
@@ -1616,7 +1620,9 @@ namespace
         vm.fork(r.thread.get_thread_id(), *target_module_ref, *spawned_frame, function_ref.entry_pc);
 
         // After the new thread is forked pop off the argument passing frame.
-        r.stack.pop_frame();
+        auto new_frame = r.stack.pop_frame();
+        if (new_frame == nullptr)
+            r.current_thread_state = vm_thread_state_t::empty_stack;
     }
 
     EXEC_DECL(exit)

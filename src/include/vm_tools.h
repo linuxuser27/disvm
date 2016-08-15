@@ -85,6 +85,10 @@ namespace disvm
             virtual cookie_t set_breakpoint(std::shared_ptr<vm_module_t>, vm_pc_t) = 0;
             virtual breakpoint_details_t get_breakpoint_details(cookie_t) const = 0;
             virtual void clear_breakpoint(cookie_t) = 0;
+
+            // Manipulate thread execution
+            virtual void suspend_all_threads() = 0;
+            virtual void resume_all_threads() = 0;
         };
     }
 }

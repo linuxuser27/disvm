@@ -11,7 +11,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#include <queue>
+#include <deque>
 #include <forward_list>
 #include <unordered_set>
 #include <unordered_map>
@@ -47,6 +47,8 @@ namespace disvm
 
             std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override;
 
+            std::vector<std::shared_ptr<const vm_thread_t>> get_runnable_threads() const override;
+
         private:
             struct thread_instance_t final
             {
@@ -70,7 +72,8 @@ namespace disvm
             void perform_gc(bool is_gc_thread, std::unique_lock<std::mutex> &all_vm_threads_lock);
 
             // Add the thread to the queue in a non-thread safe manner.
-            void enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread, runtime::vm_thread_state_t current_state);
+            // Returns 'true' if the runnable thread queue has been updated, otherwise 'false'.
+            bool enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread, runtime::vm_thread_state_t current_state);
 
         private:
             vm_t &_vm;
@@ -83,7 +86,7 @@ namespace disvm
 
             const uint32_t _vm_thread_quanta;
             mutable std::mutex _vm_threads_lock;
-            std::queue<std::shared_ptr<thread_instance_t>> _runnable_vm_threads;
+            std::deque<std::shared_ptr<thread_instance_t>> _runnable_vm_threads;
             std::size_t _running_vm_thread_count;
 
             std::mutex _gc_wait;

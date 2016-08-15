@@ -7,6 +7,7 @@
 #include <cassert>
 #include <vector>
 #include <debug.h>
+#include <disvm.h>
 #include <vm_tools.h>
 #include <exceptions.h>
 #include <utils.h>
@@ -21,7 +22,9 @@ vm_tool_t::~vm_tool_t()
 }
 
 vm_tool_dispatch_t::vm_tool_dispatch_t(vm_t &vm)
-    : _vm{ vm }
+    : _threads_suspended{ false }
+    , _threads_suspended_count{ 0 }
+    , _vm { vm }
 {
     _events.cookie_counter = 1;
     _breakpoints.cookie_counter = 1;
@@ -161,6 +164,25 @@ void vm_tool_dispatch_t::on_thread_end(vm_thread_t &t)
     _events.fire_event_callbacks(vm_event_t::thread_end, cxt);
 }
 
+void vm_tool_dispatch_t::on_thread_broken(vm_thread_t &)
+{
+}
+
+void vm_tool_dispatch_t::block_if_thread_suspended(uint32_t thread_id)
+{
+    if (!_threads_suspended)
+        return;
+
+    std::unique_lock<std::mutex> resume_lock{ _threads_resume_lock };
+
+    _threads_suspended_count++;
+
+    while (_threads_suspended)
+        _threads_resume.wait(resume_lock);
+
+    _threads_suspended_count--;
+}
+
 vm_t& vm_tool_dispatch_t::get_vm_instance() const
 {
     return _vm;
@@ -171,7 +193,7 @@ cookie_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t
     if (!cb)
         throw vm_system_exception{ "Invalid callback for event" };
 
-    std::lock_guard<std::mutex> lock{ _events.lock };
+    std::lock_guard<std::mutex> lock{ _events.event_lock };
 
     const auto cookie_id = _events.cookie_counter++;
 
@@ -190,7 +212,7 @@ cookie_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t
 
 void vm_tool_dispatch_t::unsubscribe_event(cookie_t cookie_id)
 {
-    std::lock_guard<std::mutex> lock{ _events.lock };
+    std::lock_guard<std::mutex> lock{ _events.event_lock };
 
     auto iter = _events.cookie_to_event.find(cookie_id);
     if (iter == _events.cookie_to_event.cend())
@@ -292,6 +314,46 @@ void vm_tool_dispatch_t::clear_breakpoint(cookie_t cookie_id)
     _breakpoints.cookie_to_details.erase(iter_cookie);
 }
 
+void vm_tool_dispatch_t::suspend_all_threads()
+{
+    std::lock(_threads_suspend_lock, _threads_resume_lock);
+    std::lock_guard<std::mutex> suspend_lock{ _threads_suspend_lock, std::adopt_lock };
+    std::lock_guard<std::mutex> resume_lock{ _threads_resume_lock, std::adopt_lock };
+
+    _threads_suspended = true;
+
+    const auto &sched = _vm.get_scheduler_control();
+
+    auto current = _threads_suspended_count.load();
+    auto max = static_cast<uint32_t>(sched.get_runnable_threads().size());
+
+    // Sleep and check until we determine all threads have been suspended
+    // Minus 1 to exclude the current thread.
+    while (max != 0 && current < (max - 1))
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 20 });
+        current = _threads_suspended_count.load();
+        max = static_cast<uint32_t>(sched.get_runnable_threads().size());
+    }
+
+    // If the current count is ever equal to the max, then a non vm thread is
+    // inside the tool dispatcher which may be okay, but it indicates a type of
+    // non-invasive debugging that was not originally incorporated into this
+    // dispatcher design.
+    assert(max == 0 || current < max);
+}
+
+void vm_tool_dispatch_t::resume_all_threads()
+{
+    std::lock(_threads_suspend_lock, _threads_resume_lock);
+    std::lock_guard<std::mutex> suspend_lock{ _threads_suspend_lock, std::adopt_lock };
+
+    _threads_suspended = false;
+
+    _threads_resume_lock.unlock();
+    _threads_resume.notify_all();
+}
+
 std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cookie(const vm_registers_t &r)
 {
     const auto module = r.module_ref->module.get();
@@ -320,7 +382,7 @@ void vm_tool_dispatch_t::events_t::fire_event_callbacks(vm_event_t event_type, v
     auto event_callbacks = std::vector<vm_event_callback_t>{};
 
     {
-        std::lock_guard<std::mutex> lock_local{ lock };
+        std::lock_guard<std::mutex> lock_local{ event_lock };
 
         auto &event_callbacks_tmp = callbacks[event_type];
         for (auto &c : event_callbacks_tmp)

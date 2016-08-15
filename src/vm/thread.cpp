@@ -54,6 +54,7 @@ vm_registers_t::vm_registers_t(
     const vm_thread_t &thread,
     vm_module_ref_t &entry)
     : current_thread_state{ vm_thread_state_t::ready }
+    , current_thread_quanta{ 0 }
     , module_ref{ &entry }
     , mp_base{ entry.mp_base }
     , thread{ thread }
@@ -163,64 +164,89 @@ vm_thread_t::~vm_thread_t()
         debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
 }
 
-vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
+namespace
 {
-    _registers.current_thread_state = vm_thread_state_t::running;
-    assert(_registers.pc != runtime_constants::invalid_program_counter);
-
-    auto execution_duration = uint32_t{ 0 };
-
-    try
+    struct execute_with_tool_t
     {
-        for (; execution_duration < quanta; ++execution_duration)
+        void begin_exec_loop(vm_registers_t &registers, vm_t &)
         {
-            if (_registers.stack.peek_frame() == nullptr)
-            {
-                if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
-                    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "exit: vm thread: stack exhausted: %d\n", _thread_id);
+            auto tool_dispatch = registers.tool_dispatch.load();
+            assert(tool_dispatch != nullptr);
 
-                _registers.current_thread_state = vm_thread_state_t::empty_stack;
+            tool_dispatch->block_if_thread_suspended(registers.thread.get_thread_id());
+        }
+    };
 
-                auto tool_dispatch = _registers.tool_dispatch.load();
-                if (tool_dispatch != nullptr)
-                    tool_dispatch->on_thread_end(*this);
+    struct execute_normal_t
+    {
+        void begin_exec_loop(vm_registers_t &, vm_t &) { }
+    };
 
-                break;
-            }
+    template<typename EXEC_DETOUR>
+    void execute_impl(vm_registers_t &registers, vm_t &vm)
+    {
+        EXEC_DETOUR detour{};
+        auto &execution_duration = registers.current_thread_quanta;
+        for (; 0 != execution_duration; --execution_duration)
+        {
+            detour.begin_exec_loop(registers, vm);
+            assert(registers.stack.peek_frame() != nullptr && "Thread state should not be running with empty stack");
 
-            const auto &code_section = _registers.module_ref->code_section;
-            assert(static_cast<std::size_t>(_registers.pc) < code_section.size());
+            const auto &code_section = registers.module_ref->code_section;
+            assert(static_cast<std::size_t>(registers.pc) < code_section.size());
 
-            assert(!_registers.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
-            const auto &inst = code_section[_registers.pc].op;
+            assert(!registers.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
+            const auto &inst = code_section[registers.pc].op;
             const auto opcode = static_cast<std::size_t>(inst.opcode);
             if (static_cast<std::size_t>(opcode_t::last_opcode) < opcode)
                 throw vm_system_exception{ "Unknown op-code" };
 
             // Instruction is valid, decode and update registers for operation
-            decode_address(inst, _registers);
-            _registers.pc++;
-            vm_exec_table[opcode](_registers, vm);
+            decode_address(inst, registers);
+            registers.pc++;
+            vm_exec_table[opcode](registers, vm);
 
-            if (_registers.current_thread_state != vm_thread_state_t::running)
+            if (registers.current_thread_state != vm_thread_state_t::running)
                 break;
         }
+    }
+}
+
+vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
+{
+    _registers.current_thread_state = vm_thread_state_t::running;
+    _registers.current_thread_quanta = quanta;
+    assert(_registers.pc != runtime_constants::invalid_program_counter);
+    auto tool_dispatch = _registers.tool_dispatch.load();
+
+    try
+    {
+        if (tool_dispatch == nullptr)
+            execute_impl<execute_normal_t>(_registers, vm);
+        else
+            execute_impl<execute_with_tool_t>(_registers, vm);
     }
     catch (const unhandled_user_exception &uue)
     {
         // [TODO] Store the exception
         std::fprintf(stderr, "%s - '%s' in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
         _registers.current_thread_state = vm_thread_state_t::broken;
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_thread_broken(*this);
     }
     catch (const index_out_of_range_memory &ioor)
     {
         std::fprintf(stderr, "%s - %d [%d,%d]\n", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
         _registers.current_thread_state = vm_thread_state_t::broken;
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_thread_broken(*this);
     }
     catch (const vm_user_exception &ue)
     {
         std::fprintf(stderr, "%s\n", ue.what());
         _registers.current_thread_state = vm_thread_state_t::broken;
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_thread_broken(*this);
     }
 
     // Log the execution result
@@ -231,14 +257,22 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
             debug::log_level_t::debug,
             "status: vm thread: execute: %d %d %d %d\n",
             _thread_id,
-            execution_duration,
+            (quanta - _registers.current_thread_quanta),
             quanta,
             _registers.current_thread_state);
     }
 
-    // If the thread is still in the running state transition it back to ready.
+    // If the thread is still in the running state transition it back to its entry state.
     if (_registers.current_thread_state == vm_thread_state_t::running)
-        _registers.current_thread_state = vm_thread_state_t::ready;
+    {
+        _registers.current_thread_state = (tool_dispatch == nullptr) ? vm_thread_state_t::ready : vm_thread_state_t::debug;
+    }
+    else if (vm_thread_state_t::exiting == _registers.current_thread_state
+        || vm_thread_state_t::empty_stack == _registers.current_thread_state)
+    {
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_thread_end(*this);
+    }
 
     return _registers.current_thread_state;
 }

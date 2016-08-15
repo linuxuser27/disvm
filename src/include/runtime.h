@@ -700,7 +700,7 @@ namespace disvm
             const vm_string_t &exception_id);
 
         // VM thread states
-        enum class vm_thread_state_t
+        enum class vm_thread_state_t : uint16_t
         {
             unknown = 0,
 
@@ -708,7 +708,7 @@ namespace disvm
             blocked_sending,    // blocked waiting to send
             blocked_receiving,  // blocked waiting to receive
 
-            debug,    // thread is running under a debugger
+            debug,    // thread is ready to run with a loaded tool (i.e. debugger)
             ready,    // ready to run
             running,
 
@@ -740,7 +740,10 @@ namespace disvm
             vm_alloc_t *mp_base;  // Module data base pointer (MP)
             vm_module_ref_t *module_ref;  // Module reference
             vm_request_mutex_t request_mutex;
+
             vm_thread_state_t current_thread_state;
+            uint16_t current_thread_quanta;
+
             pointer_t src;
             pointer_t mid;
             pointer_t dest;
@@ -772,10 +775,14 @@ namespace disvm
 
             ~vm_thread_t();
 
+            // Execute instructions associated with this vm thread of execution
             vm_thread_state_t execute(vm_t &vm, const uint32_t quanta);
 
             // There is no way to get the current dispatch value.
-            // Setting the dispatch to 'null' detaches all tool related behavior
+            // Setting the dispatch to 'null' detaches all tool related behavior.
+            // It is undefined behavior to set the tool dispatcher while another
+            // thread is concurrently executing instructions associated with
+            // this vm thread.
             void set_tool_dispatch(vm_tool_dispatch_t *dispatch);
 
             vm_thread_state_t get_state() const;
@@ -808,6 +815,9 @@ namespace disvm
 
             // Get all VM threads
             virtual std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const = 0;
+
+            // Get runnable VM threads
+            virtual std::vector<std::shared_ptr<const vm_thread_t>> get_runnable_threads() const = 0;
         };
 
         // VM thread scheduler interface

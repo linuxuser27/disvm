@@ -14,7 +14,7 @@
           'msvs_settings': {
             'VCCLCompilerTool': {
               'ExceptionHandling': 1,
-              'Optimization': 3, # Full optimizations
+              'Optimization': 2, # Optimize for speed
               'PreprocessorDefinitions':  [
                 'NDEBUG'
               ]

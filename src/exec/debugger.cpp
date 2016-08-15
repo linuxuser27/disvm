@@ -798,6 +798,8 @@ namespace
 
     void prompt(debugger &debugger, const vm_registers_t &r)
     {
+        debugger.controller->suspend_all_threads();
+
         std::cout
             << console_modifiers::green_font
             << console_modifiers::bold
@@ -842,6 +844,8 @@ namespace
                 debug_print_error(e.what());
             }
         }
+
+        debugger.controller->resume_all_threads();
     }
 }
 

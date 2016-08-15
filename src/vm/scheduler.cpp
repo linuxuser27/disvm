@@ -7,6 +7,7 @@
 #include <debug.h>
 #include <iostream>
 #include <sstream>
+#include <queue>
 #include <exceptions.h>
 #include "scheduler.h"
 
@@ -94,9 +95,7 @@ default_scheduler_t::~default_scheduler_t()
         std::lock_guard<std::mutex> lock{ _vm_threads_lock };
         _terminating = true;
 
-        while (!_runnable_vm_threads.empty())
-            _runnable_vm_threads.pop();
-
+        _runnable_vm_threads.clear();
         _all_vm_threads.clear();
     }
 
@@ -130,7 +129,7 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
         debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: scheduled: %d\n", thread->get_thread_id());
 
-    std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+    std::unique_lock<std::mutex> lock{ _vm_threads_lock };
 
     // Create workers on first scheduled thread
     if (_worker_pool.empty())
@@ -147,9 +146,10 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
     // Allocate a new container and set the thread entry
     _all_vm_threads[new_thread_id] = new_thread;
 
-    _runnable_vm_threads.push(new_thread);
+    _runnable_vm_threads.push_back(new_thread);
 
     // Notify the worker a thread has been enqueued.
+    lock.unlock();
     _worker_event.notify_one();
 
     return *(new_thread->vm_thread);
@@ -157,7 +157,7 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
 
 void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch)
 {
-    std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+    std::unique_lock<std::mutex> lock{ _vm_threads_lock };
 
     auto threads_to_set = std::queue<uint32_t>{};
 
@@ -171,6 +171,7 @@ void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *d
             continue;
         }
 
+        std::lock_guard<std::mutex> lock_thread{ entry.second->system_thread_ownership, std::adopt_lock };
         t->set_tool_dispatch(dispatch);
     }
 
@@ -182,7 +183,11 @@ void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *d
         {
             // Reset count and sleep since all the current threads have been attempted.
             count = threads_to_set.size();
+
+            // Release the vm threads lock so they can make progress
+            lock.unlock();
             std::this_thread::sleep_for(std::chrono::milliseconds{ 50 });
+            lock.lock();
         }
 
         const auto thread_id = threads_to_set.front();
@@ -190,13 +195,18 @@ void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *d
         count--;
 
         const auto iter = _all_vm_threads.find(thread_id);
-        assert(iter != _all_vm_threads.cend());
+
+        // The thread to set could have been removed while we were sleeping above
+        if (iter == _all_vm_threads.cend())
+            continue;
+
         if (!iter->second->system_thread_ownership.try_lock())
         {
             threads_to_set.push(thread_id);
             continue;
         }
 
+        std::lock_guard<std::mutex> lock_thread{ iter->second->system_thread_ownership, std::adopt_lock };
         iter->second->vm_thread->set_tool_dispatch(dispatch);
     }
 }
@@ -218,7 +228,7 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
 
     // Lock the vm thread collections and this vm thread
     std::lock(_vm_threads_lock, thread_container->system_thread_ownership);
-    std::lock_guard<std::mutex> lock_all{ _vm_threads_lock, std::adopt_lock };
+    std::unique_lock<std::mutex> lock_all{ _vm_threads_lock, std::adopt_lock };
     std::lock_guard<std::mutex> lock_thread{ thread_container->system_thread_ownership, std::adopt_lock };
 
     // If the thread is not blocked, just return.
@@ -234,7 +244,12 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
         debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue blocked: %d\n", thread_id);
 
-    enqueue_thread_unsafe(thread_container, vm_thread_state_t::ready);
+    const bool runnable_thread = enqueue_thread_unsafe(thread_container, vm_thread_state_t::ready);
+    if (runnable_thread)
+    {
+        lock_all.unlock();
+        _worker_event.notify_one();
+    }
 }
 
 std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_all_threads() const
@@ -250,21 +265,38 @@ std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_all_thr
     return result;
 }
 
+std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_runnable_threads() const
+{
+    auto result = std::vector<std::shared_ptr<const vm_thread_t>>{};
+
+    {
+        std::lock_guard<std::mutex> lock{ _vm_threads_lock };
+        for (auto &r : _runnable_vm_threads)
+            result.push_back(r->vm_thread);
+    }
+
+    return result;
+}
+
 std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::next_thread(std::shared_ptr<thread_instance_t> prev_thread)
 {
     auto next_thread = std::shared_ptr<thread_instance_t>{};
 
-    // Check if the passed in thread should be re-enqueued
+    // Check if the passed in thread should be enqueued
     if (prev_thread != nullptr)
     {
         const auto current_state = prev_thread->vm_thread->get_state();
-        // This system thread releases ownership of the vm thread
-        prev_thread->system_thread_ownership.unlock();
 
+        // This system thread releases ownership of the vm thread after it has been enqueued
+        std::lock_guard<std::mutex> vm_thread_ownership{ prev_thread->system_thread_ownership, std::adopt_lock };
+
+        std::unique_lock<std::mutex> lock_all{ _vm_threads_lock };
+        --_running_vm_thread_count;
+        const bool runnable_thread = enqueue_thread_unsafe(std::move(prev_thread), current_state);
+        if (runnable_thread)
         {
-            std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-            --_running_vm_thread_count;
-            enqueue_thread_unsafe(std::move(prev_thread), current_state);
+            lock_all.unlock();
+            _worker_event.notify_one();
         }
     }
 
@@ -285,7 +317,7 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
         if (!_runnable_vm_threads.empty())
         {
             next_thread = _runnable_vm_threads.front();
-            _runnable_vm_threads.pop();
+            _runnable_vm_threads.pop_front();
             ++_running_vm_thread_count;
             ++_gc_counter;
 
@@ -341,7 +373,7 @@ void default_scheduler_t::perform_gc(bool is_gc_thread, std::unique_lock<std::mu
     }
 }
 
-void default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread_instance, runtime::vm_thread_state_t current_state)
+bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread_instance, runtime::vm_thread_state_t current_state)
 {
     assert(thread_instance != nullptr);
 
@@ -351,14 +383,12 @@ void default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
     case vm_thread_state_t::ready:
     case vm_thread_state_t::debug:
     {
-        _runnable_vm_threads.push(thread_instance);
+        _runnable_vm_threads.push_back(thread_instance);
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
             debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue: %d\n", thread_id);
 
-        // Notify a worker a thread has been enqueued.
-        _worker_event.notify_one();
-        break;
+        return true;
     }
 
     case vm_thread_state_t::blocked_in_alt:
@@ -403,4 +433,6 @@ void default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         assert(false && "Unexpected thread state");
         throw vm_system_exception{ "Unexpected thread state" };
     }
+
+    return false;
 }

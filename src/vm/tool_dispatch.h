@@ -55,6 +55,13 @@ namespace disvm
             // Callback when thread lifetime ends without error.
             void on_thread_end(vm_thread_t &t);
 
+            // Callback when thread lifetime is terminated by error.
+            void on_thread_broken(vm_thread_t &t);
+
+            // Function called by system threads to determine if the associated vm thread is
+            // currently suspended.
+            void block_if_thread_suspended(uint32_t thread_id);
+
         public: // vm_tool_controller_t
             vm_t& get_vm_instance() const override;
 
@@ -65,11 +72,20 @@ namespace disvm
             breakpoint_details_t get_breakpoint_details(cookie_t) const override;
             void clear_breakpoint(cookie_t cookie_id) override;
 
+            void suspend_all_threads() override;
+            void resume_all_threads() override;
+
         private:
             std::tuple<opcode_t, cookie_t> get_original_opcode_and_cookie(const vm_registers_t &r);
 
         private:
             vm_t &_vm;
+
+            std::atomic_bool _threads_suspended;
+            std::atomic<uint32_t> _threads_suspended_count;
+            std::mutex _threads_suspend_lock;
+            std::condition_variable _threads_resume;
+            std::mutex _threads_resume_lock;
 
             using tool_collection_t = std::unordered_map<std::size_t, std::shared_ptr<vm_tool_t>>;
             tool_collection_t _tools;
@@ -86,7 +102,7 @@ namespace disvm
                 using cookie_to_event_map_t = std::unordered_map<cookie_t, vm_event_t>;
                 cookie_to_event_map_t cookie_to_event;
 
-                mutable std::mutex lock;
+                mutable std::mutex event_lock;
                 cookie_t cookie_counter;
             } _events;
 
