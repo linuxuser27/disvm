@@ -33,13 +33,9 @@ vm_t::vm_t(
         _gc = create_gc(*this);
 
     if (create_scheduler == nullptr)
-    {
         _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
-    }
     else
-    {
         _scheduler = create_scheduler(*this);
-    }
 }
 
 vm_t::vm_t(uint32_t system_thread_count, uint32_t thread_quanta)

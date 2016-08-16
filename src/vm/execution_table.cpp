@@ -635,7 +635,7 @@ namespace
         const auto value = at_val<vm_string_t>(r.src);
 
         assert(r.dest != nullptr);
-        const auto table = reinterpret_cast<const word_t *>(r.dest);
+        auto table = reinterpret_cast<word_t *>(r.dest);
         const auto entry_count = table[case_op_constants::table_length_index];
 
         // Initialize the target PC with the fallback value. 
@@ -648,7 +648,7 @@ namespace
         // Find the matching table entry
         for (auto entry = word_t{ 0 }; entry < entry_count; ++entry)
         {
-            auto string_low = at_val<vm_string_t>(reinterpret_cast<pointer_t>(const_cast<word_t *>(current_entry + case_op_constants::entry_low_index)));
+            auto string_low = at_val<vm_string_t>(reinterpret_cast<pointer_t>(current_entry + case_op_constants::entry_low_index));
 
             // Compare the value against the low string
             int result = vm_string_t::compare(value, string_low);
@@ -662,7 +662,7 @@ namespace
                 }
 
                 // Compare the value against the high string
-                auto string_high = at_val<vm_string_t>(reinterpret_cast<pointer_t>(const_cast<word_t *>(current_entry + case_op_constants::entry_high_index)));
+                auto string_high = at_val<vm_string_t>(reinterpret_cast<pointer_t>(current_entry + case_op_constants::entry_high_index));
                 if (string_high == nullptr || vm_string_t::compare(value, string_high) != 0)
                 {
                     current_entry += case_op_constants::entry_length;
@@ -692,7 +692,7 @@ namespace
     EXEC_DECL(lenc)
     {
         auto len = word_t{ 0 };
-        auto str = at_val<vm_string_t>(r.src);
+        const auto str = at_val<vm_string_t>(r.src);
         if (str != nullptr)
             len = str->get_length();
 
@@ -740,14 +740,14 @@ namespace
         }
     }
 
-    vm_string_t *_addc(vm_string_t *s1, vm_string_t *s2, /* in out */ bool &append_to_s1)
+    vm_string_t *_addc(vm_string_t *s1, const vm_string_t *s2, /* in out */ bool &append_to_s1)
     {
         if (s1 == nullptr)
         {
             if (s2 == nullptr)
-                return new vm_string_t();
+                return new vm_string_t{};
 
-            return new vm_string_t(*s2, 0, s2->get_length());
+            return new vm_string_t{ *s2, 0, s2->get_length() };
         }
 
         // There are other references to this string so we will not alter it.
@@ -776,14 +776,14 @@ namespace
     EXEC_DECL(addc)
     {
         auto s1 = at_val<vm_string_t>(r.mid);
-        auto s2 = at_val<vm_string_t>(r.src);
+        const auto s2 = at_val<vm_string_t>(r.src);
         auto dest_maybe = at_val<vm_string_t>(r.dest);
 
         // If the source is the same as the destination and the
         // destination is not null, append the string. This can 
         // change during the concat process.
         auto append_to_source = dest_maybe != nullptr && s1 == dest_maybe;
-        auto str = _addc(s1, s2, append_to_source);
+        const auto str = _addc(s1, s2, append_to_source);
 
         if (!append_to_source)
         {
@@ -822,7 +822,7 @@ namespace
     EXEC_DECL(lena)
     {
         auto len = word_t{ 0 };
-        auto arr = at_val<vm_array_t>(r.src);
+        const auto arr = at_val<vm_array_t>(r.src);
         if (arr != nullptr)
             len = arr->get_length();
 
@@ -872,7 +872,7 @@ namespace
 
     void _index_in(vm_registers_t &r)
     {
-        auto arr = at_val<vm_array_t>(r.src);
+        const auto arr = at_val<vm_array_t>(r.src);
         if (arr == nullptr)
             throw dereference_nil{ "Indexing into array" };
 
@@ -897,7 +897,7 @@ namespace
     EXEC_DECL(lenl)
     {
         auto len = word_t{ 0 };
-        auto list = at_val<vm_list_t>(r.src);
+        const auto list = at_val<vm_list_t>(r.src);
         if (list != nullptr)
         {
             assert(list->alloc_type == vm_list_t::type_desc());
@@ -983,7 +983,7 @@ namespace
     template<typename PrimitiveType>
     void _head(vm_registers_t &r)
     {
-        auto head = at_val<vm_list_t>(r.src);
+        const auto head = at_val<vm_list_t>(r.src);
         if (head == nullptr)
             throw dereference_nil{ "Head of list" };
 
@@ -999,7 +999,7 @@ namespace
 
     EXEC_DECL(headp)
     {
-        auto list = at_val<vm_list_t>(r.src);
+        const auto list = at_val<vm_list_t>(r.src);
         if (list == nullptr)
             throw dereference_nil{ "Head of list" };
 
@@ -1009,7 +1009,7 @@ namespace
 
     EXEC_DECL(headmp)
     {
-        auto list = at_val<vm_list_t>(r.src);
+        const auto list = at_val<vm_list_t>(r.src);
         if (list == nullptr)
             throw dereference_nil{ "Head of list" };
 
@@ -1019,7 +1019,7 @@ namespace
 
     EXEC_DECL(tail)
     {
-        auto list = at_val<vm_list_t>(r.src);
+        const auto list = at_val<vm_list_t>(r.src);
         if (list == nullptr)
             throw dereference_nil{ "Tail of list" };
 
@@ -1397,8 +1397,8 @@ namespace
 
     EXEC_DECL(tcmp)
     {
-        auto s = at_val<vm_alloc_t>(r.src);
-        auto d = at_val<vm_alloc_t>(r.dest);
+        const auto s = at_val<vm_alloc_t>(r.src);
+        const auto d = at_val<vm_alloc_t>(r.dest);
 
         if (s == nullptr)
             return;
@@ -1558,10 +1558,10 @@ namespace
 
     EXEC_DECL(goto_)
     {
-        auto pc_index = vt_ref<word_t>(r.src);
+        const auto pc_index = vt_ref<word_t>(r.src);
 
         assert(r.dest != nullptr);
-        auto pc_table = reinterpret_cast<vm_pc_t *>(r.dest);
+        const auto pc_table = reinterpret_cast<vm_pc_t *>(r.dest);
 
         r.pc = pc_table[pc_index];
     }

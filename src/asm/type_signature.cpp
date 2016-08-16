@@ -1,13 +1,13 @@
 //
 // Dis VM
-// File: opcode_tokens.cpp
+// File: type_signature.cpp
 // Author: arr
 //
 
 #include <vm_asm.h>
 #include <array>
-#include "rfc1321\global.h"
-#include "rfc1321\md5.h"
+#include "rfc1321/global.h"
+#include "rfc1321/md5.h"
 
 using namespace disvm::assembly::sigkind;
 
