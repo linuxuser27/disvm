@@ -216,8 +216,6 @@ namespace
         if (!success)
             throw module_reader_exception{ "Failed to read magic number" };
 
-        assert(header.magic_number == magic_number_constants::xmagic || header.magic_number == magic_number_constants::smagic);
-
         // If the object file is signed, read in the signature.
         if (header.magic_number == magic_number_constants::smagic)
         {
@@ -228,9 +226,13 @@ namespace
             const auto bytesRead = reader.get_next_bytes(header.Signature.length, header.Signature.signature.get());
             if (bytesRead != header.Signature.length) throw module_reader_exception{ "Failed to read full signature" };
         }
-        else
+        else if (header.magic_number == magic_number_constants::xmagic)
         {
             header.Signature.length = word_t{ 0 };
+        }
+        else
+        {
+            throw module_reader_exception{ "Invalid magic number in module" };
         }
 
         auto runtime_flags = operand_t{};

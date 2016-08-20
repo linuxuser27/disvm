@@ -128,6 +128,18 @@ namespace disvm
             const char *module_name;
             const vm_pc_t program_counter;
         };
+
+        class vm_term_request final : public vm_user_exception
+        {
+        public:
+            explicit vm_term_request()
+                : vm_user_exception("VM termination requested")
+            { }
+
+            explicit vm_term_request(const char *msg)
+                : vm_user_exception(msg)
+            { }
+        };
     }
 }
 

@@ -164,8 +164,12 @@ void vm_tool_dispatch_t::on_thread_end(vm_thread_t &t)
     _events.fire_event_callbacks(vm_event_t::thread_end, cxt);
 }
 
-void vm_tool_dispatch_t::on_thread_broken(vm_thread_t &)
+void vm_tool_dispatch_t::on_thread_broken(vm_thread_t &t)
 {
+    vm_event_context_t cxt{};
+    cxt.value1.thread = &t;
+
+    _events.fire_event_callbacks(vm_event_t::thread_broken, cxt);
 }
 
 void vm_tool_dispatch_t::block_if_thread_suspended(uint32_t thread_id)

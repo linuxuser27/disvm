@@ -717,7 +717,7 @@ namespace disvm
             exiting,  // exit instruction
             empty_stack,
 
-            broken,   // thread crashed
+            broken,   // thread crashed - the scheduler is free to terminate the entire VM if any thread enters this state.
         };
 
         // Forward declaration
@@ -787,6 +787,10 @@ namespace disvm
 
             vm_thread_state_t get_state() const;
 
+            // This function will only return a non-null
+            // value if this thread is in the broken state.
+            const char *get_error_message() const;
+
             uint32_t get_thread_id() const;
 
             uint32_t get_parent_thread_id() const;
@@ -794,9 +798,10 @@ namespace disvm
             const vm_registers_t& get_registers() const;
 
         private:
+            vm_registers_t _registers;
             const uint32_t _thread_id;
             const uint32_t _parent_thread_id;
-            vm_registers_t _registers;
+            char *_error_message;
         };
 
         //

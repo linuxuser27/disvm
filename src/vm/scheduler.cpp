@@ -46,6 +46,13 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
             current_thread->vm_thread->execute(instance._vm, instance._vm_thread_quanta);
         }
     }
+    catch (const vm_term_request &te)
+    {
+        std::cerr << te.what() << std::endl;
+
+        instance._terminating = true;
+        instance._worker_event.notify_all();
+    }
     catch (const vm_system_exception &se)
     {
         std::stringstream err_msg;
@@ -428,12 +435,12 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
 
     case vm_thread_state_t::broken:
     {
-        _non_runnable_vm_thread_ids.push_front(thread_id);
-
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
             debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: broken: %d\n", thread_id);
 
-        break;
+        auto err_msg = thread_instance->vm_thread->get_error_message();
+        assert(err_msg != nullptr);
+        throw vm_term_request{ err_msg };
     }
 
     case vm_thread_state_t::release:

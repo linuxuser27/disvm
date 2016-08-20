@@ -49,6 +49,7 @@ namespace disvm
 
             thread_begin,        // value1: const vm_thread_t
             thread_end,          // value1: const vm_thread_t
+            thread_broken,       // value1: const vm_thread_t
 
             exception_raised,    // value1: vm_registers_t
                                  // value2: const vm_string_t - exception ID

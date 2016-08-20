@@ -304,7 +304,7 @@ namespace
 
     void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
-        throw vm_user_exception{ "Debugger signaled VM termination" };
+        throw vm_term_request{};
     }
 
     void cmd_print_registers(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)

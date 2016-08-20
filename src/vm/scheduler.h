@@ -13,7 +13,6 @@
 #include <condition_variable>
 #include <vector>
 #include <deque>
-#include <forward_list>
 #include <unordered_set>
 #include <unordered_map>
 #include <atomic>
@@ -96,7 +95,6 @@ namespace disvm
             std::size_t _gc_counter;
 
             std::unordered_set<uint32_t> _blocked_vm_thread_ids;
-            std::forward_list<uint32_t> _non_runnable_vm_thread_ids;
 
             using all_thread_map_t = std::unordered_map<uint32_t, std::shared_ptr<thread_instance_t>>;
             all_thread_map_t _all_vm_threads;

@@ -111,6 +111,7 @@ vm_thread_t::vm_thread_t(
     vm_module_ref_t &entry,
     uint32_t parent_thread_id)
     : vm_alloc_t(vm_thread_t::type_desc())
+    , _error_message{ nullptr }
     , _parent_thread_id{ parent_thread_id }
     , _registers{ *this, entry }
     , _thread_id{ get_unique_thread_id() }
@@ -135,6 +136,7 @@ vm_thread_t::vm_thread_t(
     const vm_frame_t &initial_frame,
     vm_pc_t start_pc)
     : vm_alloc_t(vm_thread_t::type_desc())
+    , _error_message{ nullptr }
     , _parent_thread_id{ parent_thread_id }
     , _registers{ *this, entry }
     , _thread_id{ get_unique_thread_id() }
@@ -162,6 +164,9 @@ vm_thread_t::~vm_thread_t()
 {
     if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
         debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+
+    free_memory(_error_message);
+    debug::assign_debug_pointer(&_error_message);
 }
 
 namespace
@@ -214,6 +219,7 @@ namespace
 
 vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
 {
+    const auto max_error_message = std::size_t{ 1024 };
     _registers.current_thread_state = vm_thread_state_t::running;
     _registers.current_thread_quanta = quanta;
     assert(_registers.pc != runtime_constants::invalid_program_counter);
@@ -226,27 +232,27 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
         else
             execute_impl<execute_with_tool_t>(_registers, vm);
     }
+    catch (const vm_term_request &)
+    {
+        throw;
+    }
     catch (const unhandled_user_exception &uue)
     {
-        // [TODO] Store the exception
-        std::fprintf(stderr, "%s - '%s' in %s at instruction %d\n", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
+        _error_message = calloc_memory<char>(max_error_message);
+        std::snprintf(_error_message, max_error_message, "%s - '%s' in %s at instruction %d", uue.what(), uue.exception_id, uue.module_name, uue.program_counter);
         _registers.current_thread_state = vm_thread_state_t::broken;
-        if (tool_dispatch != nullptr)
-            tool_dispatch->on_thread_broken(*this);
     }
     catch (const index_out_of_range_memory &ioor)
     {
-        std::fprintf(stderr, "%s - %d [%d,%d]\n", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
+        _error_message = calloc_memory<char>(max_error_message);
+        std::snprintf(_error_message, max_error_message, "%s - %d [%d,%d]", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
         _registers.current_thread_state = vm_thread_state_t::broken;
-        if (tool_dispatch != nullptr)
-            tool_dispatch->on_thread_broken(*this);
     }
     catch (const vm_user_exception &ue)
     {
-        std::fprintf(stderr, "%s\n", ue.what());
+        _error_message = calloc_memory<char>(max_error_message);
+        std::snprintf(_error_message, max_error_message, "%s", ue.what());
         _registers.current_thread_state = vm_thread_state_t::broken;
-        if (tool_dispatch != nullptr)
-            tool_dispatch->on_thread_broken(*this);
     }
 
     // Log the execution result
@@ -262,16 +268,22 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
             _registers.current_thread_state);
     }
 
-    // If the thread is still in the running state transition it back to its entry state.
-    if (_registers.current_thread_state == vm_thread_state_t::running)
+    switch (_registers.current_thread_state)
     {
+    case vm_thread_state_t::running:
         _registers.current_thread_state = (tool_dispatch == nullptr) ? vm_thread_state_t::ready : vm_thread_state_t::debug;
-    }
-    else if (vm_thread_state_t::exiting == _registers.current_thread_state
-        || vm_thread_state_t::empty_stack == _registers.current_thread_state)
-    {
+        break;
+
+    case vm_thread_state_t::empty_stack:
+    case vm_thread_state_t::exiting:
         if (tool_dispatch != nullptr)
             tool_dispatch->on_thread_end(*this);
+        break;
+
+    case vm_thread_state_t::broken:
+        if (tool_dispatch != nullptr)
+            tool_dispatch->on_thread_broken(*this);
+        break;
     }
 
     return _registers.current_thread_state;
@@ -286,6 +298,11 @@ void vm_thread_t::set_tool_dispatch(vm_tool_dispatch_t *dispatch)
 vm_thread_state_t vm_thread_t::get_state() const
 {
     return _registers.current_thread_state;
+}
+
+const char *vm_thread_t::get_error_message() const
+{
+    return _error_message;
 }
 
 uint32_t vm_thread_t::get_thread_id() const
