@@ -343,8 +343,8 @@ namespace
 
     void cmd_breakpoint_set(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        if (a.size() < 3)
-            throw debug_cmd_error_t{ "Must supply an IP and module ID" };
+        if (a.size() < 2)
+            throw debug_cmd_error_t{ "Must supply an IP" };
 
         vm_pc_t pc;
         try
@@ -356,26 +356,30 @@ namespace
             throw debug_cmd_error_t{ "Invalid IP format" };
         }
 
-        uint32_t module_id;
-        try
+        auto module = std::const_pointer_cast<vm_module_t>(cxt.current_register->module_ref->module);
+        if (a.size() > 2)
         {
-            module_id = std::stoul(a[2]);
-        }
-        catch (...)
-        {
-            throw debug_cmd_error_t{ "Invalid module ID format" };
-        }
+            module.reset();
+            uint32_t module_id;
+            try
+            {
+                module_id = std::stoul(a[2]);
+            }
+            catch (...)
+            {
+                throw debug_cmd_error_t{ "Invalid module ID format" };
+            }
 
-        auto module = std::shared_ptr<vm_module_t>{};
-        cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
-        {
-            if (module_id != m.load_id)
-                return true;
+            cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
+            {
+                if (module_id != m.load_id)
+                    return true;
 
-            // Found the matching ID so stop
-            module = m.module.lock();
-            return false;
-        });
+                // Found the matching ID so stop
+                module = m.module.lock();
+                return false;
+            });
+        }
 
         if (module == nullptr)
         {
@@ -743,7 +747,7 @@ namespace
         { "t", "Print all threads", nullptr, nullptr, cmd_print_threads },
         { "m", "Print all loaded modules", nullptr, nullptr, cmd_print_modules },
 
-        { "bs", "Set breakpoint at the specified IP in a loaded module", "bs [0-9]+ [0-9]+", "bs 3 5 (Breakpoint at IP 3 in module 5)", cmd_breakpoint_set },
+        { "bs", "Set breakpoint at the specified IP in a loaded module", "bs [0-9]+ [0-9]*", "bs 3 5 (Breakpoint at IP 3 in module 5), bs 4 (Breakpoint at IP 4 in current module)", cmd_breakpoint_set },
         { "bc", "Clear breakpoint(s)", "bc ([0-9]+|\\*)", "bc 3, bc *", cmd_breakpoint_clear },
         { "bl", "List breakpoints", nullptr, nullptr, cmd_breakpoint_list },
 
