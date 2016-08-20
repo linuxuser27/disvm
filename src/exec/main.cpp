@@ -195,7 +195,7 @@ struct arg_exception_t : std::runtime_error
 struct exec_options
 {
     exec_options()
-        : debugger{}
+        : debugger{ debugger_options::none }
         , enabled_debugger{ false }
         , quiet_start{ false }
         , print_help{ false }
@@ -227,7 +227,7 @@ void print_banner(const exec_options &options)
         << "System thread usage: " << options.sys_thread_count << "\n";
 
     if (options.enabled_debugger)
-        std::cout << options.debugger << "\n";
+        std::cout << "\n" << options.debugger << "\n";
 
     std::cout << std::endl;
 }
@@ -268,11 +268,11 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
         {
             switch (arg[i])
             {
-            case 'e': options.debugger.break_on_enter = true;
+            case 'e': options.debugger |= debugger_options::break_on_enter;
                 break;
-            case 'm': options.debugger.break_on_module_load = true;
+            case 'm': options.debugger |= debugger_options::break_on_module_load;
                 break;
-            case 'x': options.debugger.break_on_exception = true;
+            case 'x': options.debugger |= debugger_options::break_on_exception;
                 break;
             }
         }

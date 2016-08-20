@@ -71,6 +71,7 @@ word_t disvm::runtime::sys::printf_to_buffer(
             {
                 // Format flags
             default:
+                format.push_back(static_cast<char>(c));
                 continue;
             case 'b': // Print big type (64-bit)
                 format.push_back('l');

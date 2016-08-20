@@ -38,9 +38,9 @@ namespace disvm
 
             enum class cfs_flags_t
             {
-                none,
-                atomic,
-                ensure_create,
+                none = 0,
+                atomic = 1,
+                ensure_create = 2,
             };
 
             DEFINE_ENUM_FLAG_OPERATORS(cfs_flags_t);

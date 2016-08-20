@@ -139,7 +139,7 @@ namespace
 
         register_string
             << "  Thread ID:  " << r.thread.get_thread_id() << "\n"
-            << "     Module:  " << r.module_ref->module->module_name->str() << "  PC: " << r.pc << "\n"
+            << "         PC:  " << r.pc << "  Module:  " << r.module_ref->module->module_name->str() << "\n"
             << "     Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
 
         return register_string.str();
@@ -389,14 +389,7 @@ namespace
         if (pc < 0 || module->code_section.size() <= static_cast<std::size_t>(pc))
             throw debug_cmd_error_t{ "Invalid IP for module" };
 
-        try
-        {
-            cxt.dbg.breakpoint_cookies.push_back(cxt.dbg.controller->set_breakpoint(module, pc));
-        }
-        catch (const vm_system_exception& e)
-        {
-            throw debug_cmd_error_t{ e.what() };
-        }
+        cxt.dbg.breakpoint_cookies.emplace(cxt.dbg.controller->set_breakpoint(module, pc));
     }
 
     void cmd_breakpoint_clear(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
@@ -880,14 +873,14 @@ namespace
 
 std::ostream& operator<<(std::ostream &ss, const debugger_options o)
 {
-    ss << "Break on enter: " << std::boolalpha << o.break_on_enter << "\n"
-       << "Break on module load: " << std::boolalpha << o.break_on_module_load << "\n"
-       << "Break on exception: " << std::boolalpha << o.break_on_exception << "\n";
+    ss << "Break on enter: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_enter) << "\n"
+       << "Break on module load: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_module_load) << "\n"
+       << "Break on exception: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_exception) << "\n";
 
     return ss;
 }
 
-debugger::debugger(const debugger_options &opt)
+debugger::debugger(const debugger_options opt)
     : _options{ opt }
     , _tool_id{ 0 }
     , controller{ nullptr }
@@ -898,7 +891,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
     _tool_id = tool_id;
     controller = &controller_;
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::thread_begin, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::thread_begin, [](vm_event_t, vm_event_context_t &cxt)
     {
         auto t = cxt.value1.thread;
         auto ss = std::stringstream{};
@@ -912,7 +905,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::thread_end, [](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::thread_end, [](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Thread "
@@ -922,7 +915,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         debug_print_info(ss.str());
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_raised, [&](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::exception_raised, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Exception '"
@@ -931,11 +924,11 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        if (_options.break_on_exception)
+        if (util::has_flag(_options, debugger_options::break_on_exception))
             prompt(*this, *cxt.value1.registers);
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::exception_unhandled, [&](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::exception_unhandled, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Unhandled exception '"
@@ -946,7 +939,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         prompt(*this, *cxt.value1.registers);
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto m = (*cxt.value2.module);
         auto ss = std::stringstream{};
@@ -961,19 +954,19 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         // If the break on enter flag was set, it will be true
         // and the first module load will be the user entry module.
-        if (_options.break_on_enter)
+        if (util::has_flag(_options, debugger_options::break_on_enter))
         {
             // Reset the break on enter flag and set a breakpoint
             // on the entry PC for the module - 'break on enter'
-            _options.break_on_enter = false;
+            _options ^= debugger_options::break_on_enter;
             controller->set_breakpoint(m, m->header.entry_pc);
         }
 
-        if (_options.break_on_module_load)
+        if (util::has_flag(_options, debugger_options::break_on_module_load))
             prompt(*this, *cxt.value1.registers);
     }));
 
-    _event_cookies.push_back(controller->subscribe_event(vm_event_t::breakpoint, [&](vm_event_t, vm_event_context_t &cxt)
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::breakpoint, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto ss = std::stringstream{};
         ss << "Breakpoint hit";

@@ -245,8 +245,15 @@ cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module,
 
     {
         std::lock_guard<std::mutex> lock{ _breakpoints.lock };
+        auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];
+
+        // If the real opcode is already a breakpoint and it is known, return the current cookie.
         if (real_opcode == opcode_t::brkpt)
-            throw vm_system_exception{ "Breakpoint already set at PC" };
+        {
+            auto iter = pc_map.find(pc);
+            if (iter != pc_map.cend())
+                return iter->second.second;
+        }
 
         const auto cookie_id = _breakpoints.cookie_counter++;
 
@@ -254,7 +261,6 @@ cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module,
         _breakpoints.cookie_to_details[cookie_id] = { module, pc, real_opcode };
 
         // Record the original opcode
-        auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];
         pc_map[pc] = std::make_pair(real_opcode, cookie_id);
 
         // Replace the current opcode with breakpoint
