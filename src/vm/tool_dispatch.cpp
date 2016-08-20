@@ -251,7 +251,7 @@ cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module,
         const auto cookie_id = _breakpoints.cookie_counter++;
 
         // Map the cookie to the module/pc pair.
-        _breakpoints.cookie_to_details[cookie_id] = { module, pc };
+        _breakpoints.cookie_to_details[cookie_id] = { module, pc, real_opcode };
 
         // Record the original opcode
         auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];

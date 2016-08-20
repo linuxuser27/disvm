@@ -7,10 +7,12 @@
 #ifndef _DISVM_SRC_INCLUDE_OPCODES_H_
 #define _DISVM_SRC_INCLUDE_OPCODES_H_
 
+#include <cstdint>
+
 namespace disvm
 {
     // Instruction codes for the Dis VM
-    enum class opcode_t
+    enum class opcode_t : uint8_t
     {
         invalid = 0,
         alt,

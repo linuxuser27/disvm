@@ -389,7 +389,14 @@ namespace
         if (pc < 0 || module->code_section.size() <= static_cast<std::size_t>(pc))
             throw debug_cmd_error_t{ "Invalid IP for module" };
 
-        cxt.dbg.breakpoint_cookies.push_back(cxt.dbg.controller->set_breakpoint(module, pc));
+        try
+        {
+            cxt.dbg.breakpoint_cookies.push_back(cxt.dbg.controller->set_breakpoint(module, pc));
+        }
+        catch (const vm_system_exception& e)
+        {
+            throw debug_cmd_error_t{ e.what() };
+        }
     }
 
     void cmd_breakpoint_clear(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
@@ -536,7 +543,7 @@ namespace
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        auto disassemble_length = int{ 1 };
+        auto disassemble_length = int{ 4 };
         if (a.size() > 1)
         {
             try
@@ -567,7 +574,29 @@ namespace
 
         auto msg = std::stringstream{};
         for (auto i = begin_index; i < end_index; ++i)
-            msg << "  " << std::setw(5) << i << ": " << code_section[i].op << "\n";
+        {
+            auto op = code_section[i].op;
+
+            auto op_prefix = "  ";
+
+            // If the opcode is a breakpoint then try and replace it with the real opcode
+            if (op.opcode == opcode_t::brkpt)
+            {
+                // Look up each of the known cookies to try and find the matching PC and module
+                for (auto bp_cookie : cxt.dbg.breakpoint_cookies)
+                {
+                    const auto details = cxt.dbg.controller->get_breakpoint_details(bp_cookie);
+                    if (details.pc == i && details.module == r.module_ref->module)
+                    {
+                        op.opcode = details.original_opcode;
+                        op_prefix = " b";
+                        break;
+                    }
+                }
+            }
+
+            msg << op_prefix << std::setw(5) << i << ": " << op << "\n";
+        }
 
         debug_print_info(msg.str());
     }
@@ -727,7 +756,7 @@ namespace
 
         { "sw", "Stack walk for the current or supplied thread", "sw ([0-9]+|\\*)?", "sw, sw 34, sw *", cmd_stackwalk },
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
-        { "d", "Disassemble the next/previous N instructions", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
+        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
         { "?", "Print help", nullptr, nullptr, cmd_help },
 

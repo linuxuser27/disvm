@@ -69,6 +69,7 @@ namespace disvm
         {
             std::shared_ptr<vm_module_t> module;
             vm_pc_t pc;
+            opcode_t original_opcode;
         };
 
         // VM tool controller
