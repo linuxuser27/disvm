@@ -770,7 +770,7 @@ namespace
         }
 
         // [TODO] Didn't find the cmd, try ignoring case?
-        return nullptr;
+        throw debug_cmd_error_t{ "Unknown command. '?' for help." };
     }
 
     void print_help()
@@ -797,31 +797,6 @@ namespace
         debug_print_info(ss.str());
     }
 
-    // split the string using the supplied delimiter
-    std::vector<std::string> split(const std::string &str, const char delim = ' ')
-    {
-        auto split_string = std::vector<std::string>{};
-
-        auto curr = str.begin();
-        auto end = str.cend();
-        while (curr != end)
-        {
-            auto curr_begin = curr;
-            while (curr != end && *curr != delim)
-                ++curr;
-
-            if (curr_begin != curr)
-                split_string.push_back(std::move(std::string{ curr_begin, curr }));
-
-            if (curr == end)
-                break;
-
-            ++curr;
-        }
-
-        return split_string;
-    }
-
     void prompt(debugger &debugger, const vm_registers_t &r)
     {
         debugger.controller->suspend_all_threads();
@@ -845,22 +820,13 @@ namespace
                 << console_modifiers::reset_all;
 
             std::getline(std::cin, cmd);
-            if (cmd.empty())
-                continue;
-
-            const auto cmd_tokens = split(cmd);
+            const auto cmd_tokens = util::split(cmd);
             if (cmd_tokens.empty())
                 continue;
 
-            auto cmd_exec = find_cmd(cmd_tokens[0]);
-            if (cmd_exec == nullptr)
-            {
-                debug_print_error("Unknown command. '?' for help.");
-                continue;
-            }
-
             try
             {
+                auto cmd_exec = find_cmd(cmd_tokens[0]);
                 cmd_exec(cmd_tokens, cxt);
                 if (cxt.exit_break)
                     break;

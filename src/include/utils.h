@@ -9,27 +9,61 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <string>
+#include <cstring>
+#include <vector>
 
 namespace disvm
 {
     namespace util
     {
         template<typename Flags>
-        inline bool has_flag(const Flags flags, const Flags flag)
+        bool has_flag(const Flags flags, const Flags flag)
         {
             return (static_cast<std::underlying_type_t<Flags>>(flags) & static_cast<std::underlying_type_t<Flags>>(flag)) != 0;
         }
 
         template <typename T1, typename T2>
-        inline bool are_equal(const T1 &l, const T2 &r)
+        bool are_equal(const T1 &l, const T2 &r)
         {
             return (l == r);
         }
 
         template <typename T1, typename T2, typename... Others>
-        inline bool are_equal(const T1 &l, const T2 &r, const Others &... args)
+        bool are_equal(const T1 &l, const T2 &r, const Others &... args)
         {
             return (l == r) && are_equal(r, args...);
+        }
+
+        // split the string using the delimiters contained in the supplied string
+        inline std::vector<std::string> split(const std::string &str, const char *delims)
+        {
+            auto split_string = std::vector<std::string>{};
+
+            auto curr = str.begin();
+            auto end = str.cend();
+            while (curr != end)
+            {
+                auto curr_begin = curr;
+
+                while (curr != end && (nullptr == std::strchr(delims, *curr)))
+                    ++curr;
+
+                if (curr_begin != curr)
+                    split_string.push_back(std::move(std::string{ curr_begin, curr }));
+
+                if (curr == end)
+                    break;
+
+                ++curr;
+            }
+
+            return split_string;
+        }
+
+        inline std::vector<std::string> split(const std::string &str)
+        {
+            return split(str, " ");
         }
     }
 }
