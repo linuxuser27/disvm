@@ -34,7 +34,7 @@ namespace disvm
         // If the supplied string cannot be resolved or if it is null, the 'invalid' opcode is returned.
         disvm::opcode_t token_to_opcode(const char *);
 
-        // Namedspace named after enum type in Limbo compiler
+        // Namespace named after enum type in Limbo compiler
         // Source: limbo/types.c
         namespace sigkind
         {
@@ -367,6 +367,85 @@ namespace disvm
             sig_stream_t &operator<<(sig_stream_t &, disvm::assembly::sigkind::Tfunction_varargs &);
             sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tfunction_varargs &);
         }
+    }
+
+    namespace symbol
+    {
+        // Type class enum for symbols is unrelated to signature types enum.
+        // The historical reason for this isn't recorded but is found in
+        // the official Limbo compiler.
+        enum class type_class_t : uint8_t
+        {
+            type_index = '@',
+            adt = 'a',
+            adt_pick = 'p',
+            tuple = 't',
+            module = 'm',
+            function = 'F',
+            array = 'A',
+            channel = 'C',
+            list = 'L',
+            ref = 'R',
+            none = 'n',
+            nil = 'N',
+            big = 'B',
+            byte = 'b',
+            integer = 'i',
+            real = 'f',
+            string = 's',
+            poly = 'P',
+        };
+
+        // Reference into source code
+        struct source_ref_t
+        {
+            int32_t source_id;
+            int32_t begin_line;
+            int32_t begin_column;
+            int32_t end_line;
+            int32_t end_column;
+        };
+
+        class symbol_debug_t
+        {
+        public:
+            // Set the current pc
+            virtual void set_current_pc(disvm::runtime::vm_pc_t) = 0;
+
+            // Enumeration for advancing the pc
+            enum class advance_pc_t
+            {
+                current, // Return the current pc
+                next_pc,
+                next_debug_statement, // Advance to the next debug statement (i.e. source language statement)
+            };
+
+            // Advance the current pc.
+            // Returns 'true' if the function was successful, otherwise 'false'.
+            virtual bool try_advance_pc(advance_pc_t, disvm::runtime::vm_pc_t *pc_after_advance = nullptr) = 0;
+
+            // Return the name of the function encompassing the current pc.
+            // This function will throw a 'std::runtime_error' if a function doesn't exist at the current pc.
+            virtual const std::string & current_function_name() const = 0;
+
+            // Return the source location for the current pc
+            virtual source_ref_t current_source_location() const = 0;
+
+            // Get source file name based on ID
+            virtual const std::string &get_source_by_id(int32_t source_id) const = 0;
+        };
+
+        class symbol_data_t
+        {
+        public:
+            // Get name of the module
+            virtual const std::string& get_module_name() const = 0;
+
+            // Get interface over symbol data targeted for debugging
+            virtual std::unique_ptr<symbol_debug_t> get_debug() = 0;
+        };
+
+        std::unique_ptr<symbol_data_t> read(std::istream &);
     }
 
     namespace runtime

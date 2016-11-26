@@ -1,0 +1,61 @@
+sbl: header file-table pc-table type-table func-table data-table
+
+header: <magic> '\n' <module> '\n'
+module: <string>
+
+file-table: <count> '\n' file*
+file: <string> '\n'
+
+pc-table: <count> '\n' pc-item*
+pc-item: src stmt '\n'
+src: pos ',' pos ' '
+pos: file':'? line'.'? char
+stmt: <int>
+file: <int>
+line: <int>
+char: <int>
+
+type-table: <count> '\n' type*
+type:
+ '@' type-index '\n'       # Type table reference         
+ 'a' adt-item              # ADT
+ 'p' adt-item tag-table    # ADT-Pick
+ 't' size '.' id-table     # Tuple
+ 'm' module '\n' src       # Module
+ 'A' type                  # Array
+ 'C' type                  # Channel
+ 'F' fn-name type          # Function
+ 'L' type                  # List
+ 'R' type                  # Ref
+ 'n'                       # No type
+ 'N'                       # Nil
+ 'B'                       # Big
+ 'b'                       # Byte
+ 'i'                       # Int
+ 'f'                       # Real
+ 's'                       # String
+type-index: <int>
+
+adt-item: adt-name ' ' src size '\n' id-table
+adt-name: <string>
+size: <int>
+
+id-table: <count> '\n' id-item*
+id-item: id-offset ':' id-name ':' src type '\n'
+id-offset: <int>
+id-name: <string>
+
+tag-table: <count> '\n' tag-item*
+tag-item: tag-name ':' src size '\n' id-table
+        | tag-name ':' src '\n'
+tag-name: <string>
+
+func-table: <count> '\n' fn-item*
+fn-item: fn-pc ':' fn-name '\n' args locals return
+fn-pc: <int>
+fn-name: <string>
+args: id-table
+locals: id-table
+return: type
+
+data-table: id-table 
