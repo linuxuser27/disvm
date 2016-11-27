@@ -138,11 +138,11 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tm &m
     return os << m._s;
 }
 
-const char Ttuple::begin = '(';
-const char Ttuple::end = ')';
+template<> const char Ttuple::begin = '(';
+template<> const char Ttuple::end = ')';
 
-const char Tmodule::begin = '{';
-const char Tmodule::end = '}';
+template<> const char Tmodule::begin = '{';
+template <> const char Tmodule::end = '}';
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Ttuple &t)
 {
@@ -180,8 +180,8 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tadt_
     return os << t._s;
 }
 
-const char Tnested_aggregate_type<type_id_t::adt>::begin = '(';
-const char Tnested_aggregate_type<type_id_t::adt>::end = ')';
+template<> const char Tnested_aggregate_type<type_id_t::adt>::begin = '(';
+template<> const char Tnested_aggregate_type<type_id_t::adt>::end = ')';
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tnested_aggregate_type<type_id_t::adt> &a)
 {

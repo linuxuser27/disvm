@@ -7,6 +7,7 @@
 #include <memory>
 #include <atomic>
 #include <bitset>
+#include <cstdlib>
 #include <mutex>
 #include <limits>
 #include <vector>
@@ -355,98 +356,98 @@ namespace
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<byte_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<byte_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::byte, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::short_word, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<word_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<word_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::word, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::short_real, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<real_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<real_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::real, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<big_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<big_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::big, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::pointer, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_array, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_list, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_channel, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_string, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_module_ref, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
+std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_stack, hidden_type_desc::deleter };
     return t;
 }
 
 template<>
-static std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
+ std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
 {
     static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_thread, hidden_type_desc::deleter };
     return t;

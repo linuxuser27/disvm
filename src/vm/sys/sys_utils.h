@@ -8,7 +8,7 @@
 #define _DISVM_SRC_VM_SYS_SYS_UTILS_H_
 
 #include <vector>
-#include <iosfwd>
+#include <ios>
 #include <memory>
 #include <disvm.h>
 #include <utils.h>

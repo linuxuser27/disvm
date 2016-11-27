@@ -293,7 +293,7 @@ Sys_byte2char(vm_registers_t &r, vm_t &vm)
     fp.ret->t2 = 0;
 
     auto state = utf8::decode_state_t::accept;
-    auto result = rune_t{};
+    auto result = runtime::rune_t{};
     const auto buffer_len = buffer->get_length();
     for (auto i = n; i < buffer_len; ++i)
     {
@@ -326,7 +326,7 @@ Sys_char2byte(vm_registers_t &r, vm_t &vm)
     if (buffer == nullptr || n >= buffer->get_length())
         throw out_of_range_memory{};
 
-    const auto rune = static_cast<rune_t>(fp.c);
+    const auto rune = static_cast<runtime::rune_t>(fp.c);
 
     static_assert(Sys_UTFmax == sizeof(rune), "UTF max should be same size as rune");
     uint8_t buffer_local[Sys_UTFmax];
@@ -689,7 +689,7 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
 
 namespace
 {
-    bool is_delim(const rune_t c, const vm_string_t &delim)
+    bool is_delim(const runtime::rune_t c, const vm_string_t &delim)
     {
         const auto max = delim.get_length();
         assert(max > 0);

@@ -55,7 +55,7 @@ namespace disvm
     class vm_t final
     {
     public: // static
-        static const auto root_vm_thread_id = uint32_t{ 0 };
+        static const uint32_t root_vm_thread_id = uint32_t{ 0 };
 
         static const auto default_system_thread_count = uint32_t{ 1 };
 
