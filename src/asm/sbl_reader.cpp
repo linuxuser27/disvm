@@ -366,10 +366,7 @@ namespace
 
         if (parts.size() == 3)
         {
-            item.size_in_bytes = std::strtol(parts[2].c_str(), nullptr, 10);
-            if (item.size_in_bytes == 0 && errno != 0)
-                throw std::runtime_error{ "Invalid adt size" };
-
+            item.size_in_bytes = std::stoi(parts[2]);
             item.id_table = read_id_table(r, tt, fc);
         }
 
@@ -429,9 +426,6 @@ namespace
         {
             auto type_index = r.get_as_string_until('\n');
             const auto idx = std::stoi(type_index);
-            if (idx == 0)
-                throw std::runtime_error{ "Invalid type index" };
-
             t.value_index_1 = type_table_t::types_mask | idx;
             break;
         }
@@ -679,6 +673,11 @@ namespace
         const std::string & get_module_name() const override
         {
             return _file->header.module_name;
+        }
+
+        size_t get_instruction_count() const
+        {
+            return _file->pc_table.size();
         }
 
         std::unique_ptr<symbol_debug_t> get_debug() override

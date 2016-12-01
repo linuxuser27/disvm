@@ -134,6 +134,8 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
                 if (module == nullptr)
                 {
                     module = std::shared_ptr<vm_module_t>{ std::move(read_module(path)) };
+                    module->vm_id = iter->vm_id;
+
                     iter->module = module;
 
                     debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<\n", path);
@@ -157,11 +159,12 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
 
         auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));
 
-        auto load_id_next = std::size_t{ 0 };
+        auto vm_id_next = std::size_t{ 1 };
         if (!_modules.empty())
-            load_id_next = (_modules.front().load_id + 1);
+            vm_id_next = (_modules.front().vm_id + 1);
 
-        _modules.push_front(std::move(loaded_vm_module_t{ load_id_next, std::move(path_local), new_module }));
+        new_module->vm_id = vm_id_next;
+        _modules.push_front(std::move(loaded_vm_module_t{ vm_id_next, std::move(path_local), new_module }));
         new_module_iter = _modules.begin();
     }
 
@@ -169,7 +172,7 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
     {
         std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
         if (_tool_dispatch != nullptr)
-            _tool_dispatch->on_module_vm_load(new_module, *new_module_iter->origin);
+            _tool_dispatch->on_module_vm_load(*new_module_iter);
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())

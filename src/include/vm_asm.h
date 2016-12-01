@@ -441,6 +441,9 @@ namespace disvm
             // Get name of the module
             virtual const std::string& get_module_name() const = 0;
 
+            // Get instruction count in the symbol data
+            virtual size_t get_instruction_count() const = 0;
+
             // Get interface over symbol data targeted for debugging
             virtual std::unique_ptr<symbol_debug_t> get_debug() = 0;
         };

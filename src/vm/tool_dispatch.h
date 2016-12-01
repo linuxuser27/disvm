@@ -43,9 +43,9 @@ namespace disvm
             void on_exception_unhandled(vm_registers_t &r, const vm_string_t &id, vm_alloc_t &e);
 
             // Callback for when the VM loads a module from disk
-            void on_module_vm_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path);
+            void on_module_vm_load(const loaded_vm_module_t &loaded_module);
 
-            // Callback for when a thread loads a module into its scope
+            // Callback for when a thread loads a module into its scope.
             void on_module_thread_load(vm_registers_t &r, std::shared_ptr<vm_module_t> &m);
 
             // Callback when thread lifetime begins.

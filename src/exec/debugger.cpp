@@ -5,6 +5,7 @@
 //
 
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -117,16 +118,26 @@ namespace
         dbg_cmd_exec_t exec;
     };
 
-    std::string stack_to_string(const vm_registers_t &r)
+    std::string stack_to_string(const vm_registers_t &r, debugger &dbg)
     {
         auto msg = std::stringstream{};
-        walk_stack(r, [&msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
+        walk_stack(r, [&msg, &dbg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
         {
-            auto module_name = "<No Name>";
-            if (module_ref.module->module_name != nullptr)
-                module_name = module_ref.module->module_name->str();
+            auto resolved_name = dbg.resolve_function_source_line(module_ref.module, pc);
+            if (!resolved_name.empty())
+            {
+                msg << resolved_name;
+            }
+            else
+            {
+                auto module_name = "<No Name>";
+                if (module_ref.module->module_name != nullptr)
+                    module_name = module_ref.module->module_name->str();
 
-            msg << module_name << "@" << pc << "\n";
+                msg << module_name << "@" << pc;
+            }
+
+            msg << "\n";
             return true;
         });
 
@@ -215,7 +226,7 @@ namespace
         ss << "channel\n"
            << "\tbuffer size:  " << c->get_buffer_size() << "\n";
 
-            return ss;
+        return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
@@ -330,7 +341,7 @@ namespace
             auto module_instance = m.module.lock();
             if (module_instance != nullptr)
             {
-                msg << std::setw(3) << m.load_id << ": "
+                msg << std::setw(3) << m.vm_id << ": "
                     << std::setw(16) << module_instance->module_name->str()
                     << std::setw(0) << "  -  " << m.origin->str() << "\n";
             }
@@ -372,7 +383,7 @@ namespace
 
             cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
             {
-                if (module_id != m.load_id)
+                if (module_id != m.vm_id)
                     return true;
 
                 // Found the matching ID so stop
@@ -500,7 +511,7 @@ namespace
         for (auto t : thread_registers)
         {
             msg << "Thread " << t.first << ":\n";
-            msg << stack_to_string(*t.second);
+            msg << stack_to_string(*t.second, cxt.dbg);
             msg << "\n";
         }
 
@@ -856,6 +867,30 @@ debugger::debugger(const debugger_options opt)
     , controller{ nullptr }
 { }
 
+std::string debugger::resolve_function_source_line(std::shared_ptr<const vm_module_t> m, vm_pc_t pc)
+{
+    if (m == nullptr)
+        return{};
+
+    auto iter = _vm_id_to_symbol_debug.find(m->vm_id);
+    if (iter == std::end(_vm_id_to_symbol_debug))
+        return{};
+
+    std::stringstream ss;
+    auto &d = *(iter->second);
+
+    // Position the debug symbol iterator
+    d.set_current_pc(pc);
+
+    ss << m->module_name->str()
+        << '!'
+        << d.current_function_name()
+        << ' '
+        << d.current_source_location().begin_line;
+
+    return ss.str();
+}
+
 void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 {
     _tool_id = tool_id;
@@ -909,6 +944,13 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         prompt(*this, *cxt.value1.registers);
     }));
 
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_vm_load, [&](vm_event_t, vm_event_context_t &cxt)
+    {
+        auto loaded_mod = cxt.value1.loaded_mod;
+        assert(loaded_mod != nullptr);
+        load_symbols(*loaded_mod);
+    }));
+
     _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto m = (*cxt.value2.module);
@@ -960,4 +1002,73 @@ void debugger::on_unload()
         controller->unsubscribe_event(ec);
 
     controller = nullptr;
+}
+
+void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
+{
+    auto m = loaded_mod.module.lock();
+    assert(m != nullptr && "Loaded module event should have valid module reference");
+
+    auto symbol_extension = ".sbl";
+    std::string symbol_path_maybe{ loaded_mod.origin->str() };
+    const auto ext_index = symbol_path_maybe.find_last_of('.');
+    if (ext_index == std::string::npos)
+    {
+        // Module doesn't have an extension so just append the symbol extension.
+        symbol_path_maybe.append(symbol_extension);
+    }
+    else
+    {
+        // Replace the module extension with the symbol extension.
+        symbol_path_maybe.replace(ext_index, std::string::npos, symbol_extension);
+    }
+
+    std::ifstream sbl_file{ symbol_path_maybe, std::ifstream::in };
+    if (!sbl_file.is_open())
+        return;
+
+    std::unique_ptr<symbol::symbol_data_t> symbol_data;
+    try
+    {
+        symbol_data = symbol::read(sbl_file);
+    }
+    catch (const std::runtime_error &e)
+    {
+        // File with assumed symbol name/extension is not the correct format
+        std::stringstream msg;
+        msg << "Assumed symbol file '"
+            << symbol_path_maybe
+            << "' has invalid symbol format. ("
+            << e.what()
+            << ")";
+        debug_print_error(msg.str());
+        return;
+    }
+
+    // Check if the symbol data matches the loaded module
+    if (0 != symbol_data->get_module_name().compare(m->module_name->str())
+        || symbol_data->get_instruction_count() != m->code_section.size())
+    {
+        // Symbol file does not match the loaded modules - stale file?
+        std::stringstream msg;
+        msg << "Symbol file '"
+            << symbol_path_maybe
+            << "' does not match loaded module '"
+            << loaded_mod.origin->str()
+            << "'.";
+        debug_print_error(msg.str());
+        return;
+    }
+
+    const auto vm_id = loaded_mod.vm_id;
+    assert(_vm_id_to_symbol_debug.find(vm_id) == std::end(_vm_id_to_symbol_debug) && "Module VM ID should be unique");
+    _vm_id_to_symbol_debug[vm_id] = symbol_data->get_debug();
+
+    std::stringstream msg;
+    msg << "Symbol file '"
+        << symbol_path_maybe
+        << "' loaded for '"
+        << loaded_mod.origin->str()
+        << "'.";
+    debug_print_info(msg.str());
 }

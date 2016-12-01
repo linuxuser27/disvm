@@ -28,6 +28,7 @@ namespace disvm
             const vm_thread_t *thread;
             const vm_string_t *str;
             const vm_alloc_t *alloc;
+            const loaded_vm_module_t *loaded_mod;
         };
 
         // Event context
@@ -41,8 +42,7 @@ namespace disvm
         // List of possible events
         enum class vm_event_t
         {
-            module_vm_load,      // value1: std::shared_ptr<vm_module_t>
-                                 // value2: const vm_string_t - path on disk
+            module_vm_load,      // value1: const loaded_vm_module_t
 
             module_thread_load,  // value1: vm_registers_t
                                  // value2: std::shared_ptr<vm_module_t>

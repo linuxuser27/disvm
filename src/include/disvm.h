@@ -39,7 +39,7 @@ namespace disvm
     class loaded_vm_module_t final
     {
     public:
-        std::size_t load_id;
+        runtime::module_id_t vm_id;
 
         // Origin of module
         std::unique_ptr<runtime::vm_string_t> origin;
@@ -89,7 +89,7 @@ namespace disvm
             const runtime::vm_frame_t &initial_frame,
             runtime::vm_pc_t initial_pc);
 
-        // Load the module at the supplied path into the virtual machine
+        // Load the module at the supplied path into the virtual machine.
         std::shared_ptr<runtime::vm_module_t> load_module(const char *path);
 
         // Enumerate all loaded modules - this can include references to modules that
