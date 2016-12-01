@@ -142,7 +142,7 @@ template<> const char Ttuple::begin = '(';
 template<> const char Ttuple::end = ')';
 
 template<> const char Tmodule::begin = '{';
-template <> const char Tmodule::end = '}';
+template<> const char Tmodule::end = '}';
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Ttuple &t)
 {

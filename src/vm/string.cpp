@@ -43,7 +43,7 @@ namespace
 
     // Compare function for character types.
     template <typename CharacterType1, typename CharacterType2>
-    int _compare(word_t len, CharacterType1 *s1, CharacterType2 *s2)
+    int _compare(word_t len, const CharacterType1 *s1, const CharacterType2 *s2)
     {
         for (auto i = word_t{ 0 }; i < len; ++i)
         {
@@ -62,7 +62,7 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
 {
     auto len_1 = word_t{ 0 };
     auto scen_1 = ascii_idx;
-    void *str_mem_1 = const_cast<char *>("");
+    const void *str_mem_1 = "";
     if (s1 != nullptr)
     {
         len_1 = s1->_length;
@@ -72,7 +72,7 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
 
     auto len_2 = word_t{ 0 };
     auto scen_2 = ascii_idx;
-    void *str_mem_2 = const_cast<char *>("");
+    const void *str_mem_2 = "";
     if (s2 != nullptr)
     {
         len_2 = s2->_length;
@@ -97,10 +97,10 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
         result = std::memcmp(str_mem_1, str_mem_2, min_length);
         break;
     case compare_case_t::ascii_rune:
-        result = _compare(min_length, reinterpret_cast<char *>(str_mem_1), reinterpret_cast<rune_t *>(str_mem_2));
+        result = _compare(min_length, reinterpret_cast<const char *>(str_mem_1), reinterpret_cast<const runtime::rune_t *>(str_mem_2));
         break;
     case compare_case_t::rune_ascii:
-        result = _compare(min_length, reinterpret_cast<rune_t *>(str_mem_1), reinterpret_cast<char *>(str_mem_2));
+        result = _compare(min_length, reinterpret_cast<const runtime::rune_t *>(str_mem_1), reinterpret_cast<const char *>(str_mem_2));
         break;
     }
 

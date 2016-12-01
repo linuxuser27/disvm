@@ -55,12 +55,12 @@ namespace disvm
     class vm_t final
     {
     public: // static
-        static const uint32_t root_vm_thread_id = uint32_t{ 0 };
+        static const uint32_t root_vm_thread_id = 0;
 
-        static const auto default_system_thread_count = uint32_t{ 1 };
+        static const uint32_t default_system_thread_count = 1;
 
         // The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
-        static const auto default_thread_quanta = uint32_t{ 2048 };
+        static const uint32_t default_thread_quanta = 2048;
 
     public:
         explicit vm_t(
