@@ -70,7 +70,7 @@ namespace
 {
     std::unique_ptr<runtime::vm_thread_t> _create_thread_safe(std::unique_ptr<runtime::vm_module_ref_t> &entry_module_ref)
     {
-        auto thread = std::make_unique<vm_thread_t>(*entry_module_ref, vm_t::root_vm_thread_id);
+        auto thread = std::make_unique<vm_thread_t>(*entry_module_ref, disvm::vm_t::root_vm_thread_id);
 
         // Now that the thread has been created and has inherited ownership of the pointer, relinquish the smart pointer's ownership.
         entry_module_ref->release(); // decrement the vm alloc ref count

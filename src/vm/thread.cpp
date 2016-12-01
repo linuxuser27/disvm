@@ -59,7 +59,7 @@ vm_registers_t::vm_registers_t(
     , mp_base{ entry.mp_base }
     , thread{ thread }
     , pc{ entry.module->header.entry_pc }
-    , stack{ entry.module->header.stack_extent }
+    , stack{ static_cast<std::size_t>(entry.module->header.stack_extent) }
     , tool_dispatch{ nullptr }
     , src{ nullptr }
     , mid{ nullptr }

@@ -180,7 +180,7 @@ pointer_t vm_frame_t::fixed_point_register_2() const
 vm_stack_t::vm_stack_t(std::size_t stack_extent)
     : _mem{ std::make_unique<vm_stack_layout>(stack_extent) }
 {
-    assert(stack_extent != 0);
+    assert(0 < stack_extent && stack_extent < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm stack\n");
 }
 

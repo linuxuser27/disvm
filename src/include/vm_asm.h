@@ -137,7 +137,7 @@ namespace disvm
                 static Tbasic_aggregate_type create(const U &type)
                 {
                     sig_stream_t ss;
-                    ss << Tbasic_type::id << type;
+                    ss << Tbasic_type<ID>::id << type;
 
                     return Tbasic_aggregate_type{ ss };
                 }
@@ -209,7 +209,7 @@ namespace disvm
             template<typename T1, typename T2, typename ...S>
             void nested_type(sig_stream_t &ss, const T1 &t1, const T2 &t2, const S&...s)
             {
-                ss << t1 << sig_stream_t::type_delim;
+                ss << t1 << sig_stream_t::delim;
                 nested_type(ss, t2, s...);
             }
 
@@ -225,7 +225,7 @@ namespace disvm
                 static Tnested_aggregate_type create(const NT&... nestedTypes)
                 {
                     sig_stream_t ss;
-                    ss << Tbasic_type::id << Tnested_aggregate_type::begin;
+                    ss << Tbasic_type<ID>::id << Tnested_aggregate_type::begin;
 
                     nested_type(ss, nestedTypes...);
 
@@ -314,7 +314,7 @@ namespace disvm
                 }
 
             private:
-                Tadt(sig_stream_t &s) : Tnested_aggregate_type{ std::move(s) } { }
+                Tadt(sig_stream_t &s) : Tnested_aggregate_type{ s } { }
             };
 
             sig_stream_t &operator<<(sig_stream_t &, const disvm::assembly::sigkind::Tnested_aggregate_type<type_id_t::adt> &);

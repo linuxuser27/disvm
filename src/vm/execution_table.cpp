@@ -708,7 +708,7 @@ namespace
         const auto index = vt_ref<word_t>(r.mid);
         const auto rune = str->get_rune(index);
 
-        vt_ref<rune_t>(r.dest) = rune;
+        vt_ref<runtime::rune_t>(r.dest) = rune;
     }
 
     // [SPEC] 'Insert Character' op code
@@ -721,7 +721,7 @@ namespace
     //   dst[src2] = src1
     EXEC_DECL(insc)
     {
-        auto rune = vt_ref<rune_t>(r.src);
+        auto rune = vt_ref<runtime::rune_t>(r.src);
         auto index = vt_ref<word_t>(r.mid);
         auto str = at_val<vm_string_t>(r.dest);
         if (str == nullptr)

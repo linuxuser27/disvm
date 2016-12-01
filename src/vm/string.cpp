@@ -43,12 +43,12 @@ namespace
 
     // Compare function for character types.
     template <typename CharacterType1, typename CharacterType2>
-    int _compare(word_t len, CharacterType1 *s1, CharacterType2 *s2)
+    int _compare(word_t len, const CharacterType1 *s1, const CharacterType2 *s2)
     {
         for (auto i = word_t{ 0 }; i < len; ++i)
         {
-            const auto sc1 = static_cast<rune_t>(s1[i]);
-            const auto sc2 = static_cast<rune_t>(s2[i]);
+            const auto sc1 = static_cast<runtime::rune_t>(s1[i]);
+            const auto sc2 = static_cast<runtime::rune_t>(s2[i]);
 
             if (sc1 != sc2)
                 return (sc1 < sc2) ? (-1) : 1;
@@ -62,7 +62,7 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
 {
     auto len_1 = word_t{ 0 };
     auto scen_1 = ascii_idx;
-    void *str_mem_1 = "";
+    const void *str_mem_1 = "";
     if (s1 != nullptr)
     {
         len_1 = s1->_length;
@@ -72,7 +72,7 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
 
     auto len_2 = word_t{ 0 };
     auto scen_2 = ascii_idx;
-    void *str_mem_2 = "";
+    const void *str_mem_2 = "";
     if (s2 != nullptr)
     {
         len_2 = s2->_length;
@@ -97,10 +97,10 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
         result = std::memcmp(str_mem_1, str_mem_2, min_length);
         break;
     case compare_case_t::ascii_rune:
-        result = _compare(min_length, reinterpret_cast<char *>(str_mem_1), reinterpret_cast<rune_t *>(str_mem_2));
+        result = _compare(min_length, reinterpret_cast<const char *>(str_mem_1), reinterpret_cast<const runtime::rune_t *>(str_mem_2));
         break;
     case compare_case_t::rune_ascii:
-        result = _compare(min_length, reinterpret_cast<rune_t *>(str_mem_1), reinterpret_cast<char *>(str_mem_2));
+        result = _compare(min_length, reinterpret_cast<const runtime::rune_t *>(str_mem_1), reinterpret_cast<const char *>(str_mem_2));
         break;
     }
 
@@ -128,10 +128,10 @@ namespace
     }
 
     template<>
-    void copy_characters_to(rune_t *dest, word_t dest_start, const rune_t *source, word_t source_length)
+    void copy_characters_to(runtime::rune_t *dest, word_t dest_start, const runtime::rune_t *source, word_t source_length)
     {
         assert(dest != nullptr && source != nullptr);
-        std::memcpy((dest + dest_start), source, (source_length * sizeof(rune_t)));
+        std::memcpy((dest + dest_start), source, (source_length * sizeof(runtime::rune_t)));
     }
 
     void combine(
@@ -146,14 +146,14 @@ namespace
     {
         if (dest_is_rune)
         {
-            auto dest_rune = reinterpret_cast<rune_t *>(dest);
+            auto dest_rune = reinterpret_cast<runtime::rune_t *>(dest);
             if (source1_is_rune)
-                copy_characters_to(dest_rune, 0, reinterpret_cast<const rune_t *>(source1), source1_length);
+                copy_characters_to(dest_rune, 0, reinterpret_cast<const runtime::rune_t *>(source1), source1_length);
             else
                 copy_characters_to(dest_rune, 0, source1, source1_length);
 
             if (source2_is_rune)
-                copy_characters_to(dest_rune, source1_length, reinterpret_cast<const rune_t *>(source2), source2_length);
+                copy_characters_to(dest_rune, source1_length, reinterpret_cast<const runtime::rune_t *>(source2), source2_length);
             else
                 copy_characters_to(dest_rune, source1_length, source2, source2_length);
         }
@@ -381,7 +381,7 @@ word_t vm_string_t::get_length() const
     return _length;
 }
 
-rune_t vm_string_t::get_rune(word_t index) const
+runtime::rune_t vm_string_t::get_rune(word_t index) const
 {
     if (index < 0 && _length <= index)
         throw index_out_of_range_memory{ 0, _length - 1, index };
