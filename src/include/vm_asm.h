@@ -13,6 +13,7 @@
 #include <cstdint>
 #include "opcodes.h"
 #include "runtime.h"
+#include "utils.h"
 
 namespace disvm
 {
@@ -406,6 +407,17 @@ namespace disvm
             int32_t end_column;
         };
 
+        enum class function_name_format_t
+        {
+            name = 1,
+            return_type = (1 << 1),
+            arguments = (1 << 2),
+
+            declaration = name | arguments | return_type,
+        };
+
+        DEFINE_ENUM_FLAG_OPERATORS(function_name_format_t);
+
         class symbol_debug_t
         {
         public:
@@ -424,9 +436,10 @@ namespace disvm
             // Returns 'true' if the function was successful, otherwise 'false'.
             virtual bool try_advance_pc(advance_pc_t, disvm::runtime::vm_pc_t *pc_after_advance = nullptr) = 0;
 
-            // Return the name of the function encompassing the current pc.
+            // Return the name of the function containing the current pc.
+            // Optionally format the returned string.
             // This function will throw a 'std::runtime_error' if a function doesn't exist at the current pc.
-            virtual const std::string & current_function_name() const = 0;
+            virtual std::string current_function_name(function_name_format_t f = function_name_format_t::name) const = 0;
 
             // Return the source location for the current pc
             virtual source_ref_t current_source_location() const = 0;

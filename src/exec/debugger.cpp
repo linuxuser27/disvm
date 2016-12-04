@@ -749,6 +749,20 @@ namespace
             << console_modifiers::reset_all;
     }
 
+    void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &)
+    {
+        if (args.size() == 0)
+        {
+            // [TODO] Print all options current state
+            return;
+        }
+        else if (0 == args[0].compare("help"))
+        {
+            // [TODO] Print help for 'set' command
+            return;
+        }
+    }
+
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
@@ -766,6 +780,8 @@ namespace
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
         { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
+
+        //{ "set" , "Set a debugger option", "set [ _a-zA-Z0-9]*", "'set help' for available options", set_value_cmd },
         { "?", "Print help", nullptr, nullptr, cmd_help },
 
         // Undocumented commands
@@ -882,11 +898,15 @@ std::string debugger::resolve_function_source_line(std::shared_ptr<const vm_modu
     // Position the debug symbol iterator
     d.set_current_pc(pc);
 
+    const auto src = d.current_source_location();
+
     ss << m->module_name->str()
         << '!'
-        << d.current_function_name()
-        << ' '
-        << d.current_source_location().begin_line;
+        << d.current_function_name(symbol::function_name_format_t::declaration)
+        << " at "
+        << d.get_source_by_id(src.source_id)
+        << ':'
+        << src.begin_line;
 
     return ss.str();
 }

@@ -127,11 +127,21 @@ namespace
     template<>
     const type_t &type_table_t::resolve_table_index<type_t>(int32_t idx) const
     {
-        const auto idx_local = idx & ~inner_type_table_mask;
-        if (0 > idx_local || idx_local >= inner_type_table.size())
-            throw std::out_of_range{ "Invalid inner type table index" };
+        if ((static_cast<uint32_t>(idx) & inner_type_table_mask) != 0)
+        {
+            const auto idx_local = idx & ~inner_type_table_mask;
+            if (0 > idx_local || idx_local >= inner_type_table.size())
+                throw std::out_of_range{ "Invalid inner type table index" };
 
-        return inner_type_table[idx_local];
+            return inner_type_table[idx_local];
+        }
+        else
+        {
+            if (0 > idx || static_cast<uint32_t>(idx) >= types.size())
+                throw std::out_of_range{ "Invalid type table index" };
+
+            return types[idx];
+        }
     }
 
     template<>
@@ -571,6 +581,114 @@ namespace
 
 namespace
 {
+    std::string to_string(const type_t &t, const type_table_t &tt)
+    {
+        switch (t.type_class)
+        {
+        case type_class_t::none: return "<none>";
+        case type_class_t::nil: return "nil";
+        case type_class_t::big: return "big";
+        case type_class_t::byte: return "byte";
+        case type_class_t::integer: return "int";
+        case type_class_t::real: return "real";
+        case type_class_t::string: return "string";
+
+        case type_class_t::poly:
+            assert(false && "Not fully implemented");
+            return "poly<T>";
+
+        case type_class_t::array:
+            return to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt) + "[]";
+        case type_class_t::channel:
+            return "chan of " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
+        case type_class_t::list:
+            return "list of " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
+        case type_class_t::ref:
+            return "ref " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
+        case type_class_t::type_index:
+            return to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
+
+        case type_class_t::adt:
+        case type_class_t::adt_pick:
+        {
+            const auto &adt = tt.resolve_table_index<name_source_size_t>(t.value_index_1);
+            return adt.name;
+        }
+        case type_class_t::tuple:
+        {
+            const auto &tuple = tt.resolve_table_index<tuple_item_t>(t.value_index_1);
+
+            std::stringstream ss;
+            ss << '(';
+
+            auto first = true;
+            for (const auto &t_t : tuple.id_table)
+            {
+                if (!first)
+                    ss << ',';
+
+                ss << to_string(t_t.type, tt);
+                first = false;
+            }
+
+            ss << ')';
+            return ss.str();
+        }
+        case type_class_t::module:
+            return tt.resolve_table_index<std::string>(t.value_index_1);
+
+        case type_class_t::function:
+        {
+            std::stringstream ss;
+            ss << tt.resolve_table_index<std::string>(t.value_index_1)
+                << ' '
+                << to_string(tt.resolve_table_index<type_t>(t.value_index_2), tt);
+
+            return ss.str();
+        }
+
+        default:
+            throw std::runtime_error{ "Invalid type value" };
+        }
+    }
+
+    std::string to_string(const func_item_t &f, const type_table_t &tt, function_name_format_t fmt)
+    {
+        std::stringstream ss;
+
+        if (util::has_flag(fmt, function_name_format_t::name))
+            ss << f.name;
+
+        auto has_argument = false;
+        if (util::has_flag(fmt, function_name_format_t::arguments))
+        {
+            has_argument = true;
+            ss << '(';
+
+            auto first = true;
+            for (const auto &at : f.args)
+            {
+                if (!first)
+                    ss << ',';
+
+                ss << to_string(at.type, tt);
+                first = false;
+            }
+
+            ss << ')';
+        }
+
+        if (util::has_flag(fmt, function_name_format_t::return_type))
+        {
+            if (has_argument)
+                ss << ':';
+
+            ss << to_string(f.return_type, tt);
+        }
+
+        return ss.str();
+    }
+
     class sbl_symbol_debug final : public symbol_debug_t
     {
     public:
@@ -632,12 +750,21 @@ namespace
             return true;
         }
 
-        const std::string &current_function_name() const override
+        std::string current_function_name(function_name_format_t f) const override
         {
-            for (auto &e : _file->func_table)
+            try
             {
-                if (e.entry_pc <= _current_pc && _current_pc <= e.limit_pc)
-                    return e.name;
+                for (auto &e : _file->func_table)
+                {
+                    if (e.entry_pc <= _current_pc && _current_pc <= e.limit_pc)
+                        return to_string(e, _file->type_table, f);
+                }
+            }
+            catch (const std::exception &e)
+            {
+                // Avoid crashing during debugging
+                assert(false && "The SBL file appears to be corrupt or inconsistent");
+                throw std::runtime_error{ e.what() };
             }
 
             throw std::runtime_error{ "Unknown function" };
