@@ -17,16 +17,16 @@ namespace disvm
         namespace utf8
         {
             // As defined in http://tools.ietf.org/html/rfc3629
-            struct constants
+            namespace constants
             {
-                static const rune_t multi_byte_value_mask = 0x3f;
+                const disvm::runtime::rune_t multi_byte_value_mask = 0x3f;
 
-                static const rune_t max_codepoint_ascii = 0x7f;
-                static const rune_t max_codepoint_2_byte = 0x7ff;
-                static const rune_t max_codepoint_3_byte = 0xffff;
-                static const rune_t max_codepoint_4_byte = 0x10ffff;
+                const disvm::runtime::rune_t max_codepoint_ascii = 0x7f;
+                const disvm::runtime::rune_t max_codepoint_2_byte = 0x7ff;
+                const disvm::runtime::rune_t max_codepoint_3_byte = 0xffff;
+                const disvm::runtime::rune_t max_codepoint_4_byte = 0x10ffff;
 
-                static const rune_t max_supported_codepoint = max_codepoint_4_byte;
+                const disvm::runtime::rune_t max_supported_codepoint = max_codepoint_4_byte;
             };
 
             // Compute the number of code points in the supplied string

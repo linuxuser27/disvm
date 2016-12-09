@@ -46,7 +46,7 @@ namespace disvm
                 static uint32_t compute_signature_hash(const char *);
 
                 // Type delimiter
-                static const char delim = ',';
+                static const char delim;
 
             public:
                 std::string get_signature() const;
@@ -100,13 +100,16 @@ namespace disvm
             template<type_id_t T>
             struct Tbasic_type
             {
-                static const type_id_t id = T;
+                static const type_id_t id;
 
                 constexpr operator type_id_t() const
                 {
                     return Tbasic_type::id;
                 }
             };
+
+            template<type_id_t T>
+            const type_id_t Tbasic_type<T>::id = T;
 
             using Tnone = Tbasic_type<type_id_t::none>;
             using Tbyte = Tbasic_type<type_id_t::byte>;
@@ -164,7 +167,7 @@ namespace disvm
             class Ttype_ref final
             {
             public: // static
-                static const char id = '@';
+                static const char id;
 
             public:
                 Ttype_ref(uint32_t num);
@@ -218,7 +221,7 @@ namespace disvm
             template <type_id_t ID>
             class Tnested_aggregate_type : public Tbasic_type<ID>
             {
-            public:  // static
+            public: // static
                 static const char begin;
                 static const char end;
 
@@ -258,8 +261,8 @@ namespace disvm
             {
             public:  // static
                 static const char *tag_delim;
-                static const char begin = '(';
-                static const char end = ')';
+                static const char begin;
+                static const char end;
 
                 static Tadt_pick_tag create(const char *pick_tag, uint32_t adt_ref, std::initializer_list<const Tm> tms);
 
@@ -325,8 +328,8 @@ namespace disvm
             class Tfunction_base_type final : public Tbasic_type<T>
             {
             public: // static
-                static const char begin = '(';
-                static const char end = ')';
+                static const char begin;
+                static const char end;
 
                 template<typename ...AT>
                 static Tfunction_base_type create(AT... argTypes)
@@ -359,6 +362,12 @@ namespace disvm
                 sig_stream_t _s;
                 Tfunction_base_type() : _fully_defined{ false } { }
             };
+
+            template<type_id_t T>
+            const char Tfunction_base_type<T>::begin = '(';
+
+            template<type_id_t T>
+            const char Tfunction_base_type<T>::end = ')';
 
             using Tfunction = Tfunction_base_type<type_id_t::function>;
             using Tfunction_varargs = Tfunction_base_type<type_id_t::function_varargs>;

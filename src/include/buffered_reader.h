@@ -20,12 +20,9 @@ namespace disvm
     {
         class buffered_reader_t
         {
-        private: // static
-            static const std::size_t buffer_size = 64 * 1024; // 64k is an optimization for the Windows filesystem manager
-
         public:
             buffered_reader_t(std::istream &stream)
-                : _buffer(buffered_reader_t::buffer_size)
+                : _buffer(64 * 1024) // 64k is an optimization for the Windows filesystem manager
                 , _current_index{ 0 }
                 , _current_size{ 0 }
                 , _stream{ stream }
@@ -141,10 +138,10 @@ namespace disvm
                     if (_stream.fail())
                         return 0;
 
-                    _stream.read(_buffer.data(), buffered_reader_t::buffer_size);
+                    _stream.read(_buffer.data(), _buffer.size());
 
                     // If the stream has failed, set the current size, otherwise the buffer size
-                    _current_size = _stream.fail() ? static_cast<std::size_t>(_stream.gcount()) : buffered_reader_t::buffer_size;
+                    _current_size = _stream.fail() ? static_cast<std::size_t>(_stream.gcount()) : _buffer.size();
                 }
 
                 return _current_size - _current_index;

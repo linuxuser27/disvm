@@ -364,11 +364,11 @@ namespace disvm
         };
 
         // Runtime constants
-        struct runtime_constants
+        namespace runtime_constants
         {
-            static const auto nil = std::size_t{ 0 };
+            const auto nil = std::size_t{ 0 };
 
-            static const auto invalid_program_counter = vm_pc_t{ ~0 };
+            const auto invalid_program_counter = vm_pc_t{ ~0 };
         };
 
         // Addressing mode for middle instruction data

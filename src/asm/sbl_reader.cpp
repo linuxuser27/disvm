@@ -96,12 +96,12 @@ namespace
 
     struct type_table_t
     {
-        static const uint32_t string_table_mask = 0x80000000;
-        static const uint32_t inner_type_table_mask = 0x40000000;
-        static const uint32_t source_table_mask = 0x20000000;
-        static const uint32_t adt_table_mask = 0x10000000;
-        static const uint32_t tuple_type_mask = 0x08000000;
-        static const uint32_t types_mask = 0;
+        static const uint32_t string_table_mask;
+        static const uint32_t inner_type_table_mask;
+        static const uint32_t source_table_mask;
+        static const uint32_t adt_table_mask;
+        static const uint32_t tuple_type_mask;
+        static const uint32_t types_mask;
 
         std::vector<type_t> types;
         std::vector<std::string> strings_table;
@@ -113,6 +113,13 @@ namespace
         template<typename T>
         const T &resolve_table_index(int32_t idx) const;
     };
+
+    const uint32_t type_table_t::string_table_mask = 0x80000000;
+    const uint32_t type_table_t::inner_type_table_mask = 0x40000000;
+    const uint32_t type_table_t::source_table_mask = 0x20000000;
+    const uint32_t type_table_t::adt_table_mask = 0x10000000;
+    const uint32_t type_table_t::tuple_type_mask = 0x08000000;
+    const uint32_t type_table_t::types_mask = 0;
 
     template<>
     const std::string &type_table_t::resolve_table_index<std::string>(int32_t idx) const

@@ -102,7 +102,7 @@ namespace
         mp_base[1] = args->get_allocation();
 
         // Define the frame offset for the argument
-        const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset;
+        const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset();
 
         e.code_section =
         {

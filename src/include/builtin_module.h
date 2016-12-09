@@ -61,23 +61,23 @@ namespace disvm
 
         struct vm_frame_constants
         {
-            static const auto register_size_in_bytes = sizeof(word_t);
+            static constexpr auto register_size_in_bytes() { return sizeof(word_t); }
 
             // Includes registers on base frame plus the implied return register
-            static const auto default_register_count = (sizeof(vm_frame_base_alloc_t) / register_size_in_bytes) + 1;
+            static constexpr auto default_register_count() { return (sizeof(vm_frame_base_alloc_t) / register_size_in_bytes()) + 1; }
 
             // [SPEC] The fixed point registers are defined by their usage in the
             // Inferno implementation. They rely on the 'temp' registers defined below.
             // See fixed point opcodes in Inferno (libinterp/xec.c).
-            static const auto fixed_point_register_1_offset = default_register_count * register_size_in_bytes;
-            static const auto fixed_point_register_2_offset = fixed_point_register_1_offset + (2 * register_size_in_bytes);
+            static constexpr auto fixed_point_register_1_offset() { return default_register_count() * register_size_in_bytes(); }
+            static constexpr auto fixed_point_register_2_offset() { return fixed_point_register_1_offset() + (2 * register_size_in_bytes()); }
 
             // [SPEC] The official Limbo compiler allocates additional 'temp' registers on all call frames.
             // See 'STemp', 'RTemp', and 'DTemp' in Inferno (limbo/limbo.h)
-            static const auto limbo_temp_register_count = 3;
+            static constexpr auto limbo_temp_register_count() { return 3; }
 
             // Define the first argument offset in a Limbo compiler generated call frame.
-            static const auto limbo_first_arg_register_offset = (default_register_count + limbo_temp_register_count) * register_size_in_bytes;
+            static constexpr auto limbo_first_arg_register_offset() { return (default_register_count() + limbo_temp_register_count()) * register_size_in_bytes(); }
         };
 
         //

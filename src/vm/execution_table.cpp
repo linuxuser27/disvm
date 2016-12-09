@@ -579,15 +579,15 @@ namespace
     // Define case table constants
     // [SPEC]Table format is partially defined in Dis VM specification
     //          [element count] ([low value (inc)][high value (exc)][program counter])* [fallback program counter]
-    struct case_op_constants
+    namespace case_op_constants
     {
-        static const auto table_length_index = std::size_t{ 0 };
-        static const auto first_entry_index = std::size_t{ 1 };
-        static const auto entry_low_index = std::size_t{ 0 };
-        static const auto entry_high_index = std::size_t{ 1 };
-        static const auto entry_pc_index = std::size_t{ 2 };
-        static const auto entry_length = std::size_t{ 3 };
-    };
+        const auto table_length_index = std::size_t{ 0 };
+        const auto first_entry_index = std::size_t{ 1 };
+        const auto entry_low_index = std::size_t{ 0 };
+        const auto entry_high_index = std::size_t{ 1 };
+        const auto entry_pc_index = std::size_t{ 2 };
+        const auto entry_length = std::size_t{ 3 };
+    }
 
     template<typename PrimitiveType>
     void _case(vm_registers_t &r)
