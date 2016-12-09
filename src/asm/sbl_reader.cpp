@@ -598,7 +598,7 @@ namespace
             return "poly<T>";
 
         case type_class_t::array:
-            return to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt) + "[]";
+            return "array of " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
         case type_class_t::channel:
             return "chan of " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);
         case type_class_t::list:
@@ -656,13 +656,13 @@ namespace
     {
         std::stringstream ss;
 
-        if (util::has_flag(fmt, function_name_format_t::name))
+        const auto inc_name = util::has_flag(fmt, function_name_format_t::name);
+        if (inc_name)
             ss << f.name;
 
-        auto has_argument = false;
-        if (util::has_flag(fmt, function_name_format_t::arguments))
+        const auto inc_arguments = util::has_flag(fmt, function_name_format_t::arguments);
+        if (inc_arguments)
         {
-            has_argument = true;
             ss << '(';
 
             auto first = true;
@@ -678,9 +678,11 @@ namespace
             ss << ')';
         }
 
-        if (util::has_flag(fmt, function_name_format_t::return_type))
+        // Only add the return value if it is not 'none'
+        if (util::has_flag(fmt, function_name_format_t::return_type)
+            && f.return_type.type_class != type_class_t::none)
         {
-            if (has_argument)
+            if (inc_name || inc_arguments)
                 ss << ':';
 
             ss << to_string(f.return_type, tt);
@@ -689,17 +691,17 @@ namespace
         return ss.str();
     }
 
-    class sbl_symbol_debug final : public symbol_debug_t
+    class sbl_symbol_pc_iter final : public symbol_pc_iter_t
     {
     public:
-        sbl_symbol_debug(std::shared_ptr<sbl_file_t> f)
+        sbl_symbol_pc_iter(std::shared_ptr<const sbl_file_t> f)
             : _current_pc{ 0 }
             , _file{ f }
         {
             assert(_file != nullptr);
         }
 
-    public: // symbol_debug_t
+    public: // symbol_pc_iter_t
         void set_current_pc(disvm::runtime::vm_pc_t pc) override
         {
             assert(0 <= pc && pc < static_cast<int32_t>(_file->pc_table.size()));
@@ -784,7 +786,7 @@ namespace
 
     private:
         runtime::vm_pc_t _current_pc;
-        std::shared_ptr<sbl_file_t> _file;
+        std::shared_ptr<const sbl_file_t> _file;
     };
 
     class sbl_symbol_data final : public symbol_data_t
@@ -807,13 +809,25 @@ namespace
             return _file->pc_table.size();
         }
 
-        std::unique_ptr<symbol_debug_t> get_debug() override
+        std::vector<function_data_t> get_functions(function_name_format_t f) const override
         {
-            return std::make_unique<sbl_symbol_debug>(_file);
+            std::vector<function_data_t> funcs;
+            for (func_table_t::const_reference func : _file->func_table)
+            {
+                auto formatted_name = to_string(func, _file->type_table, f);
+                funcs.push_back({ func.entry_pc, func.limit_pc, std::move(formatted_name) });
+            }
+
+            return funcs;
+        }
+
+        std::unique_ptr<symbol_pc_iter_t> get_pc_iter() const override
+        {
+            return std::make_unique<sbl_symbol_pc_iter>(_file);
         }
 
     private:
-        std::shared_ptr<sbl_file_t> _file;
+        std::shared_ptr<const sbl_file_t> _file;
     };
 }
 

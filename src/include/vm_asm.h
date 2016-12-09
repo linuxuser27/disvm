@@ -407,6 +407,7 @@ namespace disvm
             int32_t end_column;
         };
 
+        // Enumeration for formatting a function name
         enum class function_name_format_t
         {
             name = 1,
@@ -418,19 +419,19 @@ namespace disvm
 
         DEFINE_ENUM_FLAG_OPERATORS(function_name_format_t);
 
-        class symbol_debug_t
+        // Enumeration for advancing the pc
+        enum class advance_pc_t
+        {
+            current, // Return the current pc
+            next_pc,
+            next_debug_statement, // Advance to the next debug statement (i.e. source language statement)
+        };
+
+        class symbol_pc_iter_t
         {
         public:
             // Set the current pc
             virtual void set_current_pc(disvm::runtime::vm_pc_t) = 0;
-
-            // Enumeration for advancing the pc
-            enum class advance_pc_t
-            {
-                current, // Return the current pc
-                next_pc,
-                next_debug_statement, // Advance to the next debug statement (i.e. source language statement)
-            };
 
             // Advance the current pc.
             // Returns 'true' if the function was successful, otherwise 'false'.
@@ -439,13 +440,20 @@ namespace disvm
             // Return the name of the function containing the current pc.
             // Optionally format the returned string.
             // This function will throw a 'std::runtime_error' if a function doesn't exist at the current pc.
-            virtual std::string current_function_name(function_name_format_t f = function_name_format_t::name) const = 0;
+            virtual std::string current_function_name(function_name_format_t f) const = 0;
 
             // Return the source location for the current pc
             virtual source_ref_t current_source_location() const = 0;
 
             // Get source file name based on ID
             virtual const std::string &get_source_by_id(int32_t source_id) const = 0;
+        };
+
+        struct function_data_t
+        {
+            disvm::runtime::vm_pc_t entry_pc;
+            disvm::runtime::vm_pc_t limit_pc;
+            std::string name;
         };
 
         class symbol_data_t
@@ -457,10 +465,15 @@ namespace disvm
             // Get instruction count in the symbol data
             virtual size_t get_instruction_count() const = 0;
 
-            // Get interface over symbol data targeted for debugging
-            virtual std::unique_ptr<symbol_debug_t> get_debug() = 0;
+            // Get list of functions in module.
+            // Supply a formatting enum for the function name.
+            virtual std::vector<function_data_t> get_functions(function_name_format_t f) const = 0;
+
+            // Get pc iterator interface over symbol data
+            virtual std::unique_ptr<symbol_pc_iter_t> get_pc_iter() const = 0;
         };
 
+        // Read in symbol data from the supplied stream
         std::unique_ptr<symbol_data_t> read(std::istream &);
     }
 
