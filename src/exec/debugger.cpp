@@ -5,6 +5,7 @@
 //
 
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -117,16 +118,27 @@ namespace
         dbg_cmd_exec_t exec;
     };
 
-    std::string stack_to_string(const vm_registers_t &r)
+    std::string stack_to_string(const vm_registers_t &r, debugger &dbg)
     {
         auto msg = std::stringstream{};
-        walk_stack(r, [&msg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
+        walk_stack(r, [&msg, &dbg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
         {
-            auto module_name = "<No Name>";
-            if (module_ref.module->module_name != nullptr)
-                module_name = module_ref.module->module_name->str();
+            auto func_maybe = dbg.resolve_to_function_source_line(module_ref.module->vm_id, pc, pc, symbol::function_name_format_t::name);
+            if (!func_maybe.empty())
+            {
+                assert(func_maybe.size() == 1);
+                msg << module_ref.module->module_name->str() << "!" << func_maybe[0];
+            }
+            else
+            {
+                auto module_name = "<No Name>";
+                if (module_ref.module->module_name != nullptr)
+                    module_name = module_ref.module->module_name->str();
 
-            msg << module_name << "@" << pc << "\n";
+                msg << module_name << "@" << pc;
+            }
+
+            msg << "\n";
             return true;
         });
 
@@ -215,7 +227,7 @@ namespace
         ss << "channel\n"
            << "\tbuffer size:  " << c->get_buffer_size() << "\n";
 
-            return ss;
+        return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
@@ -325,14 +337,19 @@ namespace
     void cmd_print_modules(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
     {
         auto msg = std::stringstream{};
-        cxt.vm.enum_loaded_modules([&msg](const loaded_vm_module_t &m)
+        cxt.vm.enum_loaded_modules([&msg, &cxt](const loaded_vm_module_t &m)
         {
             auto module_instance = m.module.lock();
             if (module_instance != nullptr)
             {
-                msg << std::setw(3) << m.load_id << ": "
+                msg << std::setw(3) << m.vm_id << ": "
                     << std::setw(16) << module_instance->module_name->str()
-                    << std::setw(0) << "  -  " << m.origin->str() << "\n";
+                    << std::setw(0) << "  -  " << m.origin->str();
+
+                if (cxt.dbg.symbols_exist(m.vm_id))
+                    msg << " [symbols loaded]";
+
+                msg << "\n";
             }
 
             return true;
@@ -341,10 +358,42 @@ namespace
         debug_print_info(msg.str());
     }
 
+    void cmd_print_symbols(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
+    {
+        if (a.size() < 2)
+            throw debug_cmd_error_t{ "Must supply a module ID" };
+
+        module_id_t vm_id;
+        try
+        {
+            vm_id = std::stoul(a[1]);
+        }
+        catch (...)
+        {
+            throw debug_cmd_error_t{ "Invalid module ID format" };
+        }
+
+        if (!cxt.dbg.symbols_exist(vm_id))
+            throw debug_cmd_error_t{ "No symbols loaded for module" };
+
+        // Interpret the last non-module ID value as the partial name to match.
+        const char *name_to_match = nullptr;
+        if (a.size() > 2)
+            name_to_match = a.back().c_str();
+
+        auto msg = std::stringstream{};
+        auto module_funcs = cxt.dbg.get_module_functions(vm_id, name_to_match);
+        msg << "Function name [PC range]\n";
+        for (auto &f : module_funcs)
+            msg << "  " << f << "\n";
+
+        debug_print_info(msg.str());
+    }
+
     void cmd_breakpoint_set(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        if (a.size() < 3)
-            throw debug_cmd_error_t{ "Must supply an IP and module ID" };
+        if (a.size() < 2)
+            throw debug_cmd_error_t{ "Must supply an IP" };
 
         vm_pc_t pc;
         try
@@ -356,26 +405,30 @@ namespace
             throw debug_cmd_error_t{ "Invalid IP format" };
         }
 
-        uint32_t module_id;
-        try
+        auto module = std::const_pointer_cast<vm_module_t>(cxt.current_register->module_ref->module);
+        if (a.size() > 2)
         {
-            module_id = std::stoul(a[2]);
-        }
-        catch (...)
-        {
-            throw debug_cmd_error_t{ "Invalid module ID format" };
-        }
+            module.reset();
+            uint32_t module_id;
+            try
+            {
+                module_id = std::stoul(a[2]);
+            }
+            catch (...)
+            {
+                throw debug_cmd_error_t{ "Invalid module ID format" };
+            }
 
-        auto module = std::shared_ptr<vm_module_t>{};
-        cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
-        {
-            if (module_id != m.load_id)
-                return true;
+            cxt.vm.enum_loaded_modules([module_id, &module](const loaded_vm_module_t &m)
+            {
+                if (module_id != m.vm_id)
+                    return true;
 
-            // Found the matching ID so stop
-            module = m.module.lock();
-            return false;
-        });
+                // Found the matching ID so stop
+                module = m.module.lock();
+                return false;
+            });
+        }
 
         if (module == nullptr)
         {
@@ -441,7 +494,20 @@ namespace
             const auto details = cxt.dbg.controller->get_breakpoint_details(cookie);
             msg << std::setw(3) << cookie << ": "
                 << std::setw(16) << details.module->module_name->str()
-                << std::setw(0) << "@" << details.pc << "\n";
+                << std::setw(0);
+
+            auto func_maybe = cxt.dbg.resolve_to_function_source_line(details.module->vm_id, details.pc, details.pc, symbol::function_name_format_t::name);
+            if (!func_maybe.empty())
+            {
+                assert(func_maybe.size() == 1);
+                msg << "!" << func_maybe[0];
+            }
+            else
+            {
+                msg << "@" << details.pc;
+            }
+
+            msg << "\n";
         }
 
         debug_print_info(msg.str());
@@ -496,7 +562,7 @@ namespace
         for (auto t : thread_registers)
         {
             msg << "Thread " << t.first << ":\n";
-            msg << stack_to_string(*t.second);
+            msg << stack_to_string(*t.second, cxt.dbg);
             msg << "\n";
         }
 
@@ -552,21 +618,24 @@ namespace
         const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
-        auto begin_index = static_cast<std::size_t>(r.pc);
-        auto end_index = static_cast<std::size_t>(r.pc + 1);
+        auto begin_pc = static_cast<std::size_t>(r.pc);
+        auto end_pc = static_cast<std::size_t>(r.pc);
         if (disassemble_length < 0)
         {
             const auto begin_maybe = r.pc - (-disassemble_length) + 1;
-            begin_index = static_cast<std::size_t>(std::max(begin_maybe, 0));
+            begin_pc= static_cast<std::size_t>(std::max(begin_maybe, 0));
         }
         else
         {
             const auto end_maybe = static_cast<std::size_t>(r.pc + disassemble_length);
-            end_index = std::min(end_maybe, code_section.size());
+            end_pc = std::min(end_maybe, code_section.size());
         }
 
+        auto resolved_pc = cxt.dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, symbol::function_name_format_t::name);
+        assert(resolved_pc.empty() || resolved_pc.size() == (end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
+
         auto msg = std::stringstream{};
-        for (auto i = begin_index; i < end_index; ++i)
+        for (auto i = begin_pc; i < (end_pc + 1); ++i)
         {
             auto op = code_section[i].op;
 
@@ -586,6 +655,14 @@ namespace
                         break;
                     }
                 }
+            }
+
+            // Print source location if resolved
+            if (!resolved_pc.empty())
+            {
+                const auto & r = resolved_pc[i - begin_pc];
+                if (!r.empty())
+                    msg << r << "\n";
             }
 
             msg << op_prefix << std::setw(5) << i << ": " << op << "\n";
@@ -734,6 +811,20 @@ namespace
             << console_modifiers::reset_all;
     }
 
+    void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &)
+    {
+        if (args.size() == 0)
+        {
+            // [TODO] Print all options current state
+            return;
+        }
+        else if (0 == args[0].compare("help"))
+        {
+            // [TODO] Print help for 'set' command
+            return;
+        }
+    }
+
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
@@ -742,8 +833,9 @@ namespace
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
         { "t", "Print all threads", nullptr, nullptr, cmd_print_threads },
         { "m", "Print all loaded modules", nullptr, nullptr, cmd_print_modules },
+        { "sym", "Print symbols for the supplied module", "sym [0-9]+ <partial function name>?", "sym 2 foo (Print symbols in module 2 containing 'foo')", cmd_print_symbols },
 
-        { "bs", "Set breakpoint at the specified IP in a loaded module", "bs [0-9]+ [0-9]+", "bs 3 5 (Breakpoint at IP 3 in module 5)", cmd_breakpoint_set },
+        { "bs", "Set breakpoint at the specified IP in a loaded module", "bs [0-9]+ [0-9]*", "bs 3 5 (Breakpoint at IP 3 in module 5), bs 4 (Breakpoint at IP 4 in current module)", cmd_breakpoint_set },
         { "bc", "Clear breakpoint(s)", "bc ([0-9]+|\\*)", "bc 3, bc *", cmd_breakpoint_clear },
         { "bl", "List breakpoints", nullptr, nullptr, cmd_breakpoint_list },
 
@@ -751,6 +843,8 @@ namespace
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
         { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
+
+        //{ "set" , "Set a debugger option", "set [ _a-zA-Z0-9]*", "'set help' for available options", set_value_cmd },
         { "?", "Print help", nullptr, nullptr, cmd_help },
 
         // Undocumented commands
@@ -766,7 +860,7 @@ namespace
         }
 
         // [TODO] Didn't find the cmd, try ignoring case?
-        return nullptr;
+        throw debug_cmd_error_t{ "Unknown command. '?' for help." };
     }
 
     void print_help()
@@ -793,31 +887,6 @@ namespace
         debug_print_info(ss.str());
     }
 
-    // split the string using the supplied delimiter
-    std::vector<std::string> split(const std::string &str, const char delim = ' ')
-    {
-        auto split_string = std::vector<std::string>{};
-
-        auto curr = str.begin();
-        auto end = str.cend();
-        while (curr != end)
-        {
-            auto curr_begin = curr;
-            while (curr != end && *curr != delim)
-                ++curr;
-
-            if (curr_begin != curr)
-                split_string.push_back(std::move(std::string{ curr_begin, curr }));
-
-            if (curr == end)
-                break;
-
-            ++curr;
-        }
-
-        return split_string;
-    }
-
     void prompt(debugger &debugger, const vm_registers_t &r)
     {
         debugger.controller->suspend_all_threads();
@@ -841,22 +910,13 @@ namespace
                 << console_modifiers::reset_all;
 
             std::getline(std::cin, cmd);
-            if (cmd.empty())
-                continue;
-
-            const auto cmd_tokens = split(cmd);
+            const auto cmd_tokens = util::split(cmd);
             if (cmd_tokens.empty())
                 continue;
 
-            auto cmd_exec = find_cmd(cmd_tokens[0]);
-            if (cmd_exec == nullptr)
-            {
-                debug_print_error("Unknown command. '?' for help.");
-                continue;
-            }
-
             try
             {
+                auto cmd_exec = find_cmd(cmd_tokens[0]);
                 cmd_exec(cmd_tokens, cxt);
                 if (cxt.exit_break)
                     break;
@@ -885,6 +945,79 @@ debugger::debugger(const debugger_options opt)
     , _tool_id{ 0 }
     , controller{ nullptr }
 { }
+
+std::vector<std::string> debugger::resolve_to_function_source_line(
+    disvm::runtime::module_id_t vm_id,
+    vm_pc_t begin_pc,
+    vm_pc_t end_pc,
+    symbol::function_name_format_t fmt) const
+{
+    auto iter = _vm_id_to_symbol_info.find(vm_id);
+    if (iter == std::cend(_vm_id_to_symbol_info))
+        return{};
+
+    auto &d = *(iter->second.iter);
+
+    // Position the debug symbol iterator
+    d.set_current_pc(begin_pc);
+
+    std::vector<std::string> resolved_functions_by_pc(end_pc - begin_pc + 1);
+    vm_pc_t next_pc = begin_pc;
+    do
+    {
+        if (next_pc > end_pc)
+            break;
+
+        std::stringstream ss;
+        const auto function_name = d.current_function_name(fmt);
+        if (!function_name.empty())
+            ss << function_name << " at ";
+
+        const auto source_loc = d.current_source_location();
+        ss << d.get_source_by_id(source_loc.source_id)
+            << ':'
+            << source_loc.begin_line;
+
+        resolved_functions_by_pc[next_pc - begin_pc] = std::move(ss.str());
+
+    } while (d.try_advance_pc(symbol::advance_pc_t::next_debug_statement, &next_pc));
+
+    return resolved_functions_by_pc;
+}
+
+std::vector<std::string> debugger::get_module_functions(disvm::runtime::module_id_t vm_id, const char *match) const
+{
+    std::vector<std::string> funcs;
+    auto iter = _vm_id_to_symbol_info.find(vm_id);
+    if (iter != std::cend(_vm_id_to_symbol_info))
+    {
+        auto f_infos = iter->second.data->get_functions(symbol::function_name_format_t::declaration);
+        for (auto &fi : f_infos)
+        {
+            // Only return functions that match the supplied string
+            if (match != nullptr
+                && fi.name.find(match) == std::string::npos)
+                continue;
+
+            std::stringstream ss;
+            ss << fi.name
+                << " ["
+                << fi.entry_pc
+                << ", "
+                << fi.limit_pc
+                << "]";
+
+            funcs.push_back(ss.str());
+        }
+    }
+
+    return funcs;
+}
+
+bool debugger::symbols_exist(disvm::runtime::module_id_t vm_id) const
+{
+    return _vm_id_to_symbol_info.find(vm_id) != std::cend(_vm_id_to_symbol_info);
+}
 
 void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 {
@@ -939,6 +1072,13 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
         prompt(*this, *cxt.value1.registers);
     }));
 
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_vm_load, [&](vm_event_t, vm_event_context_t &cxt)
+    {
+        auto loaded_mod = cxt.value1.loaded_mod;
+        assert(loaded_mod != nullptr);
+        load_symbols(*loaded_mod);
+    }));
+
     _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
     {
         auto m = (*cxt.value2.module);
@@ -990,4 +1130,74 @@ void debugger::on_unload()
         controller->unsubscribe_event(ec);
 
     controller = nullptr;
+}
+
+void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
+{
+    auto m = loaded_mod.module.lock();
+    assert(m != nullptr && "Loaded module event should have valid module reference");
+
+    auto symbol_extension = ".sbl";
+    std::string symbol_path_maybe{ loaded_mod.origin->str() };
+    const auto ext_index = symbol_path_maybe.find_last_of('.');
+    if (ext_index == std::string::npos)
+    {
+        // Module doesn't have an extension so just append the symbol extension.
+        symbol_path_maybe.append(symbol_extension);
+    }
+    else
+    {
+        // Replace the module extension with the symbol extension.
+        symbol_path_maybe.replace(ext_index, std::string::npos, symbol_extension);
+    }
+
+    std::ifstream sbl_file{ symbol_path_maybe, std::ifstream::in };
+    if (!sbl_file.is_open())
+        return;
+
+    std::unique_ptr<symbol::symbol_data_t> symbol_data;
+    try
+    {
+        symbol_data = symbol::read(sbl_file);
+    }
+    catch (const std::runtime_error &e)
+    {
+        // File with assumed symbol name/extension is not the correct format
+        std::stringstream msg;
+        msg << "Assumed symbol file '"
+            << symbol_path_maybe
+            << "' has invalid symbol format. ("
+            << e.what()
+            << ")";
+        debug_print_error(msg.str());
+        return;
+    }
+
+    // Check if the symbol data matches the loaded module
+    if (0 != symbol_data->get_module_name().compare(m->module_name->str())
+        || symbol_data->get_instruction_count() != m->code_section.size())
+    {
+        // Symbol file does not match the loaded modules - stale file?
+        std::stringstream msg;
+        msg << "Symbol file '"
+            << symbol_path_maybe
+            << "' does not match loaded module '"
+            << loaded_mod.origin->str()
+            << "'.";
+        debug_print_error(msg.str());
+        return;
+    }
+
+    const auto vm_id = loaded_mod.vm_id;
+    assert(_vm_id_to_symbol_info.find(vm_id) == std::end(_vm_id_to_symbol_info) && "Module VM ID should be unique");
+    auto symbol_iter = symbol_data->get_pc_iter();
+    _vm_id_to_symbol_info[vm_id] = { std::move(symbol_data), std::move(symbol_iter) };
+
+    std::stringstream msg;
+    msg << "Symbol file '"
+        << symbol_path_maybe
+        << "' loaded for '"
+        << loaded_mod.origin->str()
+        << "'.";
+    debug_print_info(msg.str());
 }

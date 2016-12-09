@@ -127,13 +127,10 @@ void vm_tool_dispatch_t::on_exception_unhandled(vm_registers_t &r, const vm_stri
     _events.fire_event_callbacks(vm_event_t::exception_unhandled, cxt);
 }
 
-void vm_tool_dispatch_t::on_module_vm_load(std::shared_ptr<vm_module_t> &m, const vm_string_t &path)
+void vm_tool_dispatch_t::on_module_vm_load(const loaded_vm_module_t &m)
 {
-    assert(m != nullptr);
-
     vm_event_context_t cxt{};
-    cxt.value1.module = &m;
-    cxt.value2.str = &path;
+    cxt.value1.loaded_mod = &m;
 
     _events.fire_event_callbacks(vm_event_t::module_vm_load, cxt);
 }

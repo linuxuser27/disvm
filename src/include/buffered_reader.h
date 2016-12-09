@@ -4,12 +4,13 @@
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_BUFFERED_READER_H_
-#define _DISVM_SRC_VM_BUFFERED_READER_H_
+#ifndef _DISVM_SRC_INCLUDE_BUFFERED_READER_H_
+#define _DISVM_SRC_INCLUDE_BUFFERED_READER_H_
 
 #include <cstdint>
 #include <cassert>
 #include <vector>
+#include <sstream>
 #include <tuple>
 #include <iosfwd>
 
@@ -44,13 +45,12 @@ namespace disvm
 
                 assert(buffer != nullptr);
 
-                auto bytes_requested_acc = uint32_t{0};
-                std::size_t amount_in_buffer;
+                auto bytes_requested_acc = uint32_t{ 0 };
 
                 for (;;)
                 {
-                    bool success = check_buffer_content(amount_in_buffer);
-                    if (!success || amount_in_buffer == 0)
+                    const auto amount_in_buffer = check_buffer_content();
+                    if (amount_in_buffer == 0)
                         return 0;
 
                     // Buffer contains requested amount
@@ -76,41 +76,78 @@ namespace disvm
                 }
             }
 
+            // Read from the stream as a string until the supplied delimiter is encountered.
+            std::string get_as_string_until(const char delim)
+            {
+                std::stringstream ss;
+                auto amount_in_buffer = check_buffer_content();
+                while (amount_in_buffer != 0)
+                {
+                    while (_current_index < _current_size)
+                    {
+                        auto c = _buffer[_current_index++];
+                        if (c == delim)
+                            return ss.str();
+
+                        ss << c;
+                    }
+
+                    amount_in_buffer = check_buffer_content();
+                }
+
+                return{};
+            }
+
+            // Read from the stream until the supplied value is encountered.
+            bool get_bytes_until(const uint8_t delim, std::vector<uint8_t> &byte_buffer)
+            {
+                auto amount_in_buffer = check_buffer_content();
+                while (amount_in_buffer != 0)
+                {
+                    while(_current_index < _current_size)
+                    {
+                        auto b = _buffer[_current_index++];
+                        if (b == delim)
+                            return true;
+
+                        byte_buffer.push_back(b);
+                    }
+
+                    amount_in_buffer = check_buffer_content();
+                }
+
+                return false;
+            }
+
             // Get the next byte in the buffer.
             // Returns success and the byte.
             std::tuple<bool, uint8_t> get_next_byte()
             {
-                std::size_t amount_in_buffer;
-                bool success = check_buffer_content(amount_in_buffer);
-                if (!success || amount_in_buffer == 0)
+                const auto amount_in_buffer = check_buffer_content();
+                if (amount_in_buffer == 0)
                     return std::make_tuple(false, 0);
 
                 return std::make_tuple(true, _buffer[_current_index++]);
             }
 
         private:
-            bool check_buffer_content(std::size_t &amount_in_buffer)
+            std::size_t check_buffer_content()
             {
-                // Signed so checking for underflow is easier.
-                amount_in_buffer = 0;
-                auto amount_in_buffer_local = _current_size - _current_index;
-                if (amount_in_buffer_local <= 0)
+                if (_current_size <= _current_index)
                 {
                     _current_index = 0;
                     _current_size = 0;
 
                     if (_stream.fail())
-                        return false;
+                        return 0;
 
                     _stream.read(_buffer.data(), buffered_reader_t::buffer_size);
+
+                    // If the stream has failed, set the current size, otherwise the buffer size
                     _current_size = _stream.fail() ? static_cast<std::size_t>(_stream.gcount()) : buffered_reader_t::buffer_size;
-                    
-                    // Reset amount in buffer
-                    amount_in_buffer_local = buffered_reader_t::buffer_size;
                 }
 
-                amount_in_buffer = amount_in_buffer_local;
-                return true;
+                return _current_size - _current_index;
             }
 
         private:
@@ -122,4 +159,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_BUFFERED_READER_H_
+#endif // _DISVM_SRC_INCLUDE_BUFFERED_READER_H_

@@ -566,6 +566,8 @@ namespace disvm
         using import_section_t = std::vector<import_vm_module_t>;
         using handler_section_t = std::vector<handler_t>;
 
+        using module_id_t = std::size_t;
+
         // VM module
         struct vm_module_t
         {
@@ -574,6 +576,10 @@ namespace disvm
             vm_module_t &operator=(const vm_module_t &) = delete;
 
             ~vm_module_t();
+
+            // This is a unique ID assigned to the module by the VM. It is associated with the path of the module and is idempotent
+            // with respect to the number of times the module is loaded. It is considered read-only.
+            module_id_t vm_id;
 
             // Contains a magic number, digital signature, runtime flags, sizes of the other sections, and a description of the entry point
             header_t header;

@@ -141,23 +141,6 @@ namespace
         return r;
     }
 
-    bool read_next_string(util::buffered_reader_t &reader, std::vector<uint8_t> &char_buffer)
-    {
-        assert(char_buffer.size() == 0);
-        char_buffer.reserve(1024);
-
-        auto success = bool{};
-        auto value = uint8_t{};
-        std::tie(success, value) = reader.get_next_byte();
-        while (success && value != 0)
-        {
-            char_buffer.push_back(value);
-            std::tie(success, value) = reader.get_next_byte();
-        }
-
-        return success;
-    }
-
     byte_t *read_8byte_segments(util::buffered_reader_t &reader, datum_type_t type, uint32_t segment_count, byte_t *dest)
     {
         assert(type == datum_type_t::value_real64 || type == datum_type_t::value_bit64);
@@ -519,7 +502,7 @@ namespace
     void read_module_name(util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto string_buffer = std::vector<uint8_t>{};
-        if (!read_next_string(reader, string_buffer))
+        if (!reader.get_bytes_until(0, string_buffer))
             throw module_reader_exception{ "Failed to read module name" };
 
         modobj.module_name = std::make_unique<vm_string_t>(string_buffer.size(), string_buffer.data());
@@ -550,7 +533,7 @@ namespace
             if (!success) throw module_reader_exception{ "Failed to read linkage signature" };
 
             auto string_buffer = std::vector<uint8_t>{};
-            if (!read_next_string(reader, string_buffer))
+            if (!reader.get_bytes_until(0, string_buffer))
                 throw module_reader_exception{ "Failed to read linkage name" };
 
             item.name = std::make_unique<vm_string_t>(string_buffer.size(), string_buffer.data());
@@ -594,7 +577,7 @@ namespace
                 if (!success) throw module_reader_exception{ "Failed to read import function signature" };
 
                 auto string_buffer = std::vector<uint8_t>{};
-                if (!read_next_string(reader, string_buffer))
+                if (!reader.get_bytes_until(0, string_buffer))
                     throw module_reader_exception{ "Failed to read import function name" };
 
                 func.name = std::make_unique<vm_string_t>(string_buffer.size(), string_buffer.data());
@@ -666,7 +649,7 @@ namespace
                 exception_t except{};
 
                 auto string_buffer = std::vector<uint8_t>{};
-                if (!read_next_string(reader, string_buffer))
+                if (!reader.get_bytes_until(0, string_buffer))
                     throw module_reader_exception{ "Failed to read exception name" };
 
                 except.name = std::make_unique<vm_string_t>(string_buffer.size(), string_buffer.data());
