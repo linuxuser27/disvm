@@ -25,14 +25,14 @@ using namespace disvm::format;
 namespace
 {
     // constants used in module processing
-    struct module_constants
+    namespace module_constants
     {
-        static const auto max_type_pointer_count = operand_t{ 128 * 1024 };
-        static const auto no_error_handle_type_desc = operand_t{ -1 };
-        static const auto no_entry_pc = vm_pc_t{ -1 };
-        static const auto vm_module_type_desc_number = std::size_t{ 0 };
-        static const auto max_module_name_bytes = std::size_t{ 128 }; // Including null
-        static const auto array_address_stack_size = std::size_t{ 4 };
+        const auto max_type_pointer_count = operand_t{ 128 * 1024 };
+        const auto no_error_handle_type_desc = operand_t{ -1 };
+        const auto no_entry_pc = vm_pc_t{ -1 };
+        const auto vm_module_type_desc_number = std::size_t{ 0 };
+        const auto max_module_name_bytes = std::size_t{ 128 }; // Including null
+        const auto array_address_stack_size = std::size_t{ 4 };
     };
 
     // enumeration for types in the data section

@@ -20,6 +20,12 @@
 using namespace disvm;
 using namespace disvm::runtime;
 
+const uint32_t vm_t::root_vm_thread_id = 0;
+const uint32_t vm_t::default_system_thread_count = 1;
+
+// The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
+const uint32_t vm_t::default_thread_quanta = 2048;
+
 vm_t::vm_t(
     create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler,
     create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc)

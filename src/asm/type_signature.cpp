@@ -34,6 +34,8 @@ namespace
     }
 }
 
+const char sig_stream_t::delim = ',';
+
 uint32_t sig_stream_t::compute_signature_hash(const char *sig)
 {
     std::string sig_local{ sig };
@@ -124,6 +126,8 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tchan
     return os << c._s;
 }
 
+const char Ttype_ref::id = '@';
+
 Ttype_ref::Ttype_ref(uint32_t num)
     : _num{ num }
 { }
@@ -155,6 +159,8 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tmodu
 }
 
 const char *Tadt_pick_tag::tag_delim = "=>";
+const char Tadt_pick_tag::begin = '(';
+const char Tadt_pick_tag::end = ')';
 
 Tadt_pick_tag Tadt_pick_tag::create(const char *pick_tag, uint32_t adt_ref, std::initializer_list<const Tm> tms)
 {

@@ -161,7 +161,7 @@ vm_module_ref_t *&vm_frame_t::prev_module_ref() const
 
 pointer_t vm_frame_t::fixed_point_register_1() const
 {
-    const auto offset = vm_frame_constants::fixed_point_register_1_offset;
+    const auto offset = vm_frame_constants::fixed_point_register_1_offset();
     assert(offset < frame_type->size_in_bytes);
 
     auto p = reinterpret_cast<uint8_t *>(base()) + offset;
@@ -170,7 +170,7 @@ pointer_t vm_frame_t::fixed_point_register_1() const
 
 pointer_t vm_frame_t::fixed_point_register_2() const
 {
-    const auto offset = vm_frame_constants::fixed_point_register_2_offset;
+    const auto offset = vm_frame_constants::fixed_point_register_2_offset();
     assert(offset < frame_type->size_in_bytes);
 
     auto p = reinterpret_cast<uint8_t *>(base()) + offset;
