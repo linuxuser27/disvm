@@ -11,6 +11,7 @@
 #include <string>
 #include <algorithm>
 #include <map>
+#include <unordered_set>
 #include <utils.h>
 #include <vm_memory.h>
 #include <vm_asm.h>
@@ -383,9 +384,9 @@ namespace
 
         auto msg = std::stringstream{};
         auto module_funcs = cxt.dbg.get_module_functions(vm_id, name_to_match);
-        msg << "Function name [PC range]\n";
+        msg << "Function name [PC range]";
         for (auto &f : module_funcs)
-            msg << "  " << f << "\n";
+            msg << "\n  " << f;
 
         debug_print_info(msg.str());
     }
@@ -615,6 +616,7 @@ namespace
             }
         }
 
+        auto &dbg = cxt.dbg;
         const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
@@ -623,19 +625,19 @@ namespace
         if (disassemble_length < 0)
         {
             const auto begin_maybe = r.pc - (-disassemble_length) + 1;
-            begin_pc= static_cast<std::size_t>(std::max(begin_maybe, 0));
+            begin_pc = static_cast<std::size_t>(std::max(begin_maybe, 0));
         }
         else
         {
             const auto end_maybe = static_cast<std::size_t>(r.pc + disassemble_length);
-            end_pc = std::min(end_maybe, code_section.size());
+            end_pc = std::min(end_maybe, code_section.size() - 1);
         }
 
-        auto resolved_pc = cxt.dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, symbol::function_name_format_t::name);
+        auto resolved_pc = dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, symbol::function_name_format_t::name);
         assert(resolved_pc.empty() || resolved_pc.size() == (end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
 
         auto msg = std::stringstream{};
-        for (auto i = begin_pc; i < (end_pc + 1); ++i)
+        for (auto i = begin_pc; i <= end_pc; ++i)
         {
             auto op = code_section[i].op;
 
@@ -645,9 +647,9 @@ namespace
             if (op.opcode == opcode_t::brkpt)
             {
                 // Look up each of the known cookies to try and find the matching PC and module
-                for (auto bp_cookie : cxt.dbg.breakpoint_cookies)
+                for (auto bp_cookie : dbg.breakpoint_cookies)
                 {
-                    const auto details = cxt.dbg.controller->get_breakpoint_details(bp_cookie);
+                    const auto details = dbg.controller->get_breakpoint_details(bp_cookie);
                     if (details.pc == i && details.module == r.module_ref->module)
                     {
                         op.opcode = details.original_opcode;
@@ -660,9 +662,9 @@ namespace
             // Print source location if resolved
             if (!resolved_pc.empty())
             {
-                const auto & r = resolved_pc[i - begin_pc];
-                if (!r.empty())
-                    msg << r << "\n";
+                const auto &rpc = resolved_pc[i - begin_pc];
+                if (!rpc.empty())
+                    msg << rpc << "\n";
             }
 
             msg << op_prefix << std::setw(5) << i << ": " << op << "\n";
@@ -811,18 +813,47 @@ namespace
             << console_modifiers::reset_all;
     }
 
-    void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &)
+    std::unordered_set<std::string> dbg_options =
     {
-        if (args.size() == 0)
+        { "bp-cmd" }
+    };
+
+    void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &cxt)
+    {
+        auto msg = std::stringstream{};
+        if (args.size() == 1)
         {
-            // [TODO] Print all options current state
+            msg << "Debug options\n";
+            for (auto &option : dbg_options)
+            {
+                auto v = cxt.dbg.get_option(option);
+                msg << std::setw(16) << option
+                    << ": "
+                    << (v.empty() ? "<none>" : v)
+                    << "\n";
+            }
+
+            debug_print_info(msg.str());
             return;
         }
-        else if (0 == args[0].compare("help"))
+
+        auto &curr_option = args[1];
+        if (std::cend(dbg_options) == dbg_options.find(curr_option))
+            throw debug_cmd_error_t{ "Invalid debug option" };
+
+        auto new_value = std::stringstream{};
+
+        // Reconstitute the parsed debug arguments - in-case of space breaks.
+        for (auto i = std::size_t{ 2 }; i < args.size(); ++i)
         {
-            // [TODO] Print help for 'set' command
-            return;
+            new_value << args[i];
+
+            // For the last parsed arg
+            if (i + 1 < args.size())
+                new_value << " ";
         }
+
+        cxt.dbg.set_option(curr_option, new_value.str());
     }
 
     const dbg_cmd_t cmds[] =
@@ -844,7 +875,7 @@ namespace
         { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
 
-        //{ "set" , "Set a debugger option", "set [ _a-zA-Z0-9]*", "'set help' for available options", set_value_cmd },
+        { "set" , "Set a debug option", "set [ _a-zA-Z0-9]*", "'set' for available options", set_value_cmd },
         { "?", "Print help", nullptr, nullptr, cmd_help },
 
         // Undocumented commands
@@ -865,8 +896,8 @@ namespace
 
     void print_help()
     {
-        auto ss = std::stringstream{};
-        ss << "Commands:\n";
+        auto msg = std::stringstream{};
+        msg << "Commands:\n";
         for (auto i = std::size_t{}; i < sizeof(cmds) / sizeof(cmds[0]); ++i)
         {
             auto &c = cmds[i];
@@ -875,16 +906,33 @@ namespace
             if (c.description == nullptr)
                 continue;
 
-            ss << "  " << c.cmd << "\t" << c.description << "\n";
+            msg << "  " << c.cmd << "\t" << c.description << "\n";
 
             if (c.syntax != nullptr)
-                ss << "\t  Syntax: " << c.syntax << "\n";
+                msg << "\t  Syntax: " << c.syntax << "\n";
 
             if (c.example != nullptr)
-                ss << "\t  Example(s): " << c.example << "\n";
+                msg << "\t  Example(s): " << c.example << "\n";
         }
 
-        debug_print_info(ss.str());
+        debug_print_info(msg.str());
+    }
+
+    void execute_single_command(dbg_cmd_cxt_t &cxt, const std::string &cmd)
+    {
+        const auto cmd_tokens = util::split(cmd);
+        if (cmd_tokens.empty())
+            return;
+
+        try
+        {
+            auto cmd_exec = find_cmd(cmd_tokens[0]);
+            cmd_exec(cmd_tokens, cxt);
+        }
+        catch (const debug_cmd_error_t &e)
+        {
+            debug_print_error(e.what());
+        }
     }
 
     void prompt(debugger &debugger, const vm_registers_t &r)
@@ -910,21 +958,11 @@ namespace
                 << console_modifiers::reset_all;
 
             std::getline(std::cin, cmd);
-            const auto cmd_tokens = util::split(cmd);
-            if (cmd_tokens.empty())
-                continue;
 
-            try
-            {
-                auto cmd_exec = find_cmd(cmd_tokens[0]);
-                cmd_exec(cmd_tokens, cxt);
-                if (cxt.exit_break)
-                    break;
-            }
-            catch (const debug_cmd_error_t &e)
-            {
-                debug_print_error(e.what());
-            }
+            assert(!cxt.exit_break && "Pre-condition on exit_break state before execute failed");
+            execute_single_command(cxt, cmd);
+            if (cxt.exit_break)
+                break;
         }
 
         debugger.controller->resume_all_threads();
@@ -1017,6 +1055,20 @@ std::vector<std::string> debugger::get_module_functions(disvm::runtime::module_i
 bool debugger::symbols_exist(disvm::runtime::module_id_t vm_id) const
 {
     return _vm_id_to_symbol_info.find(vm_id) != std::cend(_vm_id_to_symbol_info);
+}
+
+std::string debugger::get_option(const std::string &option) const
+{
+    auto iter = _debugger_options.find(option);
+    if (iter == std::cend(_debugger_options))
+        return{};
+
+    return iter->second;
+}
+
+void debugger::set_option(const std::string &option, std::string value)
+{
+    _debugger_options[option] = std::move(value);
 }
 
 void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
@@ -1115,8 +1167,12 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        auto reg_str = registers_to_string(*cxt.value1.registers);
-        debug_print_info(reg_str);
+        const auto bp_cmd = get_option({ "bp-cmd" });
+        if (!bp_cmd.empty())
+        {
+            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers };
+            execute_single_command(dbg_cxt, bp_cmd);
+        }
 
         prompt(*this, *cxt.value1.registers);
     }));
@@ -1163,7 +1219,7 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
     catch (const std::runtime_error &e)
     {
         // File with assumed symbol name/extension is not the correct format
-        std::stringstream msg;
+        auto msg = std::stringstream{};
         msg << "Assumed symbol file '"
             << symbol_path_maybe
             << "' has invalid symbol format. ("
@@ -1178,7 +1234,7 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
         || symbol_data->get_instruction_count() != m->code_section.size())
     {
         // Symbol file does not match the loaded modules - stale file?
-        std::stringstream msg;
+        auto msg = std::stringstream{};
         msg << "Symbol file '"
             << symbol_path_maybe
             << "' does not match loaded module '"
@@ -1193,7 +1249,7 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
     auto symbol_iter = symbol_data->get_pc_iter();
     _vm_id_to_symbol_info[vm_id] = { std::move(symbol_data), std::move(symbol_iter) };
 
-    std::stringstream msg;
+    auto msg = std::stringstream{};
     msg << "Symbol file '"
         << symbol_path_maybe
         << "' loaded for '"

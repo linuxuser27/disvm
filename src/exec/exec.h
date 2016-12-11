@@ -13,6 +13,7 @@
 #include <string>
 #include <memory>
 #include <disvm.h>
+#include <vm_asm.h>
 #include <vm_tools.h>
 #include <utils.h>
 
@@ -48,6 +49,10 @@ public:
     // Check if the supplied module ID has symbols loaded
     bool symbols_exist(disvm::runtime::module_id_t vm_id) const;
 
+    // Get/set debugger option
+    std::string get_option(const std::string &option) const;
+    void set_option(const std::string &option, std::string value);
+
 public: // vm_tool_t
     void on_load(disvm::runtime::vm_tool_controller_t &, std::size_t tool_id) override;
 
@@ -71,6 +76,7 @@ private:
     };
 
     std::unordered_map<std::size_t, symbol_info_t> _vm_id_to_symbol_info;
+    std::unordered_map<std::string, std::string> _debugger_options;
 };
 
 #endif // _DISVM_SRC_EXEC_EXEC_H_
