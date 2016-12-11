@@ -33,6 +33,8 @@
       },
       'msvs_settings': {
         'VCCLCompilerTool': {
+          'AdditionalOptions': '/Zc:rvalueCast',
+          'DisableLanguageExtensions': 'true',
           'TreatWChar_tAsBuiltInType': 'false',
           'WarningLevel': 3,
           'DebugInformationFormat': '3', # PDB

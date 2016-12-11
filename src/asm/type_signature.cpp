@@ -4,8 +4,8 @@
 // Author: arr
 //
 
-#include <vm_asm.h>
 #include <array>
+#include <vm_asm_sigkind.h>
 #include "rfc1321/global.h"
 #include "rfc1321/md5.h"
 
