@@ -1678,7 +1678,7 @@ namespace
 
         assert(r.module_ref != nullptr);
         std::tie(handler, target_frame, handler_pc) = find_exception_handler(r.stack, *r.module_ref, faulting_pc, *exception_id);
-        if (handler == nullptr && target_frame == nullptr && handler_pc == runtime_constants::invalid_program_counter)
+        if (handler == nullptr)
         {
             if (tool_dispatch != nullptr)
                 tool_dispatch->on_exception_unhandled(r, *exception_id, *e);
@@ -1687,7 +1687,7 @@ namespace
             throw unhandled_user_exception{ exception_id->str(), faulting_module_name, faulting_pc };
         }
 
-        assert(target_frame != nullptr);
+        assert(target_frame != nullptr && handler_pc != runtime_constants::invalid_program_counter);
 
         // Now that we know the exception has a handler, take a reference.
         e->add_ref();

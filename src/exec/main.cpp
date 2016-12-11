@@ -11,7 +11,7 @@
 #include <builtin_module.h>
 #include <debug.h>
 #include <exceptions.h>
-#include <vm_asm.h>
+#include <vm_asm_sigkind.h>
 #include <vm_version.h>
 #include "exec.h"
 
@@ -21,6 +21,12 @@ using namespace disvm::assembly::sigkind;
 
 namespace
 {
+    template<int L>
+    std::unique_ptr<vm_string_t> create_string_from_const(const char(&ca)[L])
+    {
+        return std::make_unique<vm_string_t>(L - 1, reinterpret_cast<const uint8_t*>(ca));
+    }
+
     // Entry frame layout
     struct vm_entry_frame_t final : public vm_frame_base_alloc_t
     {
@@ -35,24 +41,17 @@ namespace
 
     std::unique_ptr<vm_module_t> create_entry_module(vm_t &vm, const std::vector<char *> &vm_args)
     {
-        if (vm_args.size() == 0)
-            throw vm_user_exception{ "Entry module not supplied" };
-
         // Convert arguments to a list
         vm_string_t *command_module_path = nullptr;
-        vm_list_t *args = nullptr;
-        vm_list_t *last = nullptr;
-        for (auto i = std::size_t{ 0 }; i < vm_args.size(); ++i)
+        vm_list_t *mod_args = new vm_list_t{ intrinsic_type_desc::type<vm_string_t>() };
+        vm_list_t *last = mod_args;
+        for (auto raw_arg : vm_args)
         {
-            auto tmp = vm_args[i];
-            auto arg = new vm_string_t{ std::strlen(tmp), reinterpret_cast<uint8_t *>(tmp) };
-            if (args == nullptr)
+            auto curr_arg = new vm_string_t{ std::strlen(raw_arg), reinterpret_cast<uint8_t *>(raw_arg) };
+            if (command_module_path == nullptr)
             {
                 // First argument is the module to load
-                command_module_path = arg;
-                assert(last == nullptr);
-                args = new vm_list_t{ intrinsic_type_desc::type<vm_string_t>() };
-                last = args;
+                command_module_path = curr_arg;
             }
             else
             {
@@ -63,10 +62,11 @@ namespace
                 last = new_tail;
             }
 
-            pt_ref(last->value()) = arg->get_allocation();
+            pt_ref(last->value()) = curr_arg->get_allocation();
         }
 
-        assert(args != nullptr);
+        if (command_module_path == nullptr)
+            throw vm_user_exception{ "Entry module not supplied" };
 
         // Pre-load the command module in the VM.
         command_module = vm.load_module(command_module_path->str());
@@ -79,9 +79,7 @@ namespace
         e.header.entry_pc = 0;
         e.header.entry_type = 0;
         e.header.runtime_flag = (runtime_flags_t::has_import);
-
-        std::array<uint8_t, 8> mod_name = { "_entry_" };
-        e.module_name = std::make_unique<vm_string_t>(mod_name.size() - 1, mod_name.data());
+        e.module_name = create_string_from_const("_entry_");
 
         // Inherit the stack extent from the command module and add the entry frame size.
         e.header.stack_extent = command_module->header.stack_extent + sizeof(vm_entry_frame_t);
@@ -99,7 +97,7 @@ namespace
         // Take a reference on the command module path and store it on the entry frame
         command_module_path->add_ref();
         mp_base[0] = command_module_path->get_allocation();
-        mp_base[1] = args->get_allocation();
+        mp_base[1] = mod_args->get_allocation();
 
         // Define the frame offset for the argument
         const auto first_arg_offset = vm_frame_constants::limbo_first_arg_register_offset();
@@ -168,9 +166,7 @@ namespace
             assert(exec_init_sig == sig_stream_t::compute_signature_hash("f(Ls)n"));
 #endif
             func.sig = exec_init_sig;
-
-            std::array<uint8_t, 5> func_name = { "init" };
-            func.name = std::make_unique<vm_string_t>(func_name.size() - 1, func_name.data());
+            func.name = create_string_from_const("init");
 
             import_vm_module_t import{};
             import.functions.push_back(std::move(func));
