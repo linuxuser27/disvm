@@ -22,6 +22,7 @@ init(args: list of string)
       args = tl args;
     }
 
+    test_poly();
     test_function_refs();
     test_alt();
     test_channel();
@@ -37,6 +38,44 @@ init(args: list of string)
     test_list();
     test_branch();
     test_for_loop_function_call();
+}
+
+reverse[T](l: list of T): list of T
+{
+    rl: list of T;
+    for(; l != nil; l = tl l)
+        rl = hd l :: rl;
+    return rl;
+}
+
+equal[T](l, r: list of T): int
+{
+    l_v, r_v : T;
+    l_v = hd l;
+    r_v = hd r;
+    l = tl l;
+    r = tl r;
+
+    while (l_v == r_v)
+    {
+        l_v = hd l;
+        r_v = hd r;
+        l = tl l;
+        r = tl r;
+
+        if (l == nil || r == nil)
+            break;
+    }
+
+    return l == r;
+}
+
+test_poly()
+{
+    sys->print("test_poly()\n");
+    l1 := list of {"a", "b", "c"};
+    l2 := reverse(l1);
+    if (!equal(l1, reverse(l2)) != 0) raise TEST_FAILED();
 }
 
 str_cmp(s1: string, s2: string): int

@@ -1094,7 +1094,7 @@ namespace
     EXEC_DECL(newcl) { _newc_(r, vm, intrinsic_type_desc::type<big_t>(), _mov_<big_t>); }
     EXEC_DECL(newcp) { _newc_(r, vm, intrinsic_type_desc::type<pointer_t>(), _mov_<vm_alloc_t>); }
 
-    EXEC_DECL(newcm) 
+    EXEC_DECL(newcm)
     {
         auto memory_size = vt_ref<word_t>(r.src); 
         auto channel_data_type = type_descriptor_t::create(memory_size); 
