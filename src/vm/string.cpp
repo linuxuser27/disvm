@@ -222,7 +222,7 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm string: %d %d >>%s<<\n", _length, (_length_max * _character_size), dest);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm string: %d %d >>%s<<", _length, (_length_max * _character_size), dest);
 }
 
 vm_string_t::vm_string_t(const vm_string_t &s1, const vm_string_t &s2)
@@ -282,7 +282,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
 
     // Copy over string content starting at the correct index (char vs. rune_t)
     std::memcpy(dest, (src + (begin_index * _character_size)), length_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR "\n", &other, begin_index, end_index, this);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR, &other, begin_index, end_index, this);
 }
 
 vm_string_t::~vm_string_t()
@@ -301,7 +301,7 @@ vm_string_t::~vm_string_t()
             free_memory(_encoded_str);
     }
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string\n");
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
 
     debug::assign_debug_pointer(&_mem.alloc);
     debug::assign_debug_pointer(&_encoded_str);

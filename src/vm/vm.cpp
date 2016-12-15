@@ -144,7 +144,7 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
 
                     iter->module = module;
 
-                    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<\n", path);
+                    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<", path);
                 }
 
                 return module;
@@ -182,7 +182,7 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
-        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<\n", path);
+        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<", path);
 
     return new_module;
 }

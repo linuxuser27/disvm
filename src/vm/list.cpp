@@ -39,7 +39,7 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list");
 }
 
 vm_list_t::~vm_list_t()
@@ -60,7 +60,7 @@ vm_list_t::~vm_list_t()
     }
 
     debug::assign_debug_pointer(&_mem.alloc);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm list\n");
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm list");
 }
 
 std::shared_ptr<const type_descriptor_t> vm_list_t::get_element_type() const

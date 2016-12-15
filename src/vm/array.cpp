@@ -27,20 +27,20 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     assert(_element_type != nullptr);
     assert(_length >= 0);
     _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: %d\n", _length);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: %d", _length);
 
     // Initialize the array
     auto arr_local = _arr;
     const auto array_len = _length;
     const auto &element_type = *_element_type;
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: init: elements: %d\n", array_len);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: init: elements: %d", array_len);
     for (word_t i = 0; i < array_len; ++i)
     {
         init_memory(element_type, arr_local);
         arr_local += element_type.size_in_bytes;
     }
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d\n", array_len);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d", array_len);
 }
 
 vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&)
@@ -53,7 +53,7 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     assert(_element_type != nullptr);
     assert(_length >= 0);
     _arr = calloc_memory<byte_t>(_length * _element_type->size_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm array: %d\n", _length);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm array: %d", _length);
 }
 
 vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t length)
@@ -68,7 +68,7 @@ vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t length)
     assert(_length >= 0 && (_length + begin_index) <= _original->get_length());
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d\n", begin_index, _length);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d", begin_index, _length);
 
     // Set the data to reference the original array
     _arr = _original->_arr + (begin_index * _element_type->size_in_bytes);
@@ -104,7 +104,7 @@ vm_array_t::vm_array_t(const vm_string_t *s)
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: vm string: %d\n", _length);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: vm string: %d", _length);
 }
 
 vm_array_t::~vm_array_t()
@@ -118,7 +118,7 @@ vm_array_t::~vm_array_t()
         dec_ref_count_and_free(_original);
         debug::assign_debug_pointer(&_original);
 
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array: slice\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array: slice");
     }
     else
     {
@@ -126,19 +126,19 @@ vm_array_t::~vm_array_t()
         auto arr_local = _arr;
         const auto array_len = _length;
         const auto &element_type = *_element_type;
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: destroy: elements: %d\n", array_len);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: destroy: elements: %d", array_len);
         for (word_t i = 0; i < array_len; ++i)
         {
             destroy_memory(element_type, arr_local);
             arr_local += element_type.size_in_bytes;
         }
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: destroy: elements: %d\n", array_len);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: destroy: elements: %d", array_len);
 
         // Free array memory
         free_memory(_arr);
 
         debug::assign_debug_pointer(&_arr);
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array");
     }
 
 }

@@ -599,10 +599,7 @@ namespace
         case type_class_t::integer: return "int";
         case type_class_t::real: return "real";
         case type_class_t::string: return "string";
-
-        case type_class_t::poly:
-            assert(false && "Not fully implemented");
-            return "poly<T>";
+        case type_class_t::poly: return "*";
 
         case type_class_t::array:
             return "array of " + to_string(tt.resolve_table_index<type_t>(t.value_index_1), tt);

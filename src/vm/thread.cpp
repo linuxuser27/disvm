@@ -34,7 +34,7 @@ namespace
             debug::log_msg(
                 debug::component_trace_t::addressing,
                 debug::log_level_t::debug,
-                "decode: registers: %d (%#" PRIxPTR " %#" PRIxPTR " %#" PRIxPTR ")\n",
+                "decode: registers: %d (%#" PRIxPTR " %#" PRIxPTR " %#" PRIxPTR ")",
                 inst.opcode,
                 reg.src,
                 reg.mid,
@@ -127,7 +127,7 @@ vm_thread_t::vm_thread_t(
     // Pushing the initial frame sets the FP register
     _registers.stack.push_frame();
 
-    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
 }
 
 vm_thread_t::vm_thread_t(
@@ -157,13 +157,13 @@ vm_thread_t::vm_thread_t(
     current_frame->copy_frame_contents(initial_frame);
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
 }
 
 vm_thread_t::~vm_thread_t()
 {
     if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d\n", _thread_id, _parent_thread_id);
+        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d", _thread_id, _parent_thread_id);
 
     free_memory(_error_message);
     debug::assign_debug_pointer(&_error_message);
@@ -267,7 +267,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
         debug::log_msg(
             debug::component_trace_t::thread,
             debug::log_level_t::debug,
-            "status: vm thread: execute: %d %d %d %d\n",
+            "status: vm thread: execute: %d %d %d %d",
             _thread_id,
             (quanta - _registers.current_thread_quanta),
             quanta,

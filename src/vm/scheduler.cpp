@@ -25,7 +25,7 @@ vm_scheduler_control_t::~vm_scheduler_control_t()
 
 void default_scheduler_t::worker_main(default_scheduler_t &instance)
 {
-    debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: start\n");
+    debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: start");
 
     auto current_thread = std::shared_ptr<thread_instance_t>{};
 
@@ -36,12 +36,12 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
             current_thread = instance.next_thread(std::move(current_thread));
             if (current_thread == nullptr)
             {
-                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: stop\n");
+                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: stop");
                 break;
             }
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: execute: %d\n", current_thread->vm_thread->get_thread_id());
+                debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: execute: %d", current_thread->vm_thread->get_thread_id());
 
             current_thread->vm_thread->execute(instance._vm, instance._vm_thread_quanta);
         }
@@ -113,7 +113,7 @@ default_scheduler_t::~default_scheduler_t()
     for (auto &w : _worker_pool)
         w.join();
 
-    debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: shutdown\n");
+    debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: shutdown");
 }
 
 bool default_scheduler_t::is_idle() const
@@ -134,7 +134,7 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime:
         throw vm_system_exception{ "Scheduled thread in invalid state" };
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: scheduled: %d\n", thread->get_thread_id());
+        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: scheduled: %d", thread->get_thread_id());
 
     std::unique_lock<std::mutex> lock{ _vm_threads_lock };
 
@@ -249,7 +249,7 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
     _blocked_vm_thread_ids.erase(blocked_iter);
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue blocked: %d\n", thread_id);
+        debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue blocked: %d", thread_id);
 
     const bool runnable_thread = enqueue_thread_unsafe(std::move(thread_container), vm_thread_state_t::ready);
     if (runnable_thread)
@@ -344,7 +344,7 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
 
         if (!_all_vm_threads.empty() && _blocked_vm_thread_ids.size() == _all_vm_threads.size())
         {
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::warning, "scheduler: deadlock detected\n");
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::warning, "scheduler: deadlock detected");
             assert(false && "VM thread deadlock detected");
         }
 
@@ -352,7 +352,7 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
             return{};
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting\n");
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: waiting");
 
         _worker_event.wait(lock);
 
@@ -402,7 +402,7 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         _runnable_vm_thread_ids.push_back(thread_id);
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue: %d\n", thread_id);
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue: %d", thread_id);
 
         return true;
     }
@@ -414,7 +414,7 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         _blocked_vm_thread_ids.insert(thread_id);
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: blocked: %d\n", thread_id);
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: blocked: %d", thread_id);
 
         break;
     }
@@ -423,7 +423,7 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
     case vm_thread_state_t::exiting:
     {
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: exiting: %d\n", thread_id);
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: exiting: %d", thread_id);
 
         // Remove the thread
         auto thread_to_remove = _all_vm_threads.find(thread_id);
@@ -436,7 +436,7 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
     case vm_thread_state_t::broken:
     {
         if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
-            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: broken: %d\n", thread_id);
+            debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: broken: %d", thread_id);
 
         auto err_msg = thread_instance->vm_thread->get_error_message();
         assert(err_msg != nullptr);

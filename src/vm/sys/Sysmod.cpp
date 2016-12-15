@@ -90,7 +90,7 @@ namespace
                 debug::log_msg(
                     debug::component_trace_t::builtin,
                     debug::log_level_t::debug,
-                    "sys: fd: finalize: %d\n",
+                    "sys: fd: finalize: %d",
                     fd->fd);
             }
 
@@ -236,21 +236,21 @@ Sysmodinit(void)
         auto vm_stdin = vm_alloc_t::allocate(T_FD);
         const auto fd = sys::create_fd_record(vm_stdin);
         fd_stdin = ::new(vm_stdin->get_allocation())vm_fd_t{ fd, std::cin };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdin: %d\n", fd);
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdin: %d", fd);
     }
 
     {
         auto vm_stdout = vm_alloc_t::allocate(T_FD);
         const auto fd = sys::create_fd_record(vm_stdout);
         fd_stdout = ::new(vm_stdout->get_allocation())vm_fd_t{ fd, std::cout };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdout: %d\n", fd);
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdout: %d", fd);
     }
 
     {
         auto vm_stderr = vm_alloc_t::allocate(T_FD);
         const auto fd = sys::create_fd_record(vm_stderr);
         fd_stderr = ::new(vm_stderr->get_allocation())vm_fd_t{ fd, std::cerr };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stderr: %d\n", fd);
+        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stderr: %d", fd);
     }
 }
 
@@ -390,7 +390,7 @@ Sys_create(vm_registers_t &r, vm_t &vm)
         debug::log_msg(
             debug::component_trace_t::builtin,
             debug::log_level_t::debug,
-            "sys: create: %d >>%s<< %#x %#x\n",
+            "sys: create: %d >>%s<< %#x %#x",
             fd,
             path->str(),
             fp.mode,
@@ -542,7 +542,7 @@ Sys_open(vm_registers_t &r, vm_t &vm)
         debug::log_msg(
             debug::component_trace_t::builtin,
             debug::log_level_t::debug,
-            "sys: open: %d >>%s<< %#x\n",
+            "sys: open: %d >>%s<< %#x",
             fd,
             path->str(),
             fp.mode);

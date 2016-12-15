@@ -93,7 +93,7 @@ void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc)
     assert(alloc != nullptr);
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>())
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: track: %#" PRIxPTR "\n", alloc);
+        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: track: %#" PRIxPTR, alloc);
 
     alloc->add_ref();
     set_gc_colour(alloc, get_current_colour(_collection_epoch));
@@ -152,13 +152,13 @@ namespace
         const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
         if (log_enabled)
         {
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR "\n", allocs.size());
+            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR, allocs.size());
 
             // If logging is enabled update the callback with logging
             add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
             {
                 auto a = vm_alloc_t::from_allocation(p);
-                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "    ref: %#" PRIxPTR "\n", a);
+                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "    ref: %#" PRIxPTR, a);
                 allocs.push(a);
             } };
         }
@@ -170,7 +170,7 @@ namespace
             allocs.pop();
 
             if (log_enabled)
-                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR "\n", curr);
+                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR, curr);
 
             if (curr->alloc_type->map_in_bytes > 0)
                 enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), add_pointer_to_queue);
@@ -198,7 +198,7 @@ namespace
         }
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>())
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: sweep: %u\n", freed);
+            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: sweep: %u", freed);
     }
 }
 
@@ -213,7 +213,7 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
 
     const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
     if (log_enabled)
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: begin: collect\n");
+        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: begin: collect");
 
     const auto curr_colour = get_current_colour(_collection_epoch);
     mark(threads, curr_colour);
@@ -222,7 +222,7 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
     sweep(_tracking_allocs, sweeper_colour);
 
     if (log_enabled)
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: end: collect\n");
+        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: end: collect");
 
     ++_collection_epoch;
     return true;

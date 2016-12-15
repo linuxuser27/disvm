@@ -1094,7 +1094,7 @@ namespace
     EXEC_DECL(newcl) { _newc_(r, vm, intrinsic_type_desc::type<big_t>(), _mov_<big_t>); }
     EXEC_DECL(newcp) { _newc_(r, vm, intrinsic_type_desc::type<pointer_t>(), _mov_<vm_alloc_t>); }
 
-    EXEC_DECL(newcm) 
+    EXEC_DECL(newcm)
     {
         auto memory_size = vt_ref<word_t>(r.src); 
         auto channel_data_type = type_descriptor_t::create(memory_size); 
@@ -1279,7 +1279,7 @@ namespace
                     r.request_mutex.pending_request = false;
 
                     if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-                        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "alt: request: non-blocking\n");
+                        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "alt: request: non-blocking");
 
                     // Cancel request in all channels.
                     for (auto i = word_t{ 0 }; i < channel_count; ++i)
@@ -1471,7 +1471,7 @@ namespace
             r.current_thread_state = vm_thread_state_t::empty_stack;
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
-            debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "exit: function\n");
+            debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "exit: function");
     }
 
     EXEC_DECL(call)
@@ -1488,7 +1488,7 @@ namespace
 
         r.pc = vt_ref<vm_pc_t>(r.dest);
 
-        debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function\n");
+        debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
 
     EXEC_DECL(mcall)
@@ -1522,7 +1522,7 @@ namespace
             debug::log_msg(
                 debug::component_trace_t::stack,
                 debug::log_level_t::debug,
-                "enter: function: inter-module: %d >>%s<< %d %s\n",
+                "enter: function: inter-module: %d >>%s<< %d %s",
                 export_id,
                 target_module->module->module_name->str(),
                 function_pc,
@@ -1649,7 +1649,7 @@ namespace
             exception_id = static_cast<vm_string_t *>(e);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
-                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: string: >>%s<<\n", exception_id->str());
+                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: string: >>%s<<", exception_id->str());
         }
         else
         {
@@ -1661,7 +1661,7 @@ namespace
             exception_id = at_val<vm_string_t>(content);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
-                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<\n", exception_id->str());
+                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<", exception_id->str());
         }
 
         // Check if the tool dispatcher has been supplied
@@ -1772,7 +1772,7 @@ namespace
             }
             catch (const vm_module_exception &e)
             {
-                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<\n", e.what());
+                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<", e.what());
                 assert(false && "Failure reading module");
                 return;
             }

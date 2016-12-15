@@ -65,7 +65,7 @@ namespace disvm
                 vm_alloc_instance_finalizer_t finalizer = type_descriptor_t::no_finalizer);
 
         public:
-            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer);
+            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer, const char *debug_name);
             type_descriptor_t(const type_descriptor_t&) = delete;
             type_descriptor_t& operator=(const type_descriptor_t&) = delete;
 
@@ -73,6 +73,9 @@ namespace disvm
             const word_t map_in_bytes;
             const byte_t * const pointer_map;
             const vm_alloc_instance_finalizer_t finalizer;
+#ifndef NDEBUG
+            const char *debug_type_name;
+#endif
         };
 
         // Access to type descriptors for VM intrinsic types

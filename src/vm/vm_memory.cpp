@@ -110,7 +110,7 @@ void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
         throw vm_system_exception{ "Out of memory" };
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: %#" PRIxPTR " %d\n", memory, amount_in_bytes);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: %#" PRIxPTR " %d", memory, amount_in_bytes);
 
     return memory;
 }
@@ -124,7 +124,7 @@ void *disvm::runtime::calloc_memory(std::size_t amount_in_bytes)
         throw vm_system_exception{ "Out of memory" };
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: zeroed: %#" PRIxPTR " %d\n", memory, amount_in_bytes);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: zeroed: %#" PRIxPTR " %d", memory, amount_in_bytes);
 
     return memory;
 }
@@ -135,7 +135,7 @@ void disvm::runtime::free_memory(void *memory)
         return;
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: %#" PRIxPTR "\n", memory);
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: %#" PRIxPTR, memory);
 
     std::free(memory);
 }
@@ -233,7 +233,7 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
     // Initialize pointer types
     init_memory(*td, alloc->get_allocation());
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d\n", td->size_in_bytes);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
     return alloc;
 }
 
@@ -247,7 +247,7 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td, co
     auto mem = calloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
     auto alloc = ::new(mem)vm_alloc_t{ td };
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm alloc: %d\n", td->size_in_bytes);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm alloc: %d", td->size_in_bytes);
     return alloc;
 }
 
@@ -261,7 +261,7 @@ vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
     // Ref count all dynamic allocations
     inc_ref_count_in_memory(*alloc_copy->alloc_type, alloc_copy->get_allocation());
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm alloc: %#" PRIxPTR " %#"  PRIxPTR "\n", &other, alloc_copy);
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm alloc: %#" PRIxPTR " %#"  PRIxPTR, &other, alloc_copy);
     return alloc_copy;
 }
 
@@ -291,7 +291,7 @@ vm_alloc_t::~vm_alloc_t()
 
     // Free pointer types
     destroy_memory(*alloc_type, get_allocation());
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc\n");
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc");
 }
 
 std::size_t vm_alloc_t::add_ref()
@@ -326,24 +326,28 @@ namespace
 {
     namespace hidden_type_desc
     {
-        const type_descriptor_t byte{ sizeof(byte_t), 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t short_word{ sizeof(short_word_t), 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t word{ sizeof(word_t), 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t short_real{ sizeof(short_real_t), 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t real{ sizeof(real_t), 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t big{ sizeof(big_t), 0, nullptr, type_descriptor_t::no_finalizer };
+#define TYPE_DESC(N,S,MS,M,F) const type_descriptor_t N{ S, MS, M, F, #N }
+
+        TYPE_DESC(byte, sizeof(byte_t), 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(short_word, sizeof(short_word_t), 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(word, sizeof(word_t), 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(short_real, sizeof(short_real_t), 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(real, sizeof(real_t), 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(big, sizeof(big_t), 0, nullptr, type_descriptor_t::no_finalizer);
 
         const byte_t pointer_map[] = { 0x80 };
-        const type_descriptor_t pointer{ sizeof(pointer_t), (sizeof(pointer_map) / sizeof(pointer_map[0])), pointer_map, type_descriptor_t::no_finalizer };
+        TYPE_DESC(pointer, sizeof(pointer_t), (sizeof(pointer_map) / sizeof(pointer_map[0])), pointer_map, type_descriptor_t::no_finalizer);
 
-        const type_descriptor_t vm_array{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t vm_list{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t vm_channel{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t vm_string{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        TYPE_DESC(vm_array, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(vm_list, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(vm_channel, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(vm_string, 0, 0, nullptr, type_descriptor_t::no_finalizer);
 
-        const type_descriptor_t vm_module_ref{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t vm_stack{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
-        const type_descriptor_t vm_thread{ 0, 0, nullptr, type_descriptor_t::no_finalizer };
+        TYPE_DESC(vm_module_ref, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(vm_stack, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+        TYPE_DESC(vm_thread, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+
+#undef TYPE_DESC
 
         struct
         {
@@ -480,7 +484,7 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: type descriptor\n");
+                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: type descriptor");
 
             free_memory(td);
         }
@@ -496,7 +500,7 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             pointer_map_local[i] = pointer_map[i];
     }
 
-    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer };
+    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer, "#" };
     return std::shared_ptr<type_descriptor_t>{ new_type, deleter };
 }
 
@@ -504,12 +508,17 @@ type_descriptor_t::type_descriptor_t(
     word_t size_in_bytes,
     word_t map_in_bytes,
     const byte_t * pointer_map,
-    vm_alloc_instance_finalizer_t finalizer)
+    vm_alloc_instance_finalizer_t finalizer,
+    const char *debug_name)
     : size_in_bytes{ size_in_bytes }
     , map_in_bytes{ map_in_bytes }
     , pointer_map{ pointer_map }
     , finalizer{ finalizer }
+#ifndef NDEBUG
+    , debug_type_name{ debug_name }
+#endif
 {
+    (void)debug_name;
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor");
 }
