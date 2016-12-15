@@ -44,13 +44,13 @@ vm_channel_t::vm_channel_t(
     if (buffer_len > 0)
         _data_buffer = new vm_array_t{ td, buffer_len };
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm channel\n");
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm channel");
 }
 
 vm_channel_t::~vm_channel_t()
 {
     dec_ref_count_and_free(_data_buffer);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm channel\n");
+    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm channel");
 }
 
 std::shared_ptr<const type_descriptor_t> vm_channel_t::get_data_type() const
@@ -88,7 +88,7 @@ bool vm_channel_t::send_data(vm_channel_request_t &send_request)
             }
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-                debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: queue: %d\n", send_request.thread_id);
+                debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: queue: %d", send_request.thread_id);
 
             _data_senders.emplace_back(std::move(send_request));
             return false;
@@ -122,7 +122,7 @@ bool vm_channel_t::send_data(vm_channel_request_t &send_request)
     data_lock.unlock();
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: %d %d\n", send_request.thread_id, receiver.thread_id);
+        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: %d %d", send_request.thread_id, receiver.thread_id);
 
     receiver.request_handled_callback(*this);
 
@@ -159,7 +159,7 @@ bool vm_channel_t::receive_data(vm_channel_request_t &receive_request)
             }
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-                debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: queue: %d\n", receive_request.thread_id);
+                debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: queue: %d", receive_request.thread_id);
 
             _data_receivers.emplace_back(std::move(receive_request));
             return false;
@@ -201,7 +201,7 @@ bool vm_channel_t::receive_data(vm_channel_request_t &receive_request)
         _data_transfer(receive_request.data, sender.data, _data_type.get());
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-            debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: %d %d\n", receive_request.thread_id, sender.thread_id);
+            debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: %d %d", receive_request.thread_id, sender.thread_id);
     }
 
     // Release channel and pending request lock after data transfer
@@ -235,7 +235,7 @@ void vm_channel_t::cancel_request(uint32_t thread_id)
     }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: cancel: request: %d\n", thread_id);
+        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: cancel: request: %d", thread_id);
 }
 
 word_t vm_channel_t::get_buffer_size() const
@@ -267,7 +267,7 @@ bool vm_channel_t::try_send_to_buffer(vm_channel_request_t &send_request)
     send_request.request_mutex.get().pending_request = false;
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: buffer: %d\n", send_request.thread_id);
+        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: send: buffer: %d", send_request.thread_id);
 
     return true;
 }
@@ -294,7 +294,7 @@ bool vm_channel_t::try_receive_from_buffer(vm_channel_request_t &receive_request
     receive_request.request_mutex.get().pending_request = false;
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: buffer: %d\n", receive_request.thread_id);
+        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "channel: receive: buffer: %d", receive_request.thread_id);
 
     return true;
 }

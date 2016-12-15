@@ -52,7 +52,7 @@ namespace
                 debug::log_msg(
                     debug::component_trace_t::module,
                     debug::log_level_t::debug,
-                    "export: %d %#08x >>%s<<\n",
+                    "export: %d %#08x >>%s<<",
                     index,
                     export_entry.sig,
                     export_entry.name->str());
@@ -80,7 +80,7 @@ vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module)
         mp_base = vm_alloc_t::copy(*module->original_mp);
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm module ref\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm module ref");
 }
 
 vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module, const import_vm_module_t &imports)
@@ -98,7 +98,7 @@ vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module, cons
         mp_base = vm_alloc_t::copy(*module->original_mp);
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm module ref: exported %d\n", _function_refs->get_length());
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm module ref: exported %d", _function_refs->get_length());
 }
 
 vm_module_ref_t::~vm_module_ref_t()
@@ -109,7 +109,7 @@ vm_module_ref_t::~vm_module_ref_t()
         _function_refs->release();
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm module ref\n");
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm module ref");
 }
 
 bool vm_module_ref_t::is_builtin_module() const

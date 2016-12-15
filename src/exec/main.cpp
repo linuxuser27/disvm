@@ -231,14 +231,54 @@ void print_banner(const exec_options &options)
 void print_help()
 {
     std::cout
-        << "Usage: disvm-exec [-d[e|m|x]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
-        << "    d - Enable debugger\n"
-        << "         e - Break on entry\n"
-        << "         m - Break on module load\n"
-        << "         x - Break on exception (first chance)\n"
-        << "    q - Suppress banner and configuration\n"
-        << "    t - Specify the number of system threads to use (0 < x <= 4)\n"
-        << "    ? - Print help\n";
+        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|g|t|T|e|m]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
+           "    d - Enable debugger\n"
+           "         e - Break on entry\n"
+           "         m - Break on module load\n"
+           "         x - Break on exception (first chance)\n"
+           "    l - Enable logging in a component\n"
+           "         s - Scheduler\n"
+           "         g - Garbage collector\n"
+           "         t - Tool extensions\n"
+           "         T - Threads\n"
+           "         e - Exceptions\n"
+           "         m - Memory allocations (noisy)\n"
+           "    q - Suppress banner and configuration\n"
+           "    t - Specify the number of system threads to use (0 < x <= 4)\n"
+           "    ? - Print help\n";
+}
+
+void log_callback(const debug::component_trace_t origin, const debug::log_level_t level, const char *msg_fmt, std::va_list args)
+{
+    std::stringstream ss;
+
+    switch (level)
+    {
+    case debug::log_level_t::warning:
+        ss << "w: ";
+        break;
+    case debug::log_level_t::debug:
+        ss << "d: ";
+        break;
+    }
+
+    std::array<char, 1024> buffer;
+    const auto r = std::vsnprintf(buffer.data(), buffer.size(), msg_fmt, args);
+    buffer[r] = '\0';
+
+    ss << buffer.data() << "\n";
+    if (r == buffer.size() - 1)
+        ss << " <Possible truncation>\n";
+
+    std::cout << ss.str();
+}
+
+void enable_logging(debug::component_trace_t c)
+{
+    debug::set_component_tracing(c, true);
+
+    // Constantly setting the callback
+    debug::set_logging_callback(log_callback);
 }
 
 void process_arg(char* arg, std::function<char *()> next, exec_options &options)
@@ -286,6 +326,27 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
                 throw arg_exception_t{ "Invalid system thread value", sys_threads_str };
 
             options.sys_thread_count = sys_threads;
+        }
+        break;
+
+    case 'l':
+        for (auto i = std::size_t{ 2 }; i < arg_len; ++i)
+        {
+            switch (arg[i])
+            {
+            case 's': enable_logging(debug::component_trace_t::scheduler);
+                break;
+            case 'g': enable_logging(debug::component_trace_t::garbage_collector);
+                break;
+            case 't': enable_logging(debug::component_trace_t::tool);
+                break;
+            case 'T': enable_logging(debug::component_trace_t::thread);
+                break;
+            case 'e': enable_logging(debug::component_trace_t::exception);
+                break;
+            case 'm': enable_logging(debug::component_trace_t::memory);
+                break;
+            }
         }
         break;
 
