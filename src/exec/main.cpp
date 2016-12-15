@@ -32,10 +32,10 @@ namespace
     {
         word_t noret;
         pointer_t command_module_ref;
-        pointer_t command_stack_frame;
+        pointer_t command_stack_frame; // Should not be marked as memory managed pointer field
     };
 
-    const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x06 };
+    const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x04 };
 
     std::shared_ptr<const vm_module_t> command_module;
 
@@ -231,17 +231,18 @@ void print_banner(const exec_options &options)
 void print_help()
 {
     std::cout
-        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|g|t|T|e|m]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
+        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|S|t|T|e|g|m]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
            "    d - Enable debugger\n"
            "         e - Break on entry\n"
            "         m - Break on module load\n"
            "         x - Break on exception (first chance)\n"
            "    l - Enable logging in a component\n"
            "         s - Scheduler\n"
-           "         g - Garbage collector\n"
-           "         t - Tool extensions\n"
-           "         T - Threads\n"
+           "         S - Stack\n"
+           "         t - Threads\n"
+           "         T - Tool extensions\n"
            "         e - Exceptions\n"
+           "         g - Garbage collector (noisy)\n"
            "         m - Memory allocations (noisy)\n"
            "    q - Suppress banner and configuration\n"
            "    t - Specify the number of system threads to use (0 < x <= 4)\n"
@@ -336,13 +337,15 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
             {
             case 's': enable_logging(debug::component_trace_t::scheduler);
                 break;
-            case 'g': enable_logging(debug::component_trace_t::garbage_collector);
+            case 'S': enable_logging(debug::component_trace_t::stack);
                 break;
-            case 't': enable_logging(debug::component_trace_t::tool);
+            case 't': enable_logging(debug::component_trace_t::thread);
                 break;
-            case 'T': enable_logging(debug::component_trace_t::thread);
+            case 'T': enable_logging(debug::component_trace_t::tool);
                 break;
             case 'e': enable_logging(debug::component_trace_t::exception);
+                break;
+            case 'g': enable_logging(debug::component_trace_t::garbage_collector);
                 break;
             case 'm': enable_logging(debug::component_trace_t::memory);
                 break;
