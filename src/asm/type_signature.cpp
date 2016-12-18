@@ -34,8 +34,6 @@ namespace
     }
 }
 
-const char sig_stream_t::delim = ',';
-
 uint32_t sig_stream_t::compute_signature_hash(const char *sig)
 {
     std::string sig_local{ sig };
@@ -142,12 +140,6 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tm &m
     return os << m._s;
 }
 
-template<> const char Ttuple::begin = '(';
-template<> const char Ttuple::end = ')';
-
-template<> const char Tmodule::begin = '{';
-template<> const char Tmodule::end = '}';
-
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Ttuple &t)
 {
     return os << t._s;
@@ -158,25 +150,21 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tmodu
     return os << m._s;
 }
 
-const char *Tadt_pick_tag::tag_delim = "=>";
-const char Tadt_pick_tag::begin = '(';
-const char Tadt_pick_tag::end = ')';
-
 Tadt_pick_tag Tadt_pick_tag::create(const char *pick_tag, uint32_t adt_ref, std::initializer_list<const Tm> tms)
 {
     sig_stream_t ss;
-    ss << pick_tag << Tadt_pick_tag::tag_delim << Tbasic_type::id << Tadt_pick_tag::begin;
+    ss << pick_tag << Tadt_pick_tag::tag_delim() << Tbasic_type::id << Tadt_pick_tag::begin();
 
     auto tm = tms.begin();
     for (auto c = 0; tm != tms.end(); tm++, c++)
     {
         if (c > 0)
-            ss << sig_stream_t::delim;
+            ss << sig_stream_t::delim();
 
         ss << *tm;
     }
 
-    ss << Tadt_pick_tag::end << Tref::id << adt_ref;
+    ss << Tadt_pick_tag::end() << Tref::id << adt_ref;
 
     return Tadt_pick_tag{ ss };
 }
@@ -185,9 +173,6 @@ sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tadt_
 {
     return os << t._s;
 }
-
-template<> const char Tnested_aggregate_type<type_id_t::adt>::begin = '(';
-template<> const char Tnested_aggregate_type<type_id_t::adt>::end = ')';
 
 sig_stream_t &disvm::assembly::sigkind::operator<<(sig_stream_t &os, const Tnested_aggregate_type<type_id_t::adt> &a)
 {

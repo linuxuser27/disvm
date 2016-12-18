@@ -125,7 +125,7 @@ namespace
     const std::string &type_table_t::resolve_table_index<std::string>(int32_t idx) const
     {
         const auto idx_local = idx & ~string_table_mask;
-        if (0 > idx_local || idx_local >= strings_table.size())
+        if (idx_local >= strings_table.size())
             throw std::out_of_range{ "Invalid string table index" };
 
         return strings_table[idx_local];
@@ -137,7 +137,7 @@ namespace
         if ((static_cast<uint32_t>(idx) & inner_type_table_mask) != 0)
         {
             const auto idx_local = idx & ~inner_type_table_mask;
-            if (0 > idx_local || idx_local >= inner_type_table.size())
+            if (idx_local >= inner_type_table.size())
                 throw std::out_of_range{ "Invalid inner type table index" };
 
             return inner_type_table[idx_local];
@@ -155,7 +155,7 @@ namespace
     const source_ref_t &type_table_t::resolve_table_index<source_ref_t>(int32_t idx) const
     {
         const auto idx_local = idx & ~source_table_mask;
-        if (0 > idx_local || idx_local >= source_table.size())
+        if (idx_local >= source_table.size())
             throw std::out_of_range{ "Invalid source table index" };
 
         return source_table[idx_local];
@@ -165,7 +165,7 @@ namespace
     const name_source_size_t &type_table_t::resolve_table_index<name_source_size_t>(int32_t idx) const
     {
         const auto idx_local = idx & ~adt_table_mask;
-        if (0 > idx_local || idx_local >= adt_table.size())
+        if (idx_local >= adt_table.size())
             throw std::out_of_range{ "Invalid adt table index" };
 
         return adt_table[idx_local];
@@ -175,9 +175,9 @@ namespace
     const tuple_item_t &type_table_t::resolve_table_index<tuple_item_t>(int32_t idx) const
     {
         const auto idx_local = idx & ~tuple_type_mask;
-        if (0 > idx_local || idx_local >= tuple_table.size())
+        if (idx_local >= tuple_table.size())
             throw std::out_of_range{ "Invalid tuple table index" };
-    
+
         return tuple_table[idx_local];
     }
 
