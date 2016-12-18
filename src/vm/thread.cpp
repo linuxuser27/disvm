@@ -290,6 +290,10 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
         if (tool_dispatch != nullptr)
             tool_dispatch->on_thread_broken(*this);
         break;
+
+    default:
+        // Let other thread states fall through
+        break;
     }
 
     return _registers.current_thread_state;

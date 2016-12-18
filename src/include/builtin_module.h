@@ -28,7 +28,7 @@ namespace disvm
             struct vm_runtab_t
             {
                 // Function identification
-                char *name;
+                const char *name;
                 uint32_t sig;
 
                 // Function pointer

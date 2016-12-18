@@ -254,7 +254,7 @@ namespace disvm
             class Tadt_pick_tag final : public Tbasic_type<type_id_t::adt_pick_tag>
             {
             public:  // static
-                static constexpr char *tag_delim();
+                static constexpr const char *tag_delim();
                 static constexpr char begin();
                 static constexpr char end();
 
@@ -267,7 +267,7 @@ namespace disvm
                 Tadt_pick_tag(sig_stream_t &s) : _s{ std::move(s) } { }
             };
 
-            constexpr char *Tadt_pick_tag::tag_delim() { return "=>"; }
+            constexpr const char *Tadt_pick_tag::tag_delim() { return "=>"; }
             constexpr char Tadt_pick_tag::begin() { return '('; }
             constexpr char Tadt_pick_tag::end() { return ')'; }
 
