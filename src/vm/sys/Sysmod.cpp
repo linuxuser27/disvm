@@ -188,6 +188,15 @@ namespace
                 throw vm_user_exception{ "Write operation error" };
         }
 
+        big_t seek(const std::ios::seekdir start, const big_t offset)
+        {
+            if (_stream == nullptr)
+                throw vm_user_exception{ "Unable to seek on a fifo file descriptor (e.g. stdin, stdout, stderr)" };
+
+            auto new_offset = _stream->rdbuf()->pubseekoff(static_cast<std::streamoff>(offset), start, _fd_mode);
+            return static_cast<big_t>(new_offset);
+        }
+
     private:
         const word_t _fd_mode;
         vm_string_t *_fd_path;
@@ -217,6 +226,21 @@ namespace
             om |= std::ios::trunc;
 
         return om;
+    }
+
+    std::ios::seekdir convert_to_seekdir(const word_t start)
+    {
+        switch (start)
+        {
+        case Sys_SEEKSTART:
+            return std::ios::beg;
+        case Sys_SEEKRELA:
+            return std::ios::cur;
+        case Sys_SEEKEND:
+            return std::ios::end;
+        default:
+            throw vm_user_exception{ "Invalid seek mode" };
+        }
     }
 }
 
@@ -612,7 +636,6 @@ Sys_read(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Sys_read>();
 
     const auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.buf);
-    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
 
     auto n = fp.n;
     if (buffer == nullptr || n <= 0)
@@ -621,11 +644,16 @@ Sys_read(vm_registers_t &r, vm_t &vm)
         return;
     }
 
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
     // [SPEC] Supplying a size greater than the buffer length is
     // equivalent to indicating the entire buffer should be filled.
     n = std::min(n, buffer->get_length());
 
     auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    if (fd_alloc == nullptr)
+        throw dereference_nil{ "Read from file descriptor" };
+
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();
@@ -650,7 +678,16 @@ void
 Sys_seek(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_seek>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    if (fd_alloc == nullptr)
+        throw dereference_nil{ "Seek in file descriptor" };
+
+    assert(fd_alloc->alloc_type == T_FD);
+    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+
+    const auto start = convert_to_seekdir(fp.start);
+    *fp.ret = fd->seek(start, fp.off);
 }
 
 void
@@ -814,7 +851,19 @@ void
 Sys_utfbytes(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_utfbytes>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    const auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.buf);
+
+    const auto n = fp.n;
+    if (buffer == nullptr || n > buffer->get_length())
+        throw out_of_range_memory{};
+
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
+    auto raw_buffer = reinterpret_cast<uint8_t *>(buffer->at(0));
+
+    const auto len = utf8::count_codepoints(raw_buffer, n);
+    *fp.ret = static_cast<word_t>(len.byte_count);
+    assert(*fp.ret <= n && "Code points should not exceed number of bytes processed");
 }
 
 void
@@ -830,7 +879,6 @@ Sys_write(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Sys_write>();
 
     const auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.buf);
-    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
 
     auto n = fp.n;
     if (buffer == nullptr || n <= 0)
@@ -839,11 +887,16 @@ Sys_write(vm_registers_t &r, vm_t &vm)
         return;
     }
 
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
     // [SPEC] Supplying a size greater than the buffer length is
     // equivalent to indicating the entire buffer should be written.
     n = std::min(n, buffer->get_length());
 
     auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    if (fd_alloc == nullptr)
+        throw dereference_nil{ "Write to file descriptor" };
+
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();

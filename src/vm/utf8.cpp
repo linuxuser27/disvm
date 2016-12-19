@@ -54,28 +54,31 @@ utf8::decode_state_t disvm::runtime::utf8::decode_step(utf8::decode_state_t &sta
 
 // Adopted from 'countCodePoints(uint8_t* s, size_t* count)'
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-std::size_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std::size_t max_len)
+utf8::utf8_length_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std::size_t max_len)
 {
     if (str == nullptr)
     {
         assert(max_len == 0);
-        return std::size_t{ 0 };
+        return{ 0, 0 };
     }
 
     auto single_character = rune_t{};
     auto points = std::size_t{ 0 };
     auto state = utf8::decode_state_t::accept;
 
-    for (auto i = std::size_t{ 0 }; i < max_len; ++i)
+    auto last = str;
+    for (auto curr = last; curr < (str + max_len); ++curr)
     {
-        if (utf8::decode_state_t::accept == utf8::decode_step(state, single_character, str[i]))
+        if (utf8::decode_state_t::accept == utf8::decode_step(state, single_character, *curr))
+        {
+            last = curr;
             points++;
+        }
     }
 
-    if (state != utf8::decode_state_t::accept)
-        throw invalid_utf8{};
-
-    return points;
+    assert(str <= last);
+    const auto byte_count = static_cast<std::size_t>(last - str + 1);
+    return{ points, byte_count };
 }
 
 std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)

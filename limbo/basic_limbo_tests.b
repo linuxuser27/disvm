@@ -666,6 +666,14 @@ test_string()
     array19 := array of byte count7;
     if (len array19 != 19) raise TEST_FAILED();
 
+    # The above Devanagari text is used to test codepoint
+    # counting below. The text needs 6 bytes for the first
+    # two characters - 3 bytes each. Interpreting 5 bytes
+    # will yield 3 since the last 2 bytes will represent an
+    # incomplete codepoint.
+    codepoint_bytes := sys->utfbytes(array19, 5);
+    if (codepoint_bytes != 3) raise TEST_FAILED();
+
     count36 := "abcdefghijklmnopqrstuvwxyz0123456789";
     if (len count36 != 36) raise TEST_FAILED();
 

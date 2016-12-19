@@ -191,10 +191,15 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     , _mem{}
 {
     assert((encoded_str_len > 0 && encoded_str != nullptr) || (encoded_str_len == 0 && encoded_str == nullptr));
-    auto character_count = utf8::count_codepoints(encoded_str, encoded_str_len);
-    _character_size = (encoded_str_len != character_count) ? sizeof(rune_t) : sizeof(char);
+    const auto utf8_length = utf8::count_codepoints(encoded_str, encoded_str_len);
 
-    _length = static_cast<word_t>(character_count);
+    // Check if the supplied string is completely valid UTF-8 - only valid UTF-8 strings can be DisVM strings.
+    if (encoded_str_len != utf8_length.byte_count)
+        throw invalid_utf8{};
+
+    _character_size = (encoded_str_len != utf8_length.codepoint_count) ? sizeof(rune_t) : sizeof(char);
+
+    _length = static_cast<word_t>(utf8_length.codepoint_count);
     _length_max = sizeof(_mem.local) / _character_size;
 
     // Allocate memory based on character count and size

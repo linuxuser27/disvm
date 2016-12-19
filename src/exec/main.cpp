@@ -32,7 +32,7 @@ namespace
     {
         word_t noret;
         pointer_t command_module_ref;
-        pointer_t command_stack_frame; // Should not be marked as memory managed pointer field
+        pointer_t command_stack_frame; // [SPEC] Stack frames are not managed by the GC and as such should not be marked as a pointer field. See pointer map below.
     };
 
     const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x04 };
