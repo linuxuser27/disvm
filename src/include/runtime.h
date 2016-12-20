@@ -827,11 +827,11 @@ namespace disvm
             // There is no indication if this function failed or succeeded.
             virtual void enqueue_blocked_thread(uint32_t thread_id) = 0;
 
+            // Gets the number of system threads the scheduler is utilizing
+            virtual std::size_t get_system_thread_count() const = 0;
+
             // Get all VM threads
             virtual std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const = 0;
-
-            // Get runnable VM threads
-            virtual std::vector<std::shared_ptr<const vm_thread_t>> get_runnable_threads() const = 0;
         };
 
         // VM thread scheduler interface

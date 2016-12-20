@@ -29,9 +29,16 @@ namespace disvm
                 const disvm::runtime::rune_t max_supported_codepoint = max_codepoint_4_byte;
             };
 
-            // Compute the number of code points in the supplied string
+            // Lengths of a UTF-8 string
+            struct utf8_length_t
+            {
+                const std::size_t codepoint_count;
+                const std::size_t byte_count;
+            };
+
+            // Compute the number of codepoints in the supplied string
             // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-            std::size_t count_codepoints(const uint8_t *str, const std::size_t max_len);
+            utf8_length_t count_codepoints(const uint8_t *str, const std::size_t max_len);
 
             enum class decode_state_t
             {

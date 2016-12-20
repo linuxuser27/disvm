@@ -45,9 +45,9 @@ namespace disvm
         public: // vm_scheduler_control_t
             void enqueue_blocked_thread(uint32_t thread_id) override;
 
-            std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override;
+            std::size_t get_system_thread_count() const override;
 
-            std::vector<std::shared_ptr<const vm_thread_t>> get_runnable_threads() const override;
+            std::vector<std::shared_ptr<const vm_thread_t>> get_all_threads() const override;
 
         private:
             struct thread_instance_t final

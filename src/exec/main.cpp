@@ -32,7 +32,7 @@ namespace
     {
         word_t noret;
         pointer_t command_module_ref;
-        pointer_t command_stack_frame; // Should not be marked as memory managed pointer field
+        pointer_t command_stack_frame; // [SPEC] Stack frames are not managed by the GC and as such should not be marked as a pointer field. See pointer map below.
     };
 
     const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x04 };
@@ -231,7 +231,7 @@ void print_banner(const exec_options &options)
 void print_help()
 {
     std::cout
-        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|S|t|T|e|g|m]*] [-t <num>] [-q] [-?] <entry module> <args>*\n"
+        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|S|t|T|e|g|m]*] [-t <num>] [-q] [-h] <entry module> <args>*\n"
            "    d - Enable debugger\n"
            "         e - Break on entry\n"
            "         m - Break on module load\n"
@@ -246,7 +246,7 @@ void print_help()
            "         m - Memory allocations (noisy)\n"
            "    q - Suppress banner and configuration\n"
            "    t - Specify the number of system threads to use (0 < x <= 4)\n"
-           "    ? - Print help\n";
+           "    h - Print help (alternative: '?')\n";
 }
 
 void log_callback(const debug::component_trace_t origin, const debug::log_level_t level, const char *msg_fmt, std::va_list args)
@@ -285,7 +285,7 @@ void enable_logging(debug::component_trace_t c)
 void process_arg(char* arg, std::function<char *()> next, exec_options &options)
 {
     assert(arg != nullptr && next != nullptr);
-    if (arg[0] != '-')
+    if (arg[0] != '-' && arg[0] != '/')
     {
         for (; arg != nullptr; arg = next())
             options.vm_args.push_back(arg);
@@ -357,6 +357,7 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
         options.quiet_start = true;
         break;
 
+    case 'h':
     case '?':
         options.print_help = true;
         break;
@@ -386,8 +387,9 @@ int main(int argc, char* argv[])
     {
         std::cerr << ae.what();
         if (ae.arg != nullptr)
-            std::cerr << ": " << ae.arg << std::endl;
+            std::cerr << ": " << ae.arg << "\n" << std::endl;
 
+        print_help();
         return EXIT_FAILURE;
     }
 

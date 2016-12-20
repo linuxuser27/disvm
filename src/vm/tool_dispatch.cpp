@@ -332,23 +332,22 @@ void vm_tool_dispatch_t::suspend_all_threads()
 
     const auto &sched = _vm.get_scheduler_control();
 
-    auto current = _threads_suspended_count.load();
-    auto max = static_cast<uint32_t>(sched.get_runnable_threads().size());
+    const auto sys_thread_count = static_cast<int32_t>(sched.get_system_thread_count());
+    assert(sys_thread_count != 0);
 
-    // Sleep and check until we determine all threads have been suspended
-    // Minus 1 to exclude the current thread.
-    while (max != 0 && current < (max - 1))
+    // Sleep and check until we account for all system threads associated with the VM.
+    auto suspended = _threads_suspended_count.load();
+    while ((suspended + 1) < sys_thread_count)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds{ 20 });
-        current = _threads_suspended_count.load();
-        max = static_cast<uint32_t>(sched.get_runnable_threads().size());
+        suspended = _threads_suspended_count.load();
     }
 
-    // If the current count is ever equal to the max, then a non vm thread is
-    // inside the tool dispatcher which may be okay, but it indicates a type of
+    // If the suspended count is ever equal to the system thread count, then a non-vm thread
+    // is inside the tool dispatcher which may be okay, but it indicates a type of
     // non-invasive debugging that was not originally incorporated into this
     // dispatcher design.
-    assert(max == 0 || current < max);
+    assert(suspended < sys_thread_count);
 }
 
 void vm_tool_dispatch_t::resume_all_threads()
