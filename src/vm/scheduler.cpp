@@ -259,6 +259,11 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
     }
 }
 
+std::size_t default_scheduler_t::get_system_thread_count() const
+{
+    return _worker_thread_count;
+}
+
 std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_all_threads() const
 {
     auto result = std::vector<std::shared_ptr<const vm_thread_t>>{};
@@ -267,23 +272,6 @@ std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_all_thr
         std::lock_guard<std::mutex> lock{ _vm_threads_lock };
         for (auto &p : _all_vm_threads)
             result.push_back(p.second->vm_thread);
-    }
-
-    return result;
-}
-
-std::vector<std::shared_ptr<const vm_thread_t>> default_scheduler_t::get_runnable_threads() const
-{
-    auto result = std::vector<std::shared_ptr<const vm_thread_t>>{};
-
-    {
-        std::lock_guard<std::mutex> lock{ _vm_threads_lock };
-        for (auto id : _runnable_vm_thread_ids)
-        {
-            auto iter = _all_vm_threads.find(id);
-            assert(iter != _all_vm_threads.cend());
-            result.push_back(iter->second->vm_thread);
-        }
     }
 
     return result;

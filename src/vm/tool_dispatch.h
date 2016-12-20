@@ -82,7 +82,7 @@ namespace disvm
             vm_t &_vm;
 
             std::atomic_bool _threads_suspended;
-            std::atomic<uint32_t> _threads_suspended_count;
+            std::atomic<int32_t> _threads_suspended_count;
             std::mutex _threads_suspend_lock;
             std::condition_variable _threads_resume;
             std::mutex _threads_resume_lock;
