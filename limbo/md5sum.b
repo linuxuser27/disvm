@@ -157,7 +157,7 @@ init(args: list of string)
 {
     sys = load Sys Sys->PATH;
     if (len(args) == 1) {
-        sys->print("Usage: md5sum <file>");
+        sys->print("Usage: md5sum <file>\n");
         return;
     }
 
@@ -194,4 +194,6 @@ init(args: list of string)
         v := checksum[i];
         sys->print("%02x%02x%02x%02x", v & 16rff, (v >> 8) & 16rff, (v >> 16) & 16rff, (v >> 24) & 16rff);
     }
+
+    sys->print("\n");
 }
