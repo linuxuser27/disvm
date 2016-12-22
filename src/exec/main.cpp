@@ -385,9 +385,9 @@ int main(int argc, char* argv[])
     }
     catch (const arg_exception_t &ae)
     {
-        std::cerr << ae.what();
+        std::cerr << ae.what() << "\n";
         if (ae.arg != nullptr)
-            std::cerr << ": " << ae.arg << "\n" << std::endl;
+            std::cerr << ": " << ae.arg << "\n";
 
         print_help();
         return EXIT_FAILURE;

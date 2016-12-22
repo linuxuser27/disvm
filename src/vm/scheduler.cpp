@@ -66,7 +66,7 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
                 if (module_ref.module->module_name != nullptr)
                     module_name = module_ref.module->module_name->str();
 
-                err_msg << "    " << module_name << "@" << pc << "\n";
+                err_msg << "    " << module_name << " @" << pc << "\n";
                 return true;
             });
         }

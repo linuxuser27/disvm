@@ -128,7 +128,7 @@ namespace
             if (!func_maybe.empty())
             {
                 assert(func_maybe.size() == 1);
-                msg << module_ref.module->module_name->str() << "!" << func_maybe[0];
+                msg << module_ref.module->module_name->str() << "!" << func_maybe[0] << "  ";
             }
             else
             {
@@ -136,10 +136,10 @@ namespace
                 if (module_ref.module->module_name != nullptr)
                     module_name = module_ref.module->module_name->str();
 
-                msg << module_name << "@" << pc;
+                msg << module_name;
             }
 
-            msg << "\n";
+            msg << "@" << pc << "\n";
             return true;
         });
 
@@ -200,33 +200,28 @@ namespace
             }
         }
 
-        ss << "string\n"
-           << "\tlength:  " << s->get_length() << "\n"
-           << "\tvalue:   \"" << escaped_string.str() << "\"\n";
+        ss << escaped_string.str() << "    length: " << s->get_length() << "    string";
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_array_t *a)
     {
-        ss << "array\n"
-           << "\tlength:  " << a->get_length() << "\n";
+        ss << "length: " << a->get_length() << "    array";
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_list_t *l)
     {
-        ss << "list\n"
-           << "\tlength:  " << l->get_length() << "\n";
+        ss << "length: " << l->get_length() << "    list";
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_channel_t *c)
     {
-        ss << "channel\n"
-           << "\tbuffer size:  " << c->get_buffer_size() << "\n";
+        ss << "buffer size: " << c->get_buffer_size() << "    channel";
 
         return ss;
     }
@@ -255,11 +250,11 @@ namespace
         }
         else
         {
-            ss << "alloc - size:  " << alloc->alloc_type->size_in_bytes << "\n";
+            ss << "size: " << alloc->alloc_type->size_in_bytes << "    alloc";
 
             enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss](pointer_t p, std::size_t o)
             {
-                ss << "  [" << o << "]  " << vm_alloc_t::from_allocation(p);
+                ss << "\n  [" << o << "]  " << vm_alloc_t::from_allocation(p);
             });
         }
 
@@ -384,7 +379,7 @@ namespace
 
         auto msg = std::stringstream{};
         auto module_funcs = cxt.dbg.get_module_functions(vm_id, name_to_match);
-        msg << "Function name [PC range]";
+        msg << "[PC range]      Function";
         for (auto &f : module_funcs)
             msg << "\n  " << f;
 
@@ -501,14 +496,10 @@ namespace
             if (!func_maybe.empty())
             {
                 assert(func_maybe.size() == 1);
-                msg << "!" << func_maybe[0];
-            }
-            else
-            {
-                msg << "@" << details.pc;
+                msg << "!" << func_maybe[0] << "  ";
             }
 
-            msg << "\n";
+            msg << "@" << details.pc << "\n";
         }
 
         debug_print_info(msg.str());
@@ -603,12 +594,20 @@ namespace
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
+        auto absolute_pc = false;
         auto disassemble_length = int{ 4 };
         if (a.size() > 1)
         {
+            auto disassemble_length_maybe = a[1];
+            if (disassemble_length_maybe[0] == '@')
+            {
+                absolute_pc = true;
+                disassemble_length_maybe.erase(0, 1);
+            }
+
             try
             {
-                disassemble_length = std::stoi(a[1]);
+                disassemble_length = std::stoi(disassemble_length_maybe);
             }
             catch (...)
             {
@@ -620,26 +619,36 @@ namespace
         const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
-        auto begin_pc = static_cast<std::size_t>(r.pc);
-        auto end_pc = static_cast<std::size_t>(r.pc);
-        if (disassemble_length < 0)
+        // The current PC is actually the next PC to execute.
+        auto begin_pc = r.pc == 0 ? r.pc : r.pc - 1;
+        auto end_pc = begin_pc;
+        if (absolute_pc)
         {
-            const auto begin_maybe = r.pc - (-disassemble_length) + 1;
-            begin_pc = static_cast<std::size_t>(std::max(begin_maybe, 0));
+            begin_pc = disassemble_length;
+            end_pc = disassemble_length;
+            disassemble_length = 0;
+
+            if (begin_pc < 0 || static_cast<int32_t>(code_section.size()) <= end_pc)
+                throw debug_cmd_error_t{ "Invalid absolute pc" };
+        }
+        else if (disassemble_length < 0)
+        {
+            const auto begin_maybe = begin_pc - (-disassemble_length);
+            begin_pc = std::max(begin_maybe, 0);
         }
         else
         {
-            const auto end_maybe = static_cast<std::size_t>(r.pc + disassemble_length);
-            end_pc = std::min(end_maybe, code_section.size() - 1);
+            const auto end_maybe = begin_pc + disassemble_length;
+            end_pc = std::min(end_maybe, static_cast<int32_t>(code_section.size() - 1));
         }
 
         auto resolved_pc = dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, symbol::function_name_format_t::name);
         assert(resolved_pc.empty() || resolved_pc.size() == (end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
 
         auto msg = std::stringstream{};
-        for (auto i = begin_pc; i <= end_pc; ++i)
+        for (auto curr_pc = begin_pc; curr_pc <= end_pc; ++curr_pc)
         {
-            auto op = code_section[i].op;
+            auto op = code_section[curr_pc].op;
 
             auto op_prefix = "  ";
 
@@ -650,7 +659,7 @@ namespace
                 for (auto bp_cookie : dbg.breakpoint_cookies)
                 {
                     const auto details = dbg.controller->get_breakpoint_details(bp_cookie);
-                    if (details.pc == i && details.module == r.module_ref->module)
+                    if (details.pc == curr_pc && details.module == r.module_ref->module)
                     {
                         op.opcode = details.original_opcode;
                         op_prefix = " b";
@@ -662,12 +671,12 @@ namespace
             // Print source location if resolved
             if (!resolved_pc.empty())
             {
-                const auto &rpc = resolved_pc[i - begin_pc];
+                const auto &rpc = resolved_pc[curr_pc - begin_pc];
                 if (!rpc.empty())
                     msg << rpc << "\n";
             }
 
-            msg << op_prefix << std::setw(5) << i << ": " << op << "\n";
+            msg << op_prefix << std::setw(5) << curr_pc << ": " << op << "\n";
         }
 
         debug_print_info(msg.str());
@@ -723,9 +732,9 @@ namespace
 
         auto msg = std::stringstream{};
         if (byte_offset2 != -1)
-            msg << "  " << byte_offset2 << "(" << byte_offset1 << "(" << a[1] << ")):\n";
+            msg << byte_offset2 << "(" << byte_offset1 << "(" << a[1] << ")):\n";
         else
-            msg << "  " << byte_offset1 << "(" << a[1] << "):\n";
+            msg << byte_offset1 << "(" << a[1] << "):\n";
 
         auto value_is_pointer = bool{ false };
         const auto pointer_offset1 = byte_offset1 / pointer_size;
@@ -872,7 +881,7 @@ namespace
 
         { "sw", "Stack walk for the current or supplied thread", "sw ([0-9]+|\\*)?", "sw, sw 34, sw *", cmd_stackwalk },
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
-        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (-?[0-9]+)?", "d, d -4, d 5", cmd_disassemble },
+        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (@?-?[0-9]+)?", "d, d -4, d 5, d @36", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
 
         { "set" , "Set a debug option", "set [ _a-zA-Z0-9]*", "'set' for available options", set_value_cmd },
@@ -882,9 +891,11 @@ namespace
         { "tlk~*", nullptr, nullptr, nullptr, cmd_tlk_tilde_star }
     };
 
+    const auto cmds_length = sizeof(cmds) / sizeof(cmds[0]);
+
     dbg_cmd_exec_t find_cmd(const std::string &cmd_maybe)
     {
-        for (auto i = std::size_t{}; i < sizeof(cmds) / sizeof(cmds[0]); ++i)
+        for (auto i = std::size_t{}; i < cmds_length; ++i)
         {
             if (cmd_maybe.compare(cmds[i].cmd) == 0)
                 return cmds[i].exec;
@@ -898,7 +909,7 @@ namespace
     {
         auto msg = std::stringstream{};
         msg << "Commands:\n";
-        for (auto i = std::size_t{}; i < sizeof(cmds) / sizeof(cmds[0]); ++i)
+        for (auto i = std::size_t{}; i < cmds_length; ++i)
         {
             auto &c = cmds[i];
 
@@ -906,13 +917,13 @@ namespace
             if (c.description == nullptr)
                 continue;
 
-            msg << "  " << c.cmd << "\t" << c.description << "\n";
+            msg << "  " << c.cmd << "    " << c.description << "\n";
 
             if (c.syntax != nullptr)
-                msg << "\t  Syntax: " << c.syntax << "\n";
+                msg << "      Syntax: " << c.syntax << "\n";
 
             if (c.example != nullptr)
-                msg << "\t  Example(s): " << c.example << "\n";
+                msg << "      Example(s): " << c.example << "\n";
         }
 
         debug_print_info(msg.str());
@@ -959,7 +970,7 @@ namespace
 
             std::getline(std::cin, cmd);
 
-            assert(!cxt.exit_break && "Pre-condition on exit_break state before execute failed");
+            assert(!cxt.exit_break && "Precondition on exit_break state before execute failed");
             execute_single_command(cxt, cmd);
             if (cxt.exit_break)
                 break;
@@ -1038,12 +1049,12 @@ std::vector<std::string> debugger::get_module_functions(disvm::runtime::module_i
                 continue;
 
             std::stringstream ss;
-            ss << fi.name
-                << " ["
-                << fi.entry_pc
-                << ", "
-                << fi.limit_pc
-                << "]";
+            ss << "["
+                << std::setw(5) << fi.entry_pc
+                << ","
+                << std::setw(5) << fi.limit_pc
+                << "]  "
+                << fi.name;
 
             funcs.push_back(ss.str());
         }
@@ -1084,7 +1095,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
             << t->get_thread_id()
             << " started in "
             << t->get_registers().module_ref->module->module_name->str()
-            << " @ "
+            << " @"
             << t->get_registers().pc;
 
         debug_print_info(ss.str());
@@ -1151,7 +1162,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
             // Reset the break on enter flag and set a breakpoint
             // on the entry PC for the module - 'break on enter'
             _options ^= debugger_options::break_on_enter;
-            controller->set_breakpoint(m, m->header.entry_pc);
+            breakpoint_cookies.emplace(controller->set_breakpoint(m, m->header.entry_pc));
         }
 
         if (util::has_flag(_options, debugger_options::break_on_module_load))
