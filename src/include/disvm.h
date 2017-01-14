@@ -7,18 +7,17 @@
 #ifndef _DISVM_SRC_INCLUDE_DISVM_H_
 #define _DISVM_SRC_INCLUDE_DISVM_H_
 
-#include "runtime.h"
+#include <array>
 #include <iosfwd>
 #include <memory>
 #include <functional>
 #include <mutex>
 #include <forward_list>
+#include "runtime.h"
+#include "exceptions.h"
 
 namespace disvm
 {
-    // Read in the module at the supplied path
-    std::unique_ptr<runtime::vm_module_t> read_module(const char *path);
-
     // Read in a module from the supplied stream
     std::unique_ptr<runtime::vm_module_t> read_module(std::istream &data);
 
@@ -51,20 +50,37 @@ namespace disvm
     // Callback for enumerating loaded modules - return 'false' to stop enumeration, otherwise 'true'
     using loaded_vm_module_callback_t = std::function<bool(const loaded_vm_module_t&)>;
 
+    // Configuration for the created VM
+    class vm_config_t final
+    {
+    public:
+        vm_config_t();
+        vm_config_t(vm_config_t &&);
+
+        // Settings for the default scheduler. Only used if create_scheduler is not set.
+        // Both of these values are initialized to valid default values on construction.
+        uint32_t sys_thread_pool_size;
+        uint32_t thread_quanta;
+
+        create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler;
+        create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc;
+
+        // Prefix paths used by the default module resolver if the path supplied by
+        // the user isn't found. Note these will be concatenated with the supplied
+        // path, not other manipulation will be performed.
+        std::vector<std::string> probing_paths;
+        std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> additional_resolvers;
+    };
+
     // Virtual machine
     class vm_t final
     {
     public: // static
         static const uint32_t root_vm_thread_id;
-        static const uint32_t default_system_thread_count;
-        static const uint32_t default_thread_quanta;
 
     public:
-        explicit vm_t(
-            create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler = nullptr,
-            create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc = nullptr);
-
-        explicit vm_t(uint32_t thread_pool_size, uint32_t thread_quanta);
+        explicit vm_t();
+        explicit vm_t(vm_config_t config);
 
         ~vm_t();
 
@@ -92,7 +108,7 @@ namespace disvm
         // Enumerate all loaded modules - this can include references to modules that
         // have been unloaded due to no longer being used. If the module instance is null, the
         // module is no longer loaded.
-        // Note this will only enumerate modules that have been loaded by a call to vm_t::load_module.
+        // Note this will only enumerate modules that have been loaded via a path.
         void enum_loaded_modules(loaded_vm_module_callback_t callback) const;
 
         // Access the scheduler control for this VM.
@@ -118,10 +134,17 @@ namespace disvm
         mutable std::mutex _modules_lock;
         loaded_modules_t _modules;
 
+        std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> _module_resolvers;
         std::unique_ptr<runtime::vm_scheduler_t> _scheduler;
         std::unique_ptr<runtime::vm_garbage_collector_t> _gc;
         std::unique_ptr<runtime::vm_tool_dispatch_t> _tool_dispatch;
         std::mutex _tool_dispatch_lock;
+
+        std::atomic_flag _last_syscall_error_message_lock;
+        std::array<char, 128> _last_syscall_error_message;
+
+        friend void disvm::runtime::push_syscall_error_message(disvm::vm_t &, const char *) noexcept;
+        friend std::string disvm::runtime::pop_syscall_error_message(disvm::vm_t &);
     };
 }
 

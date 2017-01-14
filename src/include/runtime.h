@@ -880,6 +880,19 @@ namespace disvm
         // Create a garbage collector that does nothing.
         std::unique_ptr<vm_garbage_collector_t> create_no_op_gc(vm_t &);
 
+        // VM module path resolver interface
+        class vm_module_resolver_t
+        {
+        public:
+            virtual ~vm_module_resolver_t() = 0;
+
+            // Try to resolve the supplied path to a module.
+            // Implementers of this interface should never explicitly throw
+            // an exception and instead return 'false'. Exception thrown
+            // indirectly by calling supplied DisVM functions are valid.
+            virtual bool try_resolve_module(const char *path, std::unique_ptr<vm_module_t> &new_module) = 0;
+        };
+
         // Forward declaration
         class vm_tool_controller_t;
 

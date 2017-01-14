@@ -1773,7 +1773,6 @@ namespace
             catch (const vm_module_exception &e)
             {
                 debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<", e.what());
-                assert(false && "Failure reading module");
                 return;
             }
         }

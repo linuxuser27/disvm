@@ -431,8 +431,6 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         throw vm_term_request{ err_msg };
     }
 
-    case vm_thread_state_t::release:
-    case vm_thread_state_t::running:
     default:
         assert(false && "Unexpected thread state");
         throw vm_system_exception{ "Unexpected thread state" };

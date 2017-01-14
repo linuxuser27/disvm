@@ -13,6 +13,7 @@
         'list.cpp',
         'module_reader.cpp',
         'module_ref.cpp',
+        'module_resolver.cpp',
         'scheduler.cpp',
         'stack.cpp',
         'string.cpp',

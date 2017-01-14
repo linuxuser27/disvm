@@ -64,7 +64,7 @@ vm_alloc_t * disvm::runtime::sys::fetch_fd_record(word_t fd)
         std::lock_guard<std::mutex> lock{ fd_map_lock };
         auto iter = fd_map.find(fd);
         if (iter == fd_map.cend())
-            throw vm_user_exception{ "Unknown file descriptor" };
+            return nullptr;
 
         return iter->second;
     }

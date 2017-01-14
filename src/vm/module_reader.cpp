@@ -8,7 +8,7 @@
 #include <limits>
 #include <memory>
 #include <iostream>
-#include <fstream>
+#include <sstream>
 #include <array>
 #include <tuple>
 #include <disvm.h>
@@ -737,20 +737,6 @@ vm_module_t::~vm_module_t()
 
     if (original_mp != nullptr)
         original_mp->release();
-}
-
-std::unique_ptr<vm_module_t> disvm::read_module(const char *path)
-{
-    assert(path != nullptr);
-
-    auto module_file = std::ifstream{ path, std::ifstream::binary };
-    if (!module_file.is_open())
-    {
-        assert(false && "Failed to open module");
-        throw vm_user_exception{ "Failed to open module" };
-    }
-
-    return read_module(module_file);
 }
 
 std::unique_ptr<runtime::vm_module_t> disvm::read_module(std::istream &data)

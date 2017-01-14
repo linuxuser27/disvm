@@ -30,8 +30,9 @@ namespace
 }
 
 // Shamelessly adopted and altered from Inferno implementation (xprint - libinterp/runt.c)
-// [TODO] Handle UTF-8
+// [TODO] Handle UTF-8, binary format 'B'
 word_t disvm::runtime::sys::printf_to_buffer(
+    disvm::vm_t &vm,
     const disvm::runtime::vm_string_t &msg_fmt,
     disvm::runtime::byte_t *msg_args,
     disvm::runtime::pointer_t base,
@@ -101,8 +102,8 @@ word_t disvm::runtime::sys::printf_to_buffer(
             }
             case 'o': // octal
             case 'd': // decimal
-            case 'x': // hexidecimal
-            case 'X': // Upper-case hexidecimal
+            case 'x': // hexadecimal
+            case 'X': // Upper-case hexadecimal
                 format.push_back(static_cast<char>(c));
                 format.push_back('\0');
                 if (big_flag)
@@ -128,6 +129,12 @@ word_t disvm::runtime::sys::printf_to_buffer(
                     wb = std::snprintf(b_curr, (b_end - b_curr), "%s", str->str());
 
                 msg_args += sizeof(p);
+                break;
+            }
+            case 'r': // Last system error message
+            {
+                auto err_msg = pop_syscall_error_message(vm);
+                wb = std::snprintf(b_curr, (b_end - b_curr), "%s", err_msg.c_str());
                 break;
             }
             // [SPEC] Undocumented format verb for debugging VM objects.
@@ -163,13 +170,14 @@ word_t disvm::runtime::sys::printf_to_buffer(
 }
 
 word_t disvm::runtime::sys::printf_to_dynamic_buffer(
+    disvm::vm_t &vm,
     const disvm::runtime::vm_string_t &msg_fmt,
     disvm::runtime::byte_t *msg_args,
     disvm::runtime::pointer_t base,
     std::vector<char> &buffer)
 {
     auto result = word_t{ 0 };
-    while (-1 == (result = printf_to_buffer(msg_fmt, msg_args, base, buffer.size(), buffer.data())))
+    while (-1 == (result = printf_to_buffer(vm, msg_fmt, msg_args, base, buffer.size(), buffer.data())))
         buffer.resize(buffer.size() * 2);
 
     return result;

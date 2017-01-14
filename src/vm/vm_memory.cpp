@@ -283,7 +283,12 @@ vm_alloc_t::vm_alloc_t(std::shared_ptr<const type_descriptor_t> td)
 
 vm_alloc_t::~vm_alloc_t()
 {
-    assert(_ref_count == 0);
+#ifndef NDEBUG
+    if (_ref_count != 0)
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::warning,
+            "vm alloc being destroy with non-zero reference count. "
+            "This could be okay if this is happening due to frame unwinding from an exception");
+#endif
 
     auto finalizer = alloc_type->finalizer;
     if (finalizer != type_descriptor_t::no_finalizer)
@@ -291,7 +296,9 @@ vm_alloc_t::~vm_alloc_t()
 
     // Free pointer types
     destroy_memory(*alloc_type, get_allocation());
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc");
+
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc");
 }
 
 std::size_t vm_alloc_t::add_ref()

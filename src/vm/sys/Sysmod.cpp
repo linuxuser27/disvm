@@ -166,26 +166,26 @@ namespace
             return _fd_path;
         }
 
-        word_t read(const word_t buffer_size_in_bytes, void *buffer)
+        word_t read(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
         {
             if (_istream == nullptr)
                 throw vm_system_exception{ "File descriptor not open for read operation" };
 
             _istream->read(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
             if (_istream->bad())
-                throw vm_user_exception{ "Read operation error" };
+                throw vm_syscall_exception{ vm, "Read operation error" };
 
             return static_cast<word_t>(_istream->gcount());
         }
 
-        void write(const word_t buffer_size_in_bytes, void *buffer)
+        void write(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
         {
             if (_ostream == nullptr)
                 throw vm_system_exception{ "File descriptor not open for write operation" };
 
             _ostream->write(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
             if (_ostream->bad())
-                throw vm_user_exception{ "Write operation error" };
+                throw vm_syscall_exception{ vm, "Write operation error" };
         }
 
         big_t seek(const std::ios::seekdir start, const big_t offset)
@@ -470,7 +470,16 @@ void
 Sys_fildes(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fildes>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = nullptr;
+
+    auto fd = sys::fetch_fd_record(fp.fd);
+    if (fd != nullptr)
+    {
+        fd->add_ref();
+        *fp.ret = fd->get_allocation();
+    }
 }
 
 void
@@ -608,16 +617,16 @@ Sys_print(vm_registers_t &r, vm_t &vm)
 
     auto static_buffer = std::array<char, 1024>{};
     auto msg_args = &fp.vargs;
-    auto written = sys::printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
+    auto written = sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
     if (written >= 0)
     {
-        fd_stdout->write(written, static_buffer.data());
+        fd_stdout->write(vm, written, static_buffer.data());
     }
     else
     {
         auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = sys::printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
-        fd_stdout->write(written, dynamic_buffer.data());
+        written = sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
+        fd_stdout->write(vm, written, dynamic_buffer.data());
     }
 
     *fp.ret = written;
@@ -657,7 +666,7 @@ Sys_read(vm_registers_t &r, vm_t &vm)
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    *fp.ret = fd->read(n, buffer->at(0));
+    *fp.ret = fd->read(vm, n, buffer->at(0));
 }
 
 void
@@ -729,19 +738,28 @@ namespace
     bool is_delim(const runtime::rune_t c, const vm_string_t &delim)
     {
         const auto max = delim.get_length();
-        assert(max > 0);
 
         // Optimization for 3 or less delimiters
         switch (max)
         {
         default:
             break;
-        case 1:
-            return (delim.get_rune(0) == c);
-        case 2:
-            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c);
         case 3:
-            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c) || (delim.get_rune(2) == c);
+            if (delim.get_rune(2) != c)
+            {
+        case 2:
+                if (delim.get_rune(1) != c)
+                {
+        case 1:
+                    if (delim.get_rune(0) != c)
+                    {
+        case 0:
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         for (auto i = word_t{ 0 }; i < max; ++i)
@@ -900,7 +918,7 @@ Sys_write(vm_registers_t &r, vm_t &vm)
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    fd->write(n, buffer->at(0));
+    fd->write(vm, n, buffer->at(0));
 
     *fp.ret = n;
 }
