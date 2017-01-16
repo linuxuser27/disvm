@@ -89,6 +89,8 @@ namespace
     // Debug command context
     struct dbg_cmd_cxt_t
     {
+        static std::string last_successful_cmd_option;
+
         dbg_cmd_cxt_t(debugger &d, const vm_registers_t &r)
             : dbg{ d }
             , exit_break{ false }
@@ -96,15 +98,24 @@ namespace
             , vm{ d.controller->get_vm_instance() }
         {
             current_register = &initial_register;
+            last_successful_cmd = dbg.get_option(last_successful_cmd_option);
+        }
+
+        ~dbg_cmd_cxt_t()
+        {
+            dbg.set_option(last_successful_cmd_option, std::move(last_successful_cmd));
         }
 
         bool exit_break;
+        std::string last_successful_cmd;
 
         debugger &dbg;
         const vm_t &vm;
         const vm_registers_t *current_register;
         const vm_registers_t &initial_register;
     };
+
+    std::string dbg_cmd_cxt_t::last_successful_cmd_option = "last_successful_cmd";
 
     // Debug command exec operation
     using dbg_cmd_exec_t = void(*)(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt);
@@ -379,7 +390,7 @@ namespace
 
         auto msg = std::stringstream{};
         auto module_funcs = cxt.dbg.get_module_functions(vm_id, name_to_match);
-        msg << "[PC range]      Function";
+        msg << " [PC range]      Function";
         for (auto &f : module_funcs)
             msg << "\n  " << f;
 
@@ -650,7 +661,7 @@ namespace
         {
             auto op = code_section[curr_pc].op;
 
-            auto op_prefix = "  ";
+            auto op_prefix = "   ";
 
             // If the opcode is a breakpoint then try and replace it with the real opcode
             if (op.opcode == opcode_t::brkpt)
@@ -662,7 +673,7 @@ namespace
                     if (details.pc == curr_pc && details.module == r.module_ref->module)
                     {
                         op.opcode = details.original_opcode;
-                        op_prefix = " b";
+                        op_prefix = " b ";
                         break;
                     }
                 }
@@ -929,7 +940,7 @@ namespace
         debug_print_info(msg.str());
     }
 
-    void execute_single_command(dbg_cmd_cxt_t &cxt, const std::string &cmd)
+    void execute_single_command(dbg_cmd_cxt_t &cxt, std::string cmd)
     {
         const auto cmd_tokens = util::split(cmd);
         if (cmd_tokens.empty())
@@ -939,6 +950,8 @@ namespace
         {
             auto cmd_exec = find_cmd(cmd_tokens[0]);
             cmd_exec(cmd_tokens, cxt);
+
+            cxt.last_successful_cmd = std::move(cmd);
         }
         catch (const debug_cmd_error_t &e)
         {
@@ -969,9 +982,11 @@ namespace
                 << console_modifiers::reset_all;
 
             std::getline(std::cin, cmd);
+            if (cmd.empty())
+                cmd = cxt.last_successful_cmd;
 
             assert(!cxt.exit_break && "Precondition on exit_break state before execute failed");
-            execute_single_command(cxt, cmd);
+            execute_single_command(cxt, std::move(cmd));
             if (cxt.exit_break)
                 break;
         }
@@ -1178,11 +1193,11 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        const auto bp_cmd = get_option({ "bp-cmd" });
+        auto bp_cmd = get_option({ "bp-cmd" });
         if (!bp_cmd.empty())
         {
             dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers };
-            execute_single_command(dbg_cxt, bp_cmd);
+            execute_single_command(dbg_cxt, std::move(bp_cmd));
         }
 
         prompt(*this, *cxt.value1.registers);
