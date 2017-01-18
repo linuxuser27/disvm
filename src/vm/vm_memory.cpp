@@ -86,6 +86,7 @@ global_alloc_lock_t disvm::runtime::get_global_alloc_lock()
     // Block while trying to get lock
     while (!lock_state.compare_exchange_strong(expected, lock_state_t::pending))
     {
+        expected = lock_state_t::none;
         std::unique_lock<std::mutex> lock{ global_lock };
         release_lock.wait(lock);
     }
