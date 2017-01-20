@@ -162,10 +162,21 @@ namespace
         auto register_string = std::stringstream{};
 
         register_string
-            << "  Thread ID:  " << r.thread.get_thread_id() << "\n"
-            << "         PC:  " << r.pc << "  Module:  " << r.module_ref->module->module_name->str() << "\n"
-            << "     Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
+            << "  Thread ID:  " << r.thread.get_thread_id()
+            << "\n     Module:  " << r.module_ref->module->module_name->str()
+            << "\n         PC:  " << r.pc;
 
+        if (!r.module_ref->is_builtin_module())
+        {
+            assert(r.pc < static_cast<word_t>(r.module_ref->code_section.size()));
+            const auto &op = r.module_ref->code_section[r.pc].op;
+            register_string
+                << "\n        Src:  " << op.source
+                << "\n        Mid:  " << op.middle
+                << "\n        Dst:  " << op.destination;
+        }
+
+        register_string << "\n";
         return register_string.str();
     }
 
