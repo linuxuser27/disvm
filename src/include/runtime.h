@@ -745,7 +745,8 @@ namespace disvm
             const vm_thread_t &thread;
             std::atomic<vm_tool_dispatch_t *> tool_dispatch;
             vm_stack_t stack;  // Frame pointer access (FP)
-            vm_pc_t pc;  // Program counter (Index into module code section)
+            vm_pc_t pc;  // Current Program counter (Index into module code section)
+            vm_pc_t next_pc;  // Next Program counter
             vm_alloc_t *mp_base;  // Module data base pointer (MP)
             vm_module_ref_t *module_ref;  // Module reference
             vm_request_mutex_t request_mutex;

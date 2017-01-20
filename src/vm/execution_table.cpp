@@ -548,33 +548,33 @@ namespace
     // Compare and Branch operations
     //
 
-    EXEC_DECL(bltb) { if (vt_ref<byte_t>(r.src) < vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtb) { if (vt_ref<byte_t>(r.src) > vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bleb) { if (vt_ref<byte_t>(r.src) <= vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgeb) { if (vt_ref<byte_t>(r.src) >= vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqb) { if (vt_ref<byte_t>(r.src) == vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bneb) { if (vt_ref<byte_t>(r.src) != vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltb) { if (vt_ref<byte_t>(r.src) < vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtb) { if (vt_ref<byte_t>(r.src) > vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bleb) { if (vt_ref<byte_t>(r.src) <= vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgeb) { if (vt_ref<byte_t>(r.src) >= vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqb) { if (vt_ref<byte_t>(r.src) == vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bneb) { if (vt_ref<byte_t>(r.src) != vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltw) { if (vt_ref<word_t>(r.src) < vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtw) { if (vt_ref<word_t>(r.src) > vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blew) { if (vt_ref<word_t>(r.src) <= vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgew) { if (vt_ref<word_t>(r.src) >= vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqw) { if (vt_ref<word_t>(r.src) == vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnew) { if (vt_ref<word_t>(r.src) != vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltw) { if (vt_ref<word_t>(r.src) < vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtw) { if (vt_ref<word_t>(r.src) > vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blew) { if (vt_ref<word_t>(r.src) <= vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgew) { if (vt_ref<word_t>(r.src) >= vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqw) { if (vt_ref<word_t>(r.src) == vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnew) { if (vt_ref<word_t>(r.src) != vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltf) { if (vt_ref<real_t>(r.src) < vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtf) { if (vt_ref<real_t>(r.src) > vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blef) { if (vt_ref<real_t>(r.src) <= vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgef) { if (vt_ref<real_t>(r.src) >= vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqf) { if (vt_ref<real_t>(r.src) == vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnef) { if (vt_ref<real_t>(r.src) != vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltf) { if (vt_ref<real_t>(r.src) < vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtf) { if (vt_ref<real_t>(r.src) > vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blef) { if (vt_ref<real_t>(r.src) <= vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgef) { if (vt_ref<real_t>(r.src) >= vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqf) { if (vt_ref<real_t>(r.src) == vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnef) { if (vt_ref<real_t>(r.src) != vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltl) { if (vt_ref<big_t>(r.src) < vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtl) { if (vt_ref<big_t>(r.src) > vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blel) { if (vt_ref<big_t>(r.src) <= vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgel) { if (vt_ref<big_t>(r.src) >= vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beql) { if (vt_ref<big_t>(r.src) == vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnel) { if (vt_ref<big_t>(r.src) != vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltl) { if (vt_ref<big_t>(r.src) < vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtl) { if (vt_ref<big_t>(r.src) > vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blel) { if (vt_ref<big_t>(r.src) <= vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgel) { if (vt_ref<big_t>(r.src) >= vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beql) { if (vt_ref<big_t>(r.src) == vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnel) { if (vt_ref<big_t>(r.src) != vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     // Define case table constants
     // [SPEC]Table format is partially defined in Dis VM specification
@@ -621,7 +621,7 @@ namespace
         }
 
         assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
-        r.pc = static_cast<vm_pc_t>(target_pc);
+        r.next_pc = static_cast<vm_pc_t>(target_pc);
     }
 
     EXEC_DECL(casew) { _case<word_t>(r); }
@@ -675,19 +675,19 @@ namespace
         }
 
         assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
-        r.pc = target_pc;
+        r.next_pc = target_pc;
     }
 
     //
     // String operations
     //
 
-    EXEC_DECL(bltc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) < 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) > 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) <= 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) >= 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) == 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) != 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) < 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) > 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) <= 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) >= 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) == 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) != 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     EXEC_DECL(lenc)
     {
@@ -1454,7 +1454,7 @@ namespace
     {
         const auto current_top_frame = r.stack.peek_frame();
         assert(current_top_frame != nullptr);
-        r.pc = current_top_frame->prev_pc();
+        r.next_pc = current_top_frame->prev_pc();
 
         if (current_top_frame->prev_module_ref() != nullptr)
         {
@@ -1477,7 +1477,7 @@ namespace
     EXEC_DECL(call)
     {
         auto top_frame = r.stack.push_frame();
-        top_frame->prev_pc() = r.pc;
+        top_frame->prev_pc() = r.next_pc;
 
 #ifndef NDEBUG
         // Validate the stack state
@@ -1486,7 +1486,7 @@ namespace
         assert(top_frame->base() == frame_base_pointer);
 #endif
 
-        r.pc = vt_ref<vm_pc_t>(r.dest);
+        r.next_pc = vt_ref<vm_pc_t>(r.dest);
 
         debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
@@ -1514,7 +1514,7 @@ namespace
 #endif
 
         // Store current state
-        top_frame->prev_pc() = r.pc;
+        top_frame->prev_pc() = r.next_pc;
         top_frame->prev_module_ref() = r.module_ref;
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
@@ -1533,7 +1533,7 @@ namespace
         r.module_ref = target_module;
         r.module_ref->add_ref();
         r.mp_base = r.module_ref->mp_base;
-        r.pc = function_pc;
+        r.next_pc = function_pc;
 
         if (r.module_ref->is_builtin_module())
         {
@@ -1554,7 +1554,7 @@ namespace
         }
     }
 
-    EXEC_DECL(jmp) { r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(jmp) { r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     EXEC_DECL(goto_)
     {
@@ -1563,7 +1563,7 @@ namespace
         assert(r.dest != nullptr);
         const auto pc_table = reinterpret_cast<vm_pc_t *>(r.dest);
 
-        r.pc = pc_table[pc_index];
+        r.next_pc = pc_table[pc_index];
     }
 
     //
@@ -1673,8 +1673,7 @@ namespace
         vm_frame_t *target_frame;
         vm_pc_t handler_pc;
 
-        // The faulting pc is minus one since the VM has already incremented the counter.
-        const auto faulting_pc = r.pc - 1;
+        const auto faulting_pc = r.pc;
 
         assert(r.module_ref != nullptr);
         std::tie(handler, target_frame, handler_pc) = find_exception_handler(r.stack, *r.module_ref, faulting_pc, *exception_id);
@@ -1718,7 +1717,7 @@ namespace
         // Set the exception destination.
         pt_ref(exception_destination) = e->get_allocation();
 
-        r.pc = handler_pc;
+        r.next_pc = handler_pc;
     }
 
     // [SPEC] Added to support debugger.

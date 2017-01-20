@@ -364,7 +364,6 @@ void vm_tool_dispatch_t::resume_all_threads()
 std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cookie(const vm_registers_t &r)
 {
     const auto module = r.module_ref->module.get();
-    const auto current_pc = r.pc - 1;
 
     if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to determine original opcode in supplied module" };
@@ -375,7 +374,7 @@ std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cooki
     if (iter_orig != _breakpoints.original_opcodes.cend())
     {
         auto &pc_map = iter_orig->second;
-        auto iter_pc = pc_map.find(current_pc);
+        auto iter_pc = pc_map.find(r.pc);
         if (iter_pc != pc_map.cend())
             return iter_pc->second;
     }

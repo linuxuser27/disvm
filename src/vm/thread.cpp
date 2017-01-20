@@ -59,6 +59,7 @@ vm_registers_t::vm_registers_t(
     , mp_base{ entry.mp_base }
     , thread{ thread }
     , pc{ entry.module->header.entry_pc }
+    , next_pc { entry.module->header.entry_pc }
     , stack{ static_cast<std::size_t>(entry.module->header.stack_extent) }
     , tool_dispatch{ nullptr }
     , src{ nullptr }
@@ -171,9 +172,9 @@ vm_thread_t::~vm_thread_t()
 
 namespace
 {
-    struct execute_with_tool_t
+    struct execute_with_tool_t final
     {
-        void begin_exec_loop(vm_registers_t &registers, vm_t &)
+        static void begin_exec_loop(vm_registers_t &registers, vm_t &)
         {
             auto tool_dispatch = registers.tool_dispatch.load();
             assert(tool_dispatch != nullptr);
@@ -182,36 +183,36 @@ namespace
         }
     };
 
-    struct execute_normal_t
+    struct execute_normal_t final
     {
-        void begin_exec_loop(vm_registers_t &, vm_t &) { }
+        static void begin_exec_loop(vm_registers_t &, vm_t &) { }
     };
 
     template<typename EXEC_DETOUR>
-    void execute_impl(vm_registers_t &registers, vm_t &vm)
+    void execute_impl(vm_registers_t &r, vm_t &vm)
     {
-        EXEC_DETOUR detour{};
-        auto &execution_duration = registers.current_thread_quanta;
+        auto &execution_duration = r.current_thread_quanta;
         for (; 0 != execution_duration; --execution_duration)
         {
-            detour.begin_exec_loop(registers, vm);
-            assert(registers.stack.peek_frame() != nullptr && "Thread state should not be running with empty stack");
+            EXEC_DETOUR::begin_exec_loop(r, vm);
+            assert(r.stack.peek_frame() != nullptr && "Thread state should not be running with empty stack");
 
-            const auto &code_section = registers.module_ref->code_section;
-            assert(static_cast<std::size_t>(registers.pc) < code_section.size());
+            const auto &code_section = r.module_ref->code_section;
+            assert(static_cast<std::size_t>(r.pc) < code_section.size());
 
-            assert(!registers.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
-            const auto &inst = code_section[registers.pc].op;
+            assert(!r.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
+            const auto &inst = code_section[r.pc].op;
             const auto opcode = static_cast<std::size_t>(inst.opcode);
             if (static_cast<std::size_t>(opcode_t::last_opcode) < opcode)
                 throw vm_system_exception{ "Unknown op-code" };
 
             // Instruction is valid, decode and update registers for operation
-            decode_address(inst, registers);
-            registers.pc++;
-            vm_exec_table[opcode](registers, vm);
+            decode_address(inst, r);
+            r.next_pc = (r.pc + 1);
+            vm_exec_table[opcode](r, vm);
+            r.pc = r.next_pc;
 
-            if (registers.current_thread_state != vm_thread_state_t::running)
+            if (r.current_thread_state != vm_thread_state_t::running)
                 break;
         }
     }

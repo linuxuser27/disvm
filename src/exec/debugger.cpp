@@ -630,8 +630,7 @@ namespace
         const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
-        // The current PC is actually the next PC to execute.
-        auto begin_pc = r.pc == 0 ? r.pc : r.pc - 1;
+        auto begin_pc = r.pc;
         auto end_pc = begin_pc;
         if (absolute_pc)
         {

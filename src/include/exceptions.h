@@ -36,7 +36,7 @@ namespace disvm
             { }
         };
 
-        class vm_syscall_exception : public vm_system_exception
+        class vm_syscall_exception final : public vm_system_exception
         {
         public:
             explicit vm_syscall_exception(disvm::vm_t &vm, const char *message)
