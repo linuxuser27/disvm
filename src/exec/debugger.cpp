@@ -1064,7 +1064,7 @@ std::vector<std::string> debugger::resolve_to_function_source_line(
             ss << function_name << " at ";
 
         const auto source_loc = d.current_source_location();
-        ss << d.get_source_by_id(source_loc.source_id)
+        ss << d.get_source_by_id(source_loc.begin_source_id)
             << ':'
             << source_loc.begin_line;
 

@@ -243,7 +243,7 @@ namespace
         source_ref_t src;
 
         // Initialize the source with the last state
-        src.source_id = fc.last_file;
+        src.begin_source_id = fc.last_file;
         src.begin_line = fc.last_line;
         src.end_line = fc.last_line;
         for (auto i = std::size_t{ 0 }; i < src_parts.size(); ++i)
@@ -274,8 +274,10 @@ namespace
                 }
                 else if (pos[j] == ':')
                 {
-                    assert((i == 0 || src.source_id == v) && "Source position should not change across statements");
-                    src.source_id = v;
+                    if (i == 0)
+                        src.begin_source_id = v;
+
+                    src.end_source_id = v;
                     fc.last_file = v;
                 }
             }
@@ -310,7 +312,7 @@ namespace
             curr_item.debug_statement = std::stoi(pc_item_parts[1]);
 
             // Record the current source and line ID since those are the new default values
-            last_source = curr_item.source.source_id;
+            last_source = curr_item.source.end_source_id;
             last_line = curr_item.source.end_line;
 
             pc_table[i] = std::move(curr_item);

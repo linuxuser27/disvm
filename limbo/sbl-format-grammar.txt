@@ -17,7 +17,7 @@ char: <int>
 
 type-table: <count> '\n' type*
 type:
- '@' type-index '\n'       # Type table reference         
+ '@' type-index '\n'       # Type table reference
  'a' adt-item              # ADT
  'p' adt-item tag-table    # ADT-Pick
  't' size '.' id-table     # Tuple
