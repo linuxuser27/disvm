@@ -51,7 +51,7 @@ namespace
     // Read the next operand as defined in the Dis VM specification.
     std::tuple<bool, operand_t> read_next_operand(util::buffered_reader_t &reader)
     {
-        auto result = operand_t{ 0 };
+        operand_t result;
 
         // Converting stack allocation to buffer since max size of operand is a machine word
         byte_t buffer[sizeof(result)];
@@ -59,16 +59,16 @@ namespace
         if (!reader.get_next_bytes(1, buffer))
             return std::make_tuple(false, 0);
 
-        switch (buffer[0] & 0xc0)
+        result = buffer[0];
+        switch (result & 0xc0)
         {
         case 0x00:
             // 1 byte operand
-            result = buffer[0];
             break;
 
         case 0x40:
             // 1 byte operand - Preserve sign
-            result = buffer[0] | ~0x7f;
+            result |= ~0x7f;
             break;
 
         case 0x80:
@@ -77,12 +77,12 @@ namespace
                 return std::make_tuple(false, 0);
 
             // Preserve sign
-            if ((buffer[0] & 0x20) != 0)
-                buffer[0] |= ~0x3f;
+            if ((result & 0x20) != 0)
+                result |= ~0x3f;
             else
-                buffer[0] &= 0x3f;
+                result &= 0x3f;
 
-            result = (buffer[0] << 8);
+            result = (result << 8);
             result |= buffer[1];
             break;
 
@@ -92,12 +92,12 @@ namespace
                 return std::make_tuple(false, 0);
 
             // Preserve sign
-            if ((buffer[0] & 0x20) != 0)
-                buffer[0] |= ~0x3f;
+            if ((result & 0x20) != 0)
+                result |= ~0x3f;
             else
-                buffer[0] &= 0x3f;
+                result &= 0x3f;
 
-            result = (buffer[0] << 24);
+            result = (result << 24);
             result |= (buffer[1] << 16);
             result |= (buffer[2] << 8);
             result |= buffer[3];
