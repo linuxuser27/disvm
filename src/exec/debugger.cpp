@@ -11,7 +11,7 @@
 #include <string>
 #include <algorithm>
 #include <map>
-#include <unordered_set>
+#include <set>
 #include <utils.h>
 #include <vm_memory.h>
 #include <vm_asm.h>
@@ -91,28 +91,31 @@ namespace
     {
         static std::string last_successful_cmd_option;
 
-        dbg_cmd_cxt_t(debugger &d, const vm_registers_t &r)
+        dbg_cmd_cxt_t(debugger &d, vm_registers_t &r, bool transient_context = false)
             : dbg{ d }
             , exit_break{ false }
+            , current_register{ &r }
             , initial_register{ r }
+            , transient_context{ transient_context }
             , vm{ d.controller->get_vm_instance() }
         {
-            current_register = &initial_register;
             last_successful_cmd = dbg.get_option(last_successful_cmd_option);
         }
 
         ~dbg_cmd_cxt_t()
         {
-            dbg.set_option(last_successful_cmd_option, std::move(last_successful_cmd));
+            if (!transient_context)
+                dbg.set_option(last_successful_cmd_option, std::move(last_successful_cmd));
         }
 
+        const bool transient_context;
         bool exit_break;
         std::string last_successful_cmd;
 
         debugger &dbg;
         const vm_t &vm;
         const vm_registers_t *current_register;
-        const vm_registers_t &initial_register;
+        vm_registers_t &initial_register;
     };
 
     std::string dbg_cmd_cxt_t::last_successful_cmd_option = "last_successful_cmd";
@@ -168,7 +171,7 @@ namespace
 
         if (!r.module_ref->is_builtin_module())
         {
-            assert(r.pc < static_cast<word_t>(r.module_ref->code_section.size()));
+            assert(static_cast<std::size_t>(r.pc) < r.module_ref->code_section.size());
             const auto &op = r.module_ref->code_section[r.pc].op;
             register_string
                 << "\n        Src:  " << op.source
@@ -332,6 +335,12 @@ namespace
         cxt.exit_break = true;
     }
 
+    void cmd_step(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
+    {
+        cxt.dbg.controller->set_thread_trap_flag(*cxt.current_register, vm_trap_flags_t::instruction);
+        cxt.exit_break = true;
+    }
+
     void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
         throw vm_term_request{};
@@ -347,7 +356,7 @@ namespace
     {
         auto msg = std::stringstream{};
         for (auto t : cxt.vm.get_scheduler_control().get_all_threads())
-            msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_state() << "\n";
+            msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_registers().current_thread_state << "\n";
 
         debug_print_info(msg.str());
     }
@@ -843,9 +852,10 @@ namespace
             << console_modifiers::reset_all;
     }
 
-    std::unordered_set<std::string> dbg_options =
+    std::set<std::string> dbg_options =
     {
-        { "bp-cmd" }
+        { "bp-cmd" },
+        { "step-cmd" }
     };
 
     void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &cxt)
@@ -889,6 +899,7 @@ namespace
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
+        { "s", "Step over", nullptr, nullptr, cmd_step },
         { "term", "Terminate the VM instance", nullptr, nullptr, cmd_term },
 
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
@@ -969,15 +980,19 @@ namespace
         }
     }
 
-    void prompt(debugger &debugger, const vm_registers_t &r)
+    void prompt(debugger &debugger, vm_registers_t &r)
     {
         debugger.controller->suspend_all_threads();
 
-        std::cout
-            << console_modifiers::green_font
-            << console_modifiers::bold
-            << "'?' for help\n"
-            << console_modifiers::reset_all;
+        if (debugger.first_break)
+        {
+            debugger.first_break = false;
+            std::cout
+                << console_modifiers::green_font
+                << console_modifiers::bold
+                << "'?' for help\n"
+                << console_modifiers::reset_all;
+        }
 
         std::string cmd;
 
@@ -1018,6 +1033,7 @@ debugger::debugger(const debugger_options opt)
     : _options{ opt }
     , _tool_id{ 0 }
     , controller{ nullptr }
+    , first_break{ true }
 { }
 
 std::vector<std::string> debugger::resolve_to_function_source_line(
@@ -1203,11 +1219,23 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        auto bp_cmd = get_option({ "bp-cmd" });
-        if (!bp_cmd.empty())
+        auto cmd = get_option({ "bp-cmd" });
+        if (!cmd.empty())
         {
-            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers };
-            execute_single_command(dbg_cxt, std::move(bp_cmd));
+            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers, true };
+            execute_single_command(dbg_cxt, std::move(cmd));
+        }
+
+        prompt(*this, *cxt.value1.registers);
+    }));
+
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::trap, [&](vm_event_t, vm_event_context_t &cxt)
+    {
+        auto cmd = get_option({ "step-cmd" });
+        if (!cmd.empty())
+        {
+            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers, true };
+            execute_single_command(dbg_cxt, std::move(cmd));
         }
 
         prompt(*this, *cxt.value1.registers);

@@ -709,7 +709,7 @@ namespace disvm
             const vm_string_t &exception_id);
 
         // VM thread states
-        enum class vm_thread_state_t : uint16_t
+        enum class vm_thread_state_t : uint8_t
         {
             unknown = 0,
 
@@ -729,6 +729,13 @@ namespace disvm
             broken,   // thread crashed - the scheduler is free to terminate the entire VM if any thread enters this state.
         };
 
+        // VM trap flags
+        enum class vm_trap_flags_t : uint8_t
+        {
+            none = 0,
+            instruction = 1 << 0,
+        };
+
         // Forward declaration
         class vm_thread_t;
         class vm_tool_dispatch_t;
@@ -738,11 +745,11 @@ namespace disvm
         {
         public:
             vm_registers_t(
-                const vm_thread_t &thread,
+                vm_thread_t &thread,
                 vm_module_ref_t &entry);
             ~vm_registers_t();
 
-            const vm_thread_t &thread;
+            vm_thread_t &thread;
             std::atomic<vm_tool_dispatch_t *> tool_dispatch;
             vm_stack_t stack;  // Frame pointer access (FP)
             vm_pc_t pc;  // Current Program counter (Index into module code section)
@@ -751,8 +758,9 @@ namespace disvm
             vm_module_ref_t *module_ref;  // Module reference
             vm_request_mutex_t request_mutex;
 
-            vm_thread_state_t current_thread_state;
             uint16_t current_thread_quanta;
+            vm_thread_state_t current_thread_state;
+            vm_trap_flags_t trap_flags;
 
             pointer_t src;
             pointer_t mid;
@@ -794,8 +802,6 @@ namespace disvm
             // thread is concurrently executing instructions associated with
             // this vm thread.
             void set_tool_dispatch(vm_tool_dispatch_t *dispatch);
-
-            vm_thread_state_t get_state() const;
 
             // This function will only return a non-null
             // value if this thread is in the broken state.

@@ -23,6 +23,7 @@ namespace disvm
         union vm_context_value_t
         {
             cookie_t cookie;
+            vm_trap_flags_t trap;
             std::shared_ptr<vm_module_t> *module; // Note this is a pointer to std::shared_ptr<>
             vm_registers_t *registers;
             const vm_thread_t *thread;
@@ -61,6 +62,9 @@ namespace disvm
 
             breakpoint,          // value1: vm_registers_t
                                  // value2: cookie_t - cookie of breakpoint. '0' indicates the breakpoint was inserted by the VM or compiler.
+
+            trap,                // value1: vm_registers_t - The trap flag is unset prior to the event be fired.
+                                 // value2: vm_trap_flags_t
         };
 
         using vm_event_callback_t = std::function<void(vm_event_t, vm_event_context_t &)>;
@@ -91,6 +95,7 @@ namespace disvm
             // Manipulate thread execution
             virtual void suspend_all_threads() = 0;
             virtual void resume_all_threads() = 0;
+            virtual void set_thread_trap_flag(const vm_registers_t &, vm_trap_flags_t flag) = 0;
         };
     }
 }

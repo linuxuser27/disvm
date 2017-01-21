@@ -61,6 +61,7 @@ public: // vm_tool_t
 public:
     disvm::runtime::vm_tool_controller_t *controller;
     std::unordered_set<disvm::runtime::cookie_t> breakpoint_cookies;
+    bool first_break;
 
 private:
     void load_symbols(const disvm::loaded_vm_module_t &);

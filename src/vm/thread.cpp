@@ -12,6 +12,7 @@
 #include <exceptions.h>
 #include <vm_memory.h>
 #include <debug.h>
+#include <utils.h>
 #include "execution_table.h"
 #include "tool_dispatch.h"
 
@@ -51,10 +52,11 @@ namespace
 }
 
 vm_registers_t::vm_registers_t(
-    const vm_thread_t &thread,
+    vm_thread_t &thread,
     vm_module_ref_t &entry)
     : current_thread_state{ vm_thread_state_t::ready }
     , current_thread_quanta{ 0 }
+    , trap_flags{ vm_trap_flags_t::none }
     , module_ref{ &entry }
     , mp_base{ entry.mp_base }
     , thread{ thread }
@@ -174,25 +176,37 @@ namespace
 {
     struct execute_with_tool_t final
     {
-        static void begin_exec_loop(vm_registers_t &registers, vm_t &)
+        static void begin_exec_loop(vm_registers_t &r, vm_t &)
         {
-            auto tool_dispatch = registers.tool_dispatch.load();
+            auto tool_dispatch = r.tool_dispatch.load();
             assert(tool_dispatch != nullptr);
 
-            tool_dispatch->block_if_thread_suspended(registers.thread.get_thread_id());
+            tool_dispatch->block_if_thread_suspended(r.thread.get_thread_id());
+        }
+
+        static void after_exec(vm_registers_t &r, vm_t &)
+        {
+            if (r.trap_flags == vm_trap_flags_t::none
+                || !util::has_flag(r.trap_flags, vm_trap_flags_t::instruction))
+                return;
+
+            auto tool_dispatch = r.tool_dispatch.load();
+            assert(tool_dispatch != nullptr);
+
+            tool_dispatch->on_trap(r, vm_trap_flags_t::instruction);
         }
     };
 
     struct execute_normal_t final
     {
         static void begin_exec_loop(vm_registers_t &, vm_t &) { }
+        static void after_exec(vm_registers_t &, vm_t &) { }
     };
 
     template<typename EXEC_DETOUR>
     void execute_impl(vm_registers_t &r, vm_t &vm)
     {
-        auto &execution_duration = r.current_thread_quanta;
-        for (; 0 != execution_duration; --execution_duration)
+        for (; 0 != r.current_thread_quanta; --r.current_thread_quanta)
         {
             EXEC_DETOUR::begin_exec_loop(r, vm);
             assert(r.stack.peek_frame() != nullptr && "Thread state should not be running with empty stack");
@@ -211,6 +225,8 @@ namespace
             r.next_pc = (r.pc + 1);
             vm_exec_table[opcode](r, vm);
             r.pc = r.next_pc;
+
+            EXEC_DETOUR::after_exec(r, vm);
 
             if (r.current_thread_state != vm_thread_state_t::running)
                 break;
@@ -304,11 +320,6 @@ void vm_thread_t::set_tool_dispatch(vm_tool_dispatch_t *dispatch)
 {
     assert((_registers.tool_dispatch.load() == nullptr) != (dispatch == nullptr) && "Dispatch value should toggle between null and non-null");
     _registers.tool_dispatch = dispatch;
-}
-
-vm_thread_state_t vm_thread_t::get_state() const
-{
-    return _registers.current_thread_state;
 }
 
 const char *vm_thread_t::get_error_message() const
