@@ -91,7 +91,8 @@ vm_config_t::vm_config_t(vm_config_t &&other)
 { }
 
 vm_t::vm_t()
-    : _last_syscall_error_message_lock{ ATOMIC_FLAG_INIT }
+    : _last_syscall_error_message{}
+    , _last_syscall_error_message_lock{ ATOMIC_FLAG_INIT }
 {
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();
@@ -102,6 +103,7 @@ vm_t::vm_t()
 }
 
 vm_t::vm_t(vm_config_t config)
+    : _last_syscall_error_message{}
 {
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();

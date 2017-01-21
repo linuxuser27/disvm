@@ -190,7 +190,10 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     , _length_max{ sizeof(_mem.local) }
     , _mem{}
 {
-    assert((encoded_str_len > 0 && encoded_str != nullptr) || (encoded_str_len == 0 && encoded_str == nullptr));
+    assert((encoded_str_len > 0 && encoded_str != nullptr) || encoded_str_len == 0);
+    if (encoded_str_len == 0)
+        encoded_str = nullptr;
+
     const auto utf8_length = utf8::count_codepoints(encoded_str, encoded_str_len);
 
     // Check if the supplied string is completely valid UTF-8 - only valid UTF-8 strings can be DisVM strings.
