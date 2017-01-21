@@ -23,6 +23,7 @@
         'vm.cpp',
         'vm_memory.cpp',
         'vm_exception_handler.cpp',
+        'math/Mathmod.cpp',
         'sys/print.cpp',
         'sys/Sysmod.cpp',
         'sys/file_system.cpp',

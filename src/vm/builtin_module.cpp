@@ -27,6 +27,7 @@ namespace
 
 // Declare initializers for built-in modules.
 extern void Sysmodinit(void);
+extern void Mathmodinit(void);
 
 void disvm::runtime::builtin::initialize_builtin_modules()
 {
@@ -38,6 +39,7 @@ void disvm::runtime::builtin::initialize_builtin_modules()
     // e.g. Sysmodinit()
 
     Sysmodinit();
+    Mathmodinit();
 }
 
 void disvm::runtime::builtin::register_module_exports(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table)
