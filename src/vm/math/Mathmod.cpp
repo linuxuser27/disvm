@@ -97,7 +97,7 @@ Math_FPcontrol(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPcontrol>();
 
-    // [TODO] Properly implment floating point control
+    // [PAL] Properly implment floating point control
     *fp.ret = fp.mask;
 }
 

@@ -35,6 +35,7 @@ The source tree is as follows:
 | `[TODO]`       | Work to be done in the future. |
 | `[SPEC]`       | A departure or undocumented assumption in the Dis VM specification. |
 | `[PERF]`       | Potential for performance improvement. |
+| `[PAL]`        | Work that should be done in a platform abstraction layer (PAL). |
 
 # References
 

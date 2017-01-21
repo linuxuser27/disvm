@@ -209,6 +209,29 @@ namespace
     vm_fd_t *fd_stdout = nullptr;
     vm_fd_t *fd_stderr = nullptr;
 
+    word_t printf_to_fd(
+        disvm::vm_t &vm,
+        vm_fd_t &fd,
+        const disvm::runtime::vm_string_t &msg_fmt,
+        disvm::runtime::byte_t *msg_args,
+        disvm::runtime::pointer_t base)
+    {
+        auto static_buffer = std::array<char, 1024>{};
+        auto written = sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
+        if (written >= 0)
+        {
+            fd.write(vm, written, static_buffer.data());
+        }
+        else
+        {
+            auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
+            written = sys::printf_to_dynamic_buffer(vm, msg_fmt, msg_args, base, dynamic_buffer);
+            fd.write(vm, written, dynamic_buffer.data());
+        }
+
+        return written;
+    }
+
     std::ios::openmode convert_to_openmode(const word_t mode)
     {
         auto om = std::ios::openmode{};
@@ -422,6 +445,7 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
+    fd_alloc->add_ref();
 }
 
 void
@@ -492,8 +516,16 @@ Sys_file2chan(vm_registers_t &r, vm_t &vm)
 void
 Sys_fprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_fprint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    assert(fd_alloc->alloc_type == T_FD);
+    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to FD" };
+
+    *fp.ret = printf_to_fd(vm, *fd, *str, &fp.vargs, fp_base);
 }
 
 void
@@ -582,6 +614,7 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
+    fd_alloc->add_ref();
 }
 
 void
@@ -611,25 +644,10 @@ Sys_print(vm_registers_t &r, vm_t &vm)
     auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_print>();
     auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
-
     if (str == nullptr)
         throw dereference_nil{ "Print string" };
 
-    auto static_buffer = std::array<char, 1024>{};
-    auto msg_args = &fp.vargs;
-    auto written = sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
-    if (written >= 0)
-    {
-        fd_stdout->write(vm, written, static_buffer.data());
-    }
-    else
-    {
-        auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
-        fd_stdout->write(vm, written, dynamic_buffer.data());
-    }
-
-    *fp.ret = written;
+    *fp.ret = printf_to_fd(vm, *fd_stdout, *str, &fp.vargs, fp_base);
 }
 
 void
@@ -680,7 +698,13 @@ void
 Sys_remove(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_remove>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Remove path" };
+
+    // [PAL] There are a lot of implementation details with this function.
+    // Consider adding a PAL function to optimize per platform.
+    *fp.ret = std::remove(str->str());
 }
 
 void
@@ -715,8 +739,29 @@ Sys_sleep(vm_registers_t &r, vm_t &vm)
 void
 Sys_sprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_sprint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to string" };
+
+    vm_string_t *new_string;
+    auto static_buffer = std::array<char, 128>{};
+    auto msg_args = &fp.vargs;
+    auto written = sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
+    if (written >= 0)
+    {
+        new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(static_buffer.data()) };
+    }
+    else
+    {
+        auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
+        written = sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
+        new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
+    }
+
+    assert(new_string != nullptr);
+    *fp.ret = new_string->get_allocation();
 }
 
 void
