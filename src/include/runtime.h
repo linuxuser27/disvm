@@ -69,6 +69,8 @@ namespace disvm
             type_descriptor_t(const type_descriptor_t&) = delete;
             type_descriptor_t& operator=(const type_descriptor_t&) = delete;
 
+            bool is_equal(const type_descriptor_t *) const;
+
             const word_t size_in_bytes;
             const word_t map_in_bytes;
             const byte_t * const pointer_map;

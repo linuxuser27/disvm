@@ -90,7 +90,7 @@ void vm_list_t::set_tail(vm_list_t *new_tail)
 {
     if (new_tail != nullptr)
     {
-        if (new_tail->get_element_type() != _element_type)
+        if (!new_tail->get_element_type()->is_equal(_element_type.get()))
             throw type_violation{};
 
         new_tail->add_ref();

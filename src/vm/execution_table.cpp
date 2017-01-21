@@ -1403,7 +1403,7 @@ namespace
         if (s == nullptr)
             return;
 
-        if (d == nullptr || s->alloc_type != d->alloc_type)
+        if (d == nullptr || !s->alloc_type->is_equal(d->alloc_type.get()))
             throw type_violation{};
     }
 

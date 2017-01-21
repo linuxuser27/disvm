@@ -530,3 +530,19 @@ type_descriptor_t::type_descriptor_t(
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor");
 }
+
+bool type_descriptor_t::is_equal(const type_descriptor_t *other) const
+{
+    if (other == nullptr)
+        return false;
+
+    if (this == other)
+        return true;
+
+    bool equal = size_in_bytes == other->size_in_bytes;
+    equal = equal && map_in_bytes == other->map_in_bytes;
+    equal = equal && 0 == std::memcmp(pointer_map, other->pointer_map, map_in_bytes);
+    equal = equal && finalizer == other->finalizer;
+
+    return equal;
+}

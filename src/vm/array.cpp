@@ -166,7 +166,7 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
     if (this_begin_index < 0 || _length < (this_begin_index + source._length))
         throw out_of_range_memory{};
 
-    if (source._element_type != _element_type)
+    if (!source._element_type->is_equal(_element_type.get()))
         throw type_violation{};
 
     auto dest_arr = _arr + (this_begin_index * _element_type->size_in_bytes);
@@ -174,15 +174,15 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
     // Increment all pointers if we have reference types.
     if (_element_type->map_in_bytes != 0)
     {
-        assert(false && "Not implemented");
-        //auto &type_desc = *_element_type;
-        //auto source_array_element = source->_arr;
-        //for (word_t i = 0; i < source->_length; ++i)
-        //{
-        //    source_array_element += (i * type_desc.size_in_bytes);
-        //    inc_ref_count_in_alloc(type_desc, source_array_element);
-        //}
+        auto &type_desc = *_element_type;
+        auto source_array_element = source._arr;
+        for (auto i = word_t{ 0 }; i < source._length; ++i)
+        {
+            source_array_element += (i * type_desc.size_in_bytes);
+            inc_ref_count_in_memory(type_desc, source_array_element);
+        }
     }
 
-    std::memcpy(dest_arr, source._arr, (source._length * _element_type->size_in_bytes));
+    // Moving data within the same array is permitted so use memmove().
+    std::memmove(dest_arr, source._arr, (source._length * _element_type->size_in_bytes));
 }
