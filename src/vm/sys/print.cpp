@@ -44,30 +44,32 @@ word_t disvm::runtime::sys::printf_to_buffer(
     const auto fmt_len = msg_fmt.get_length();
     auto i = word_t{ 0 };
 
+    auto format = std::vector<char>{};
+    format.reserve(32); // Default size in Inferno.
+
     // Loop over the entire format string
     while (i < fmt_len)
     {
         if (b_curr >= b_end)
             return -1;
 
-        auto c = msg_fmt.get_rune(i);
-        ++i;
+        auto c = msg_fmt.get_rune(i++);
         if (c != '%')
         {
             b_curr = reinterpret_cast<char *>(utf8::encode(c, reinterpret_cast<uint8_t *>(b_curr)));
             continue;
         }
 
-        auto format = std::vector<char>{};
+        format.clear();
         format.push_back('%');
         auto wb = int{ 0 };
         auto big_flag = false;
+        auto unsigned_flag = false;
 
         // Decode the format specifier
         while (i < fmt_len)
         {
-            c = msg_fmt.get_rune(i);
-            ++i;
+            c = msg_fmt.get_rune(i++);
             switch (c)
             {
                 // Format flags
@@ -78,6 +80,21 @@ word_t disvm::runtime::sys::printf_to_buffer(
                 format.push_back('l');
                 format.push_back('l');
                 big_flag = true;
+                continue;
+            case '*': // Placeholder for word argument
+            {
+                const auto w = *reinterpret_cast<word_t *>(msg_args);
+                std::array<char, sizeof("-2147483648")> buffer;
+                const auto len = std::sprintf(buffer.data(), "%d", w);
+                if (len < 0)
+                    return -1;
+
+                format.insert(std::end(format), buffer.data(), buffer.data() + len);
+                msg_args += sizeof(w);
+                continue;
+            }
+            case 'u':
+                unsigned_flag = true;
                 continue;
 
                 // Format verbs
@@ -100,10 +117,13 @@ word_t disvm::runtime::sys::printf_to_buffer(
                 msg_args += sizeof(r);
                 break;
             }
-            case 'o': // octal
             case 'd': // decimal
+                if (unsigned_flag)
+                    c = 'u';
+            case 'o': // octal
             case 'x': // hexadecimal
             case 'X': // Upper-case hexadecimal
+            case 'c': // Unicode
                 format.push_back(static_cast<char>(c));
                 format.push_back('\0');
                 if (big_flag)
@@ -121,6 +141,8 @@ word_t disvm::runtime::sys::printf_to_buffer(
                     msg_args += sizeof(w);
                 }
                 break;
+            case 'q':
+                assert(false && "'q' format not implemented");
             case 's': // string
             {
                 auto p = *reinterpret_cast<pointer_t *>(msg_args);

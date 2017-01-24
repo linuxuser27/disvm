@@ -79,7 +79,7 @@ namespace
         vt_ref<big_t>(r.dest) = vt_ref<big_t>(r.mid) >> vt_ref<big_t>(r.src);
         // Right shifting a negative number is implementation dependent in C++.
         // Assert the current compiler defaults to arithmetic shifting, not logical.
-        assert(vt_ref<word_t>(r.mid) >= 0 || (vt_ref<word_t>(r.mid) < 0 && vt_ref<word_t>(r.dest) < 0));
+        assert(vt_ref<big_t>(r.mid) >= 0 || (vt_ref<big_t>(r.mid) < 0 && vt_ref<big_t>(r.dest) < 0));
     }
 
     EXEC_DECL(lsrw) { vt_ref<word_t>(r.dest) = vt_ref<uword_t>(r.mid) >> vt_ref<word_t>(r.src); }
@@ -206,8 +206,8 @@ namespace
         assert(static_cast<std::size_t>(len) <= buffer.size());
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
-        auto str = at_val<vm_string_t>(r.dest);
-        dec_ref_count_and_free(str);
+        auto prev = at_val<vm_alloc_t>(r.dest);
+        dec_ref_count_and_free(prev);
 
         pt_ref(r.dest) = new_string->get_allocation();
     }
@@ -233,9 +233,10 @@ namespace
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
 
-        auto str = at_val<vm_string_t>(r.dest);
+        auto prev = at_val<vm_alloc_t>(r.dest);
+        dec_ref_count_and_free(prev);
+
         pt_ref(r.dest) = new_string->get_allocation();
-        dec_ref_count_and_free(str);
     }
 
     EXEC_DECL(cvtcl)
@@ -259,9 +260,10 @@ namespace
 
         auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
 
-        auto str = at_val<vm_string_t>(r.dest);
+        auto prev = at_val<vm_alloc_t>(r.dest);
+        dec_ref_count_and_free(prev);
+
         pt_ref(r.dest) = new_string->get_allocation();
-        dec_ref_count_and_free(str);
     }
 
     //
@@ -725,9 +727,9 @@ namespace
         auto index = vt_ref<word_t>(r.mid);
         auto str = at_val<vm_string_t>(r.dest);
         if (str == nullptr)
-            str = new vm_string_t();
+            str = new vm_string_t{};
         else if (str->get_ref_count() > 1)
-            str = new vm_string_t(*str, 0, str->get_length());
+            str = new vm_string_t{ *str, 0, str->get_length() };
 
         // Set the rune at the supplied index.
         str->set_rune(index, rune);
@@ -740,7 +742,8 @@ namespace
         }
     }
 
-    vm_string_t *_addc(vm_string_t *s1, const vm_string_t *s2, /* in out */ bool &append_to_s1)
+    // Returns a string instance only if it is new
+    vm_string_t *concat_string(vm_string_t *s1, const vm_string_t *s2, bool try_append_to_s1)
     {
         if (s1 == nullptr)
         {
@@ -750,19 +753,23 @@ namespace
             return new vm_string_t{ *s2, 0, s2->get_length() };
         }
 
-        // There are other references to this string so we will not alter it.
+        // If there are other references to the string, it is immutable.
         if (s1->get_ref_count() > 1)
-            append_to_s1 = false;
+            try_append_to_s1 = false;
 
         if (s2 == nullptr)
         {
-            if (append_to_s1)
-                return s1;
+            if (try_append_to_s1)
+                return nullptr;
 
             return new vm_string_t(*s1, 0, s1->get_length());
         }
 
-        return (append_to_s1) ? &(s1->append(*s2)) : new vm_string_t(*s1, *s2);
+        if (!try_append_to_s1)
+            return new vm_string_t(*s1, *s2);
+
+        s1->append(*s2);
+        return nullptr;
     }
 
     // [SPEC] 'Concat strings' op code
@@ -775,20 +782,18 @@ namespace
     //   dst = src2 + src1
     EXEC_DECL(addc)
     {
+        const auto try_append_to_s1 = r.mid == r.dest;
         auto s1 = at_val<vm_string_t>(r.mid);
         const auto s2 = at_val<vm_string_t>(r.src);
-        auto dest_maybe = at_val<vm_string_t>(r.dest);
 
-        // If the source is the same as the destination and the
-        // destination is not null, append the string. This can 
-        // change during the concat process.
-        auto append_to_source = dest_maybe != nullptr && s1 == dest_maybe;
-        const auto str = _addc(s1, s2, append_to_source);
-
-        if (!append_to_source)
+        // If the source is the same as the destination, try to append the string during concatenation.
+        const auto new_str_maybe = concat_string(s1, s2, try_append_to_s1);
+        if (new_str_maybe != nullptr)
         {
-            pt_ref(r.dest) = str->get_allocation();
+            auto dest_maybe = at_val<vm_alloc_t>(r.dest);
             dec_ref_count_and_free(dest_maybe);
+
+            pt_ref(r.dest) = new_str_maybe->get_allocation();
         }
     }
 
@@ -1659,6 +1664,7 @@ namespace
             // The remainder of the type is user-defined.
             auto content = e->get_allocation();
             exception_id = at_val<vm_string_t>(content);
+            assert(exception_id != nullptr);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
                 debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<", exception_id->str());

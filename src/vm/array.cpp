@@ -171,18 +171,26 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
 
     auto dest_arr = _arr + (this_begin_index * _element_type->size_in_bytes);
 
-    // Increment all pointers if we have reference types.
+    // If we have reference types, increment references in the
+    // source array and decrement them in the destination array.
     if (_element_type->map_in_bytes != 0)
     {
-        auto &type_desc = *_element_type;
+        // [PERF] There is a chance this copy is within the same array, therefore
+        // a check could be made to not ref count memory that is going to be moved.
+        // The Inferno implementation of slicela handles this case (libinterp/xec.c).
+        const auto &type_desc = *_element_type;
         auto source_array_element = source._arr;
+        auto dest_array_element = dest_arr;
         for (auto i = word_t{ 0 }; i < source._length; ++i)
         {
-            source_array_element += (i * type_desc.size_in_bytes);
             inc_ref_count_in_memory(type_desc, source_array_element);
+            source_array_element += type_desc.size_in_bytes;
+
+            destroy_memory(type_desc, dest_array_element);
+            dest_array_element += type_desc.size_in_bytes;
         }
     }
 
-    // Moving data within the same array is permitted so use memmove().
+    // Copy data from within the same array is permitted.
     std::memmove(dest_arr, source._arr, (source._length * _element_type->size_in_bytes));
 }

@@ -169,6 +169,12 @@ namespace
         // Length + 1 (null) + space for string expansion
         return (current_length + 1 + (current_length / 4));
     }
+
+    template<typename T, word_t S>
+    constexpr word_t compute_max_length(const T(&)[S])
+    {
+        return S - 1;
+    }
 }
 
 vm_string_t::vm_string_t()
@@ -177,7 +183,7 @@ vm_string_t::vm_string_t()
     , _encoded_str{ nullptr }
     , _is_alloc{ false }
     , _length{ 0 }
-    , _length_max{ sizeof(_mem.local) }
+    , _length_max{ compute_max_length(_mem.local) }
     , _mem{}
 { }
 
@@ -187,7 +193,7 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     , _encoded_str{ nullptr }
     , _is_alloc{ false }
     , _length{ 0 }
-    , _length_max{ sizeof(_mem.local) }
+    , _length_max{ compute_max_length(_mem.local) }
     , _mem{}
 {
     assert((encoded_str_len > 0 && encoded_str != nullptr) || encoded_str_len == 0);
@@ -203,11 +209,11 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     _character_size = (encoded_str_len != utf8_length.codepoint_count) ? sizeof(rune_t) : sizeof(char);
 
     _length = static_cast<word_t>(utf8_length.codepoint_count);
-    _length_max = sizeof(_mem.local) / _character_size;
+    _length_max = compute_max_length(_mem.local) / _character_size;
 
     // Allocate memory based on character count and size
     auto dest = _mem.local;
-    if ((encoded_str_len + 1) > sizeof(_mem.local))
+    if (encoded_str_len > static_cast<std::size_t>(compute_max_length(_mem.local)))
     {
         // If we are going to allocate, make sure it is larger than needed.
         _length_max = compute_max_length(_length);
@@ -268,7 +274,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     , _length_max{ compute_max_length(end_index - begin_index) }
     , _mem{}
 {
-    if (end_index <= begin_index)
+    if (end_index < begin_index)
         throw out_of_range_memory{};
 
     if (begin_index < 0)
@@ -346,7 +352,7 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
 
     // Define the values for the appended string
     const auto new_length = local_length + other_length;
-    const auto new_length_max = (new_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(new_length);
+    const auto new_length_max = (new_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(new_length);
     const auto new_is_rune = local_is_rune || other_is_rune;
     uint8_t *new_source = nullptr;
 
@@ -442,7 +448,7 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         _character_size = static_cast<uint8_t>(new_character_size);
         assert(_character_size == sizeof(rune_t));
 
-        _length_max = (_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(_length);
+        _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
         auto new_alloc = calloc_memory<rune_t>(_length_max * _character_size);
 
         // Copy source into the new alloc.
@@ -460,9 +466,9 @@ void vm_string_t::set_rune(word_t index, rune_t value)
     }
     else if (static_cast<word_t>(_length_max) <= index) // Check if string can accomodate the new character.
     {
-        _length_max = (_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(_length);
+        _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
         auto new_alloc = calloc_memory<uint8_t>(_length_max * _character_size);
-        ::memcpy(new_alloc, source, _length * _character_size);
+        std::memcpy(new_alloc, source, _length * _character_size);
 
         // Free memory, if allocated
         if (_is_alloc)
@@ -503,7 +509,7 @@ const char *vm_string_t::str() const
         if (_encoded_str != nullptr)
             return _encoded_str;
 
-        // If the string is ASCII then just return the memory
+        // If the string is ASCII then return the memory
         if (_character_size == sizeof(char))
         {
             _encoded_str = (_is_alloc) ? reinterpret_cast<char *>(_mem.alloc) : reinterpret_cast<char *>(_mem.local);
