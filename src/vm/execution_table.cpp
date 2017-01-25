@@ -179,7 +179,7 @@ namespace
             if (arr->get_element_type() != intrinsic_type_desc::type<byte_t>())
                 throw vm_user_exception{ "Invalid array element type for string conversion" };
 
-            auto new_string = new vm_string_t(arr->get_length(), reinterpret_cast<uint8_t *>(arr->at(0)));
+            auto new_string = new vm_string_t{ static_cast<std::size_t>(arr->get_length()), reinterpret_cast<uint8_t *>(arr->at(0)) };
             str = new_string->get_allocation();
         }
 
@@ -202,10 +202,10 @@ namespace
         auto buffer = std::array<char, sizeof("-2147483648")>{};
 
         const auto w = vt_ref<word_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%d", w);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%d", w));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
         auto prev = at_val<vm_alloc_t>(r.dest);
         dec_ref_count_and_free(prev);
 
@@ -228,10 +228,10 @@ namespace
         auto buffer = std::array<char, sizeof("-2.2250738585072014e-308")>{};
 
         const auto real = vt_ref<real_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%g", real);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%g", real));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
 
         auto prev = at_val<vm_alloc_t>(r.dest);
         dec_ref_count_and_free(prev);
@@ -255,10 +255,10 @@ namespace
         auto buffer = std::array<char, sizeof("-9223372036854775808")>{};
 
         const auto b = vt_ref<big_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%lld", b);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%lld", b));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
 
         auto prev = at_val<vm_alloc_t>(r.dest);
         dec_ref_count_and_free(prev);
@@ -762,11 +762,11 @@ namespace
             if (try_append_to_s1)
                 return nullptr;
 
-            return new vm_string_t(*s1, 0, s1->get_length());
+            return new vm_string_t{ *s1, 0, s1->get_length() };
         }
 
         if (!try_append_to_s1)
-            return new vm_string_t(*s1, *s2);
+            return new vm_string_t{ *s1, *s2 };
 
         s1->append(*s2);
         return nullptr;
@@ -805,7 +805,7 @@ namespace
 
         if (str != nullptr)
         {
-            auto new_string = new vm_string_t(*str, start, end);
+            auto new_string = new vm_string_t{ *str, start, end };
             pt_ref(r.dest) = new_string->get_allocation();
         }
         else if (start == 0 && end == 0)

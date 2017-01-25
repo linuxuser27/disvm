@@ -85,7 +85,7 @@ namespace disvm
 
             auto offset_accum = std::size_t{ 0 };
             auto memory = reinterpret_cast<word_t *>(data);
-            for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += 8)
+            for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
             {
                 const auto words8 = type_desc.pointer_map[i];
                 if (words8 != 0)

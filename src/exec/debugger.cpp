@@ -251,7 +251,7 @@ namespace
         return ss;
     }
 
-    std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
+    std::ostream& safe_alloc_print(std::ostream &ss, const vm_alloc_t *alloc, int recurse_depth)
     {
         if (alloc == nullptr)
         {
@@ -277,13 +277,25 @@ namespace
         {
             ss << "size: " << alloc->alloc_type->size_in_bytes << "    alloc";
 
-            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss](pointer_t p, std::size_t o)
+            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
             {
-                ss << "\n  [" << o << "]  " << vm_alloc_t::from_allocation(p);
+                ss << "\n";
+                std::fill_n(std::ostream_iterator<std::ostream::char_type>{ ss }, 4 * recurse_depth, ' ');
+                ss << "[" << o << "]  ";
+
+                if (recurse_depth < 2)
+                    safe_alloc_print(ss, vm_alloc_t::from_allocation(p), recurse_depth + 1);
+                else
+                    ss << "...";
             });
         }
 
         return ss;
+    }
+
+    std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
+    {
+        return safe_alloc_print(ss, alloc, 0);
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_thread_state_t s)

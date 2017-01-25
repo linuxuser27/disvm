@@ -397,7 +397,7 @@ word_t vm_string_t::get_length() const
 
 runtime::rune_t vm_string_t::get_rune(word_t index) const
 {
-    if (index < 0 && _length <= index)
+    if (index < 0 || _length <= index)
         throw index_out_of_range_memory{ 0, _length - 1, index };
 
     // Determine if local or allocated memory
@@ -423,7 +423,7 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         throw invalid_utf8{};
 
     // Index equal to length is allowed to grow the string
-    if (index < 0 && _length <= index)
+    if (index < 0 || _length < index)
         throw index_out_of_range_memory{ 0, _length, index };
 
     // Determine if local or allocated memory

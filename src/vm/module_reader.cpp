@@ -431,7 +431,7 @@ namespace
                 if (str_bytes != count)
                     throw module_reader_exception{ "Failed to read string data" };
 
-                auto new_string = new vm_string_t(str_buffer.size(), str_buffer.data());
+                auto new_string = new vm_string_t{ str_buffer.size(), str_buffer.data() };
                 *reinterpret_cast<pointer_t *>(data_dest) = new_string->get_allocation();
                 break;
             }
