@@ -40,22 +40,15 @@ namespace disvm
         // While this lock is taken all further allocations will block.
         global_alloc_lock_t get_global_alloc_lock();
 
-        // Allocate memory from the VM heap
+        // Allocate memory from the VM heap that is initialize to 0.
+        // [SPEC] All memory in this implementation of the Dis VM spec
+        // will be 0 initialized.
         void *alloc_memory(std::size_t amount_in_bytes);
 
         template<typename T>
         T *alloc_memory(std::size_t amount_in_bytes = sizeof(T))
         {
             return reinterpret_cast<T *>(alloc_memory(amount_in_bytes));
-        }
-
-        // Allocate memory from the VM heap and initialize to 0.
-        void *calloc_memory(std::size_t amount_in_bytes);
-
-        template<typename T>
-        T *calloc_memory(std::size_t amount_in_bytes = sizeof(T))
-        {
-            return reinterpret_cast<T *>(calloc_memory(amount_in_bytes));
         }
 
         // Free memory on the VM heap

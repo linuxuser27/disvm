@@ -106,26 +106,12 @@ void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
 {
     safe_alloc s;
 
-    auto memory = std::malloc(amount_in_bytes);
+    auto memory = std::calloc(amount_in_bytes, sizeof(byte_t));
     if (memory == nullptr)
         throw vm_system_exception{ "Out of memory" };
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: %#" PRIxPTR " %d", memory, amount_in_bytes);
-
-    return memory;
-}
-
-void *disvm::runtime::calloc_memory(std::size_t amount_in_bytes)
-{
-    safe_alloc s;
-
-    auto memory = std::calloc(amount_in_bytes, sizeof(uint8_t));
-    if (memory == nullptr)
-        throw vm_system_exception{ "Out of memory" };
-
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: zeroed: %#" PRIxPTR " %d", memory, amount_in_bytes);
 
     return memory;
 }
@@ -147,27 +133,12 @@ void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
     if (type_desc.size_in_bytes == 0)
         return;
 
-    debug::assign_debug_memory(data, type_desc.size_in_bytes);
-
-    auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
-    {
-        const auto words8 = type_desc.pointer_map[i];
-        if (words8 != 0)
-        {
-            const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
-
-            // Enumerating the flags in reverse order so memory access is linear.
-            if (flags[7]) memory[0] = runtime_constants::nil;
-            if (flags[6]) memory[1] = runtime_constants::nil;
-            if (flags[5]) memory[2] = runtime_constants::nil;
-            if (flags[4]) memory[3] = runtime_constants::nil;
-            if (flags[3]) memory[4] = runtime_constants::nil;
-            if (flags[2]) memory[5] = runtime_constants::nil;
-            if (flags[1]) memory[6] = runtime_constants::nil;
-            if (flags[0]) memory[7] = runtime_constants::nil;
-        }
-    }
+    // [SPEC] The Dis VM spec does not guarantee non-pointer offsets
+    // to be initialized to zero, but it was found to be an assumption
+    // when getting the limbo compiler run on this VM. Therefore this
+    // implemetation will make the strong guarantee that memory will
+    // always be 0 initialized.
+    std::memset(data, 0, type_desc.size_in_bytes);
 }
 
 namespace
@@ -210,8 +181,6 @@ void disvm::runtime::dec_ref_count_and_free(vm_alloc_t *alloc)
         delete alloc;
 }
 
-const zero_memory_t vm_alloc_t::zero_memory = {};
-
 void *vm_alloc_t::operator new(std::size_t sz)
 {
     return alloc_memory(sz);
@@ -231,24 +200,7 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
     auto mem = alloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
     auto alloc = ::new(mem)vm_alloc_t{ td };
 
-    // Initialize pointer types
-    init_memory(*td, alloc->get_allocation());
-
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
-    return alloc;
-}
-
-vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td, const zero_memory_t &)
-{
-    assert(td != nullptr);
-    if (td->size_in_bytes <= 0)
-        throw vm_system_exception{ "Invalid dynamic memory allocation size" };
-
-    // No need to initialize memory since it is already zeroed out.
-    auto mem = calloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
-    auto alloc = ::new(mem)vm_alloc_t{ td };
-
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm alloc: %d", td->size_in_bytes);
     return alloc;
 }
 

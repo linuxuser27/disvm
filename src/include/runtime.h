@@ -89,21 +89,14 @@ namespace disvm
             static std::shared_ptr<const type_descriptor_t> type();
         };
 
-        // Type used to indicate allocated memory should be zeroed out.
-        struct zero_memory_t
-        { };
-
         // VM memory allocation
         class vm_alloc_t
         {
         public: // static
-            static const zero_memory_t zero_memory;
-
             static void *operator new(std::size_t sz);
             static void operator delete(void *ptr);
 
             static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td);
-            static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td, const zero_memory_t &);
             static vm_alloc_t *copy(const vm_alloc_t &other);
             static vm_alloc_t *from_allocation(pointer_t allocation);
 
@@ -205,7 +198,6 @@ namespace disvm
 
         public:
             vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length);
-            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&);
             vm_array_t(vm_array_t *original, word_t begin_index, word_t length);
             vm_array_t(const vm_string_t *s);
             ~vm_array_t();

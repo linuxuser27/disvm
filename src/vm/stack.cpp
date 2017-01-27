@@ -66,7 +66,7 @@ namespace
         void *new_page()
         {
             auto current_stack_page = top_page;
-            top_page = calloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
+            top_page = alloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
 
             // Initialize the stack allocation.
             top_page->prev_page = current_stack_page;

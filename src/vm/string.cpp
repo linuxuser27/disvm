@@ -217,7 +217,7 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     {
         // If we are going to allocate, make sure it is larger than needed.
         _length_max = compute_max_length(_length);
-        _mem.alloc = calloc_memory<uint8_t>(_length_max * _character_size);
+        _mem.alloc = alloc_memory<uint8_t>(_length_max * _character_size);
         _is_alloc = true;
 
         dest = _mem.alloc;
@@ -248,7 +248,7 @@ vm_string_t::vm_string_t(const vm_string_t &s1, const vm_string_t &s2)
     , _length_max{ compute_max_length(s1._length + s2._length) }
     , _mem{}
 {
-    _mem.alloc = calloc_memory<uint8_t>(_length_max * _character_size);
+    _mem.alloc = alloc_memory<uint8_t>(_length_max * _character_size);
 
     const auto s1_data = (s1._is_alloc) ? s1._mem.alloc : s1._mem.local;
     const auto s2_data = (s2._is_alloc) ? s2._mem.alloc : s2._mem.local;
@@ -290,7 +290,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     if (_is_alloc)
     {
         src = other._mem.alloc;
-        _mem.alloc = calloc_memory<uint8_t>(_length_max);
+        _mem.alloc = alloc_memory<uint8_t>(_length_max);
         dest = _mem.alloc;
     }
 
@@ -358,9 +358,9 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
 
     // Check if this string and the supplied string have the same character size.
     if (new_is_rune)
-        new_source = calloc_memory<uint8_t>(new_length_max * sizeof(rune_t));
+        new_source = alloc_memory<uint8_t>(new_length_max * sizeof(rune_t));
     else
-        new_source = calloc_memory<uint8_t>(new_length_max);
+        new_source = alloc_memory<uint8_t>(new_length_max);
 
     // Combine the two string sources
     combine(
@@ -449,7 +449,7 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         assert(_character_size == sizeof(rune_t));
 
         _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
-        auto new_alloc = calloc_memory<rune_t>(_length_max * _character_size);
+        auto new_alloc = alloc_memory<rune_t>(_length_max * _character_size);
 
         // Copy source into the new alloc.
         copy_characters_to(new_alloc, 0, source, _length);
@@ -467,7 +467,7 @@ void vm_string_t::set_rune(word_t index, rune_t value)
     else if (static_cast<word_t>(_length_max) <= index) // Check if string can accomodate the new character.
     {
         _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
-        auto new_alloc = calloc_memory<uint8_t>(_length_max * _character_size);
+        auto new_alloc = alloc_memory<uint8_t>(_length_max * _character_size);
         std::memcpy(new_alloc, source, _length * _character_size);
 
         // Free memory, if allocated

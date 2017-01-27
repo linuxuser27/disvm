@@ -294,6 +294,16 @@ namespace
         vt_ref<PrimitiveType>(r.dest) = vt_ref<PrimitiveType>(r.mid) / denom;
     }
 
+    // [SPEC] The C++ defines division by 0 as undefined, however the IEEE standard does
+    // define the behavior. Therefore the behavior is platform dependent and controlled
+    // by the built-in Math module.
+    template<>
+    void _div<real_t>(vm_registers_t &r)
+    {
+        const auto denom = vt_ref<real_t>(r.src);
+        vt_ref<real_t>(r.dest) = vt_ref<real_t>(r.mid) / denom;
+    }
+
     EXEC_DECL(divb) { _div<byte_t>(r); }
     EXEC_DECL(divw) { _div<word_t>(r); }
     EXEC_DECL(divf) { _div<real_t>(r); }
@@ -1318,7 +1328,7 @@ namespace
 
     namespace
     {
-        void new_instance(vm_registers_t &r, const vm_t &vm, const bool zero_memory)
+        void new_instance(vm_registers_t &r, const vm_t &vm)
         {
             const auto type_id = vt_ref<word_t>(r.src);
             const auto &types = r.module_ref->type_section;
@@ -1327,7 +1337,7 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             auto type_desc = types[type_id];
-            auto new_alloc = !zero_memory ? vm_alloc_t::allocate(type_desc) : vm_alloc_t::allocate(type_desc, vm_alloc_t::zero_memory);
+            auto new_alloc = vm_alloc_t::allocate(type_desc);
 
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_alloc);
@@ -1338,12 +1348,14 @@ namespace
 
     EXEC_DECL(new_)
     {
-        new_instance(r, vm, false /* zero memory */);
+        new_instance(r, vm);
     }
 
     EXEC_DECL(newz)
     {
-        new_instance(r, vm, true /* zero memory */);
+        // See allocation implementation for guarantee about
+        // always using zeroed memory.
+        new_instance(r, vm);
     }
 
     EXEC_DECL(mnewz)
@@ -1359,7 +1371,7 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto type_desc = types[type_id];
-        auto new_alloc = vm_alloc_t::allocate(type_desc, vm_alloc_t::zero_memory);
+        auto new_alloc = vm_alloc_t::allocate(type_desc);
 
         if (type_desc->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_alloc);
@@ -1369,7 +1381,7 @@ namespace
 
     namespace
     {
-        void new_array(vm_registers_t &r, const vm_t &vm, const bool zero_memory)
+        void new_array(vm_registers_t &r, const vm_t &vm)
         {
             assert(r.module_ref != nullptr);
             const auto &types = r.module_ref->type_section;
@@ -1381,7 +1393,7 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             const auto array_size = vt_ref<word_t>(r.src);
-            auto new_array = !zero_memory ? new vm_array_t(type_desc, array_size) : new vm_array_t(type_desc, array_size, vm_alloc_t::zero_memory);
+            auto new_array = new vm_array_t(type_desc, array_size);
 
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_array);
@@ -1392,12 +1404,14 @@ namespace
 
     EXEC_DECL(newa)
     {
-        new_array(r, vm, false /* zero memory */);
+        new_array(r, vm);
     }
 
     EXEC_DECL(newaz)
     {
-        new_array(r, vm, true /* zero memory */);
+        // See allocation implementation for guarantee about
+        // always using zeroed memory.
+        new_array(r, vm);
     }
 
     EXEC_DECL(tcmp)

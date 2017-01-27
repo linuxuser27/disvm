@@ -91,7 +91,7 @@ namespace disvm
         {
 #ifndef NDEBUG
             assert(t != nullptr);
-            *t = reinterpret_cast<T *>(0xbada110c);
+            assign_debug_memory(t, sizeof(t));
 #endif
         }
     }

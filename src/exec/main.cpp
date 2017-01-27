@@ -91,7 +91,7 @@ namespace
 
         // Initialize the module base register
         const auto mp_type = type_descriptor_t::create(8, { 0xc0 });
-        e.original_mp.reset(vm_alloc_t::allocate(mp_type, vm_alloc_t::zero_memory));
+        e.original_mp.reset(vm_alloc_t::allocate(mp_type));
         auto mp_base = e.original_mp->get_allocation<pointer_t>();
 
         // Take a reference on the command module path and store it on the entry frame
