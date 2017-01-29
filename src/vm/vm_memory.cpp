@@ -20,92 +20,8 @@
 using namespace disvm;
 using namespace disvm::runtime;
 
-namespace
-{
-    std::mutex global_lock;
-    std::condition_variable release_lock;
-
-    enum class lock_state_t
-    {
-        none,
-        pending,
-        active
-    };
-
-    std::atomic<uint32_t> allocating_thread_count;
-    std::atomic<lock_state_t> lock_state;
-
-    struct safe_alloc final
-    {
-        safe_alloc()
-        {
-            allocating_thread_count++;
-            if (lock_state != lock_state_t::none)
-            {
-                allocating_thread_count--;
-
-                std::unique_lock<std::mutex> lock{ global_lock };
-                release_lock.wait(lock, [&]{ return lock_state == lock_state_t::none; });
-
-                allocating_thread_count++;
-            }
-        }
-
-        ~safe_alloc()
-        {
-            assert(allocating_thread_count > 0);
-            allocating_thread_count--;
-        }
-    };
-}
-
-global_alloc_lock_t::global_alloc_lock_t(bool owner)
-    : _owner{ owner }
-{ }
-
-global_alloc_lock_t::global_alloc_lock_t(global_alloc_lock_t &&other)
-    : _owner{ other._owner }
-{
-    other._owner = false;
-}
-
-global_alloc_lock_t::~global_alloc_lock_t()
-{
-    if (_owner)
-    {
-        lock_state = lock_state_t::none;
-        release_lock.notify_all();
-    }
-}
-
-// Lock all allocations on the VM heap.
-global_alloc_lock_t disvm::runtime::get_global_alloc_lock()
-{
-    auto expected = lock_state_t::none;
-
-    // Block while trying to get lock
-    while (!lock_state.compare_exchange_strong(expected, lock_state_t::pending))
-    {
-        expected = lock_state_t::none;
-        std::unique_lock<std::mutex> lock{ global_lock };
-        release_lock.wait(lock);
-    }
-
-    while (allocating_thread_count != 0)
-    {
-        // Spin-wait for all allocating threads to stop
-    }
-
-    // Transition to active lock state
-    lock_state = lock_state_t::active;
-
-    return{ true };
-}
-
 void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
 {
-    safe_alloc s;
-
     auto memory = std::calloc(amount_in_bytes, sizeof(byte_t));
     if (memory == nullptr)
         throw vm_system_exception{ "Out of memory" };
@@ -143,13 +59,13 @@ void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
 
 namespace
 {
-    void dec_ref_and_free_pointer_field(pointer_t pointer_field, std::size_t)
+    void dec_ref_and_free_pointer_field(pointer_t pointer_field)
     {
         assert(pointer_field != nullptr);
         dec_ref_count_and_free(vm_alloc_t::from_allocation(pointer_field));
     }
 
-    void add_ref_pointer_field(pointer_t pointer_field, std::size_t)
+    void add_ref_pointer_field(pointer_t pointer_field)
     {
         assert(pointer_field != nullptr);
         vm_alloc_t::from_allocation(pointer_field)->add_ref();
@@ -184,6 +100,89 @@ void disvm::runtime::dec_ref_count_and_free(vm_alloc_t *alloc)
         delete alloc;
 }
 
+void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback)
+{
+    assert(data != nullptr && callback != nullptr);
+    if (type_desc.size_in_bytes == 0)
+        return;
+
+    auto offset_accum = std::size_t{ 0 };
+    auto memory = reinterpret_cast<word_t *>(data);
+    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
+    {
+        const auto words8 = type_desc.pointer_map[i];
+        assert(sizeof(words8) == 1);
+        if (words8 == 0)
+            continue;
+
+        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+        // Enumerating the flags in reverse order so memory access is sequential.
+        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]));
+        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]));
+        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]));
+        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]));
+        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]));
+        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]));
+        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]));
+        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]));
+    }
+}
+
+void disvm::runtime::enum_pointer_fields_with_offset(const type_descriptor_t &type_desc, void *data, pointer_field_offset_callback_t callback)
+{
+    assert(data != nullptr && callback != nullptr);
+    if (type_desc.size_in_bytes == 0)
+        return;
+
+    auto offset_accum = std::size_t{ 0 };
+    auto memory = reinterpret_cast<word_t *>(data);
+    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
+    {
+        const auto words8 = type_desc.pointer_map[i];
+        assert(sizeof(words8) == 1);
+        if (words8 == 0)
+            continue;
+
+        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+        // Enumerating the flags in reverse order so memory access is sequential.
+        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), offset_accum);
+        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), offset_accum + (1 * sizeof(pointer_t)));
+        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), offset_accum + (2 * sizeof(pointer_t)));
+        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), offset_accum + (3 * sizeof(pointer_t)));
+        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), offset_accum + (4 * sizeof(pointer_t)));
+        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), offset_accum + (5 * sizeof(pointer_t)));
+        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), offset_accum + (6 * sizeof(pointer_t)));
+        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), offset_accum + (7 * sizeof(pointer_t)));
+    }
+}
+
+bool disvm::runtime::is_offset_pointer(const type_descriptor_t &type_desc, std::size_t offset)
+{
+    if (type_desc.size_in_bytes == 0)
+        return false;
+
+    assert(offset < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
+    const auto byte_offset = static_cast<word_t>(offset / 8);
+
+    if (byte_offset < type_desc.map_in_bytes)
+    {
+        const auto words8 = type_desc.pointer_map[byte_offset];
+        assert(sizeof(words8) == 1);
+        if (words8 != 0)
+        {
+            const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+            // Highest order bit is the first field
+            const auto bit_offset = 7 - (offset % 8);
+            return flags[bit_offset];
+        }
+    }
+
+    return false;
+}
+
 void *vm_alloc_t::operator new(std::size_t sz)
 {
     return alloc_memory(sz);
@@ -203,7 +202,9 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
     auto mem = alloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
     auto alloc = ::new(mem)vm_alloc_t{ td };
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
+
     return alloc;
 }
 

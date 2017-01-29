@@ -31,9 +31,10 @@ namespace disvm
             // Potentially logged from a VM extension.
             scheduler,
             garbage_collector,
+            duration,
 
             // Tracking purposes
-            last = garbage_collector
+            last = duration
         };
 
         // Trace component enable state.

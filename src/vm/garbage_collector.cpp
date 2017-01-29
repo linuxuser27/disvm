@@ -33,7 +33,7 @@ std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
         {
         }
 
-        bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &) override
+        bool collect(std::vector<std::shared_ptr<const vm_thread_t>>) override
         {
             return true;
         }
@@ -67,17 +67,17 @@ namespace
     const auto current_colours = std::array<gc_colour_t, 3>{ gc_colour_t::white, gc_colour_t::grey, gc_colour_t::black };
     const auto sweeper_colours = std::array<gc_colour_t, 3>{ gc_colour_t::grey, gc_colour_t::black, gc_colour_t::white };
 
-    gc_colour_t get_current_colour(const std::size_t epoch)
+    constexpr gc_colour_t get_current_colour(const std::size_t epoch)
     {
         return current_colours[epoch % current_colours.size()];
     }
 
-    gc_colour_t get_sweeper_colour(const std::size_t epoch)
+    constexpr gc_colour_t get_sweeper_colour(const std::size_t epoch)
     {
         return sweeper_colours[epoch % sweeper_colours.size()];
     }
 
-    gc_colour_t get_gc_colour(const vm_alloc_t *a)
+    constexpr gc_colour_t get_gc_colour(const vm_alloc_t *a)
     {
         return *reinterpret_cast<const gc_colour_t *>(&a->gc_reserved);
     }
@@ -118,16 +118,21 @@ namespace
     {
         std::queue<vm_alloc_t *> allocs;
 
-        auto add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
+        // Making this raw since it is a built-in type and has unlimited lifetime.
+        const auto string_type_raw = intrinsic_type_desc::type<vm_string_t>().get();
+        auto add_pointer_to_queue = std::function<void(pointer_t p)>{ [&allocs, string_type_raw, curr_colour](pointer_t p) -> void
         {
             auto a = vm_alloc_t::from_allocation(p);
-            allocs.push(a);
+
+            // Don't examine vm strings or allocations with the current colour
+            if (curr_colour != get_gc_colour(a) && a->alloc_type.get() != string_type_raw)
+                allocs.push(a);
         } };
 
         // Get roots from threads
-        for (const auto &t : threads)
+        for (auto &t : threads)
         {
-            const auto &r = t->get_registers();
+            auto &r = t->get_registers();
 
             // Current MP
             allocs.push(r.mp_base);
@@ -142,26 +147,14 @@ namespace
                     allocs.push(prev_mp);
                 }
 
-                if (frame->frame_type->map_in_bytes == 0)
-                    continue;
-
-                enum_pointer_fields(*frame->frame_type, frame->base(), add_pointer_to_queue);
+                if (frame->frame_type->map_in_bytes > 0)
+                    enum_pointer_fields(*frame->frame_type, frame->base(), add_pointer_to_queue);
             }
         }
 
         const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
         if (log_enabled)
-        {
             debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR, allocs.size());
-
-            // If logging is enabled update the callback with logging
-            add_pointer_to_queue = std::function<void(pointer_t p, std::size_t)>{ [&allocs](pointer_t p, std::size_t) -> void
-            {
-                auto a = vm_alloc_t::from_allocation(p);
-                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "    ref: %#" PRIxPTR, a);
-                allocs.push(a);
-            } };
-        }
 
         // Traverse the graph
         while (!allocs.empty())
@@ -179,41 +172,41 @@ namespace
         }
     }
 
-    void sweep(std::deque<vm_alloc_t *> &allocs, const gc_colour_t sweeper_colour)
+    void sweep(std::deque<vm_alloc_t *> &tracking_allocs, const gc_colour_t sweeper_colour)
     {
-        auto allocs_local = std::move(allocs);
+        auto allocs_local = std::move(tracking_allocs);
 
-        auto freed = uint32_t{ 0 };
+        const auto starting_size = allocs_local.size();
         for (auto a : allocs_local)
         {
             const auto colour = get_gc_colour(a);
             if (colour == sweeper_colour)
-            {
                 dec_ref_count_and_free(a);
-                freed++;
-                continue;
-            }
-
-            allocs.push_back(a);
+            else
+                tracking_allocs.push_back(a);
         }
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>())
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: sweep: %u", freed);
+            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: sweep: %u", starting_size - tracking_allocs.size());
     }
 }
 
-bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads)
+bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_thread_t>> threads)
 {
     // No need to lock the actual memory allocator since the contract
     // for this function call indicates all VM threads should be blocked.
     std::lock_guard<std::mutex> lock{ _tracking_allocs_lock };
 
-    if (threads.empty() || _tracking_allocs.empty())
+    if (_tracking_allocs.empty())
         return false;
 
-    const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
+    std::chrono::high_resolution_clock::time_point start;
+    const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::duration>();
     if (log_enabled)
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: begin: collect");
+    {
+        start = std::chrono::high_resolution_clock::now();
+        debug::log_msg(debug::component_trace_t::duration, debug::log_level_t::debug, "gc: begin: collect");
+    }
 
     const auto curr_colour = get_current_colour(_collection_epoch);
     mark(threads, curr_colour);
@@ -222,7 +215,10 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
     sweep(_tracking_allocs, sweeper_colour);
 
     if (log_enabled)
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: end: collect");
+    {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
+        debug::log_msg(debug::component_trace_t::duration, debug::log_level_t::debug, "gc: end: collect: %lld us", elapsed.count());
+    }
 
     ++_collection_epoch;
     return true;

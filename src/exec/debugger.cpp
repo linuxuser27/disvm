@@ -311,7 +311,7 @@ namespace
         {
             ss << alloc->alloc_type << " - alloc" << dbg_alloc;
 
-            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
+            enum_pointer_fields_with_offset(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
             {
                 ss << "\n";
                 std::fill_n(std::ostream_iterator<std::ostream::char_type>{ ss }, 4 * recurse_depth, ' ');
@@ -671,11 +671,15 @@ namespace
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        auto absolute_pc = false;
-        auto disassemble_length = int{ 4 };
-        if (a.size() > 1)
+        const auto &r = *cxt.current_register;
+        auto begin_pc = r.pc;
+
+        const auto default_disassemble_length = int{ 4 };
+        auto disassemble_length = default_disassemble_length;
+        for (auto i = std::size_t{ 1 }; i < a.size(); ++i)
         {
-            auto disassemble_length_maybe = a[1];
+            auto absolute_pc = false;
+            auto disassemble_length_maybe = a[i];
             if (disassemble_length_maybe[0] == '@')
             {
                 absolute_pc = true;
@@ -690,24 +694,22 @@ namespace
             {
                 throw debug_cmd_error_t{ "Invalid disassemble count format" };
             }
+
+            if (absolute_pc)
+            {
+                begin_pc = disassemble_length;
+                disassemble_length = default_disassemble_length;
+            }
         }
 
+        auto end_pc = begin_pc;
         auto &dbg = cxt.dbg;
-        const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
-        auto begin_pc = r.pc;
-        auto end_pc = begin_pc;
-        if (absolute_pc)
-        {
-            begin_pc = disassemble_length;
-            end_pc = disassemble_length;
-            disassemble_length = 0;
+        if (begin_pc < 0 || static_cast<int32_t>(code_section.size()) <= end_pc)
+            throw debug_cmd_error_t{ "Invalid absolute pc" };
 
-            if (begin_pc < 0 || static_cast<int32_t>(code_section.size()) <= end_pc)
-                throw debug_cmd_error_t{ "Invalid absolute pc" };
-        }
-        else if (disassemble_length < 0)
+        if (disassemble_length < 0)
         {
             const auto begin_maybe = begin_pc - (-disassemble_length);
             begin_pc = std::max(begin_maybe, 0);
@@ -970,7 +972,7 @@ namespace
 
         { "sw", "Stack walk for the current or supplied thread", "sw ([0-9]+|\\*)?", "sw, sw 34, sw *", cmd_stackwalk },
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
-        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (@?-?[0-9]+)?", "d, d -4, d 5, d @36", cmd_disassemble },
+        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (@?-?[0-9]+)? (-?[0-9]+)?", "d, d -4, d 5, d @36 3", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
 
         { "set" , "Set a debug option", "set [ _a-zA-Z0-9]*", "'set' for available options", set_value_cmd },

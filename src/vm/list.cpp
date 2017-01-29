@@ -28,15 +28,9 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
     set_tail(tail);
 
     // If the default list element storage is not enough, allocate more memory.
+    // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
     if (_is_alloc)
-    {
         _mem.alloc = static_cast<pointer_t>(alloc_memory(_element_type->size_in_bytes));
-        init_memory(*_element_type, _mem.alloc);
-    }
-    else
-    {
-        init_memory(*_element_type, &_mem.local);
-    }
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list");

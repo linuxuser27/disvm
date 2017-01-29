@@ -240,6 +240,7 @@ void print_help()
            "         t - Threads\n"
            "         T - Tool extensions\n"
            "         e - Exceptions\n"
+           "         d - Duration of actions\n"
            "         g - Garbage collector (noisy)\n"
            "         m - Memory allocations (noisy)\n"
            "    q - Suppress banner and configuration\n"
@@ -340,6 +341,8 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
             case 'g': debug::set_component_tracing(debug::component_trace_t::garbage_collector, true);
                 break;
             case 'm': debug::set_component_tracing(debug::component_trace_t::memory, true);
+                break;
+            case 'd': debug::set_component_tracing(debug::component_trace_t::duration, true);
                 break;
             }
         }

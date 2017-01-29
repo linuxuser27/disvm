@@ -371,7 +371,7 @@ void default_scheduler_t::perform_gc(bool is_gc_thread, std::unique_lock<std::mu
                 result.push_back(vm_thread);
         }
 
-        _vm.get_garbage_collector().collect(result);
+        _vm.get_garbage_collector().collect(std::move(result));
         _gc_complete = true;
         _gc_done_event.notify_all();
     }

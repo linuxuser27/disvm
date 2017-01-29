@@ -29,18 +29,7 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: %d", _length);
 
-    // Initialize the array
-    auto arr_local = _arr;
-    const auto array_len = _length;
-    const auto &element_type = *_element_type;
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: init: elements: %d", array_len);
-    for (word_t i = 0; i < array_len; ++i)
-    {
-        init_memory(element_type, arr_local);
-        arr_local += element_type.size_in_bytes;
-    }
-
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d", array_len);
+    // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
 }
 
 vm_array_t::vm_array_t(vm_array_t &original, word_t begin_index, word_t length)

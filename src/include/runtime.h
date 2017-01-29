@@ -104,7 +104,7 @@ namespace disvm
             static T *from_allocation(pointer_t allocation)
             {
                 auto alloc_inst = vm_alloc_t::from_allocation(allocation);
-                assert(alloc_inst == nullptr || alloc_inst->alloc_type == intrinsic_type_desc::type<T>());
+                assert(alloc_inst == nullptr || alloc_inst->alloc_type->is_equal(intrinsic_type_desc::type<T>().get()));
                 return static_cast<T *>(alloc_inst);
             }
 
@@ -875,7 +875,7 @@ namespace disvm
             // Called by the scheduler to inform the collector it should attempt to free resources.
             // All VM threads are guaranteed to be idle when called.
             // Returns true if the collection algorithm was run, otherwise false.
-            virtual bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads) = 0;
+            virtual bool collect(std::vector<std::shared_ptr<const vm_thread_t>> threads) = 0;
         };
 
         // Create a garbage collector that does nothing.

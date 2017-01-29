@@ -30,7 +30,7 @@ namespace disvm
 
             void enum_tracked_allocations(vm_alloc_callback_t callback) const override;
 
-            bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads) override;
+            bool collect(std::vector<std::shared_ptr<const vm_thread_t>> threads) override;
 
         private:
             vm_t &_vm;

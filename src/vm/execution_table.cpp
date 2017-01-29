@@ -206,8 +206,7 @@ namespace
         assert(len <= buffer.size());
 
         auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
-        auto prev = at_val<vm_alloc_t>(r.dest);
-        dec_ref_count_and_free(prev);
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         pt_ref(r.dest) = new_string->get_allocation();
     }
@@ -232,9 +231,7 @@ namespace
         assert(len <= buffer.size());
 
         auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
-
-        auto prev = at_val<vm_alloc_t>(r.dest);
-        dec_ref_count_and_free(prev);
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         pt_ref(r.dest) = new_string->get_allocation();
     }
@@ -259,9 +256,7 @@ namespace
         assert(len <= buffer.size());
 
         auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
-
-        auto prev = at_val<vm_alloc_t>(r.dest);
-        dec_ref_count_and_free(prev);
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         pt_ref(r.dest) = new_string->get_allocation();
     }
@@ -513,8 +508,6 @@ namespace
     void _mov_<vm_alloc_t>(pointer_t dest, pointer_t src, const type_descriptor_t *)
     {
         auto alloc_prev = at_val<vm_alloc_t>(dest);
-        dec_ref_count_and_free(alloc_prev);
-
         auto alloc = at_val<vm_alloc_t>(src);
         if (alloc != nullptr)
         {
@@ -525,6 +518,8 @@ namespace
         {
             pt_ref(dest) = nullptr;
         }
+
+        dec_ref_count_and_free(alloc_prev);
     }
 
     EXEC_DECL(movb) { _mov_<byte_t>(r.dest, r.src, nullptr); }
@@ -1729,8 +1724,7 @@ namespace
         auto exception_destination = reinterpret_cast<pointer_t>(frame_pointer + handler->exception_offset);
 
         // Destroy any data at this location.
-        auto current_value = at_val<vm_alloc_t>(exception_destination);
-        dec_ref_count_and_free(current_value);
+        dec_ref_count_and_free(at_val<vm_alloc_t>(exception_destination));
 
         // Set the exception destination.
         pt_ref(exception_destination) = e->get_allocation();
