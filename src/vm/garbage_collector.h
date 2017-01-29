@@ -26,6 +26,8 @@ namespace disvm
             ~default_garbage_collector_t();
 
         public: // vm_garbage_collector_t
+            vm_memory_allocator_t get_allocator() const override;
+
             void track_allocation(vm_alloc_t *alloc) override;
 
             void enum_tracked_allocations(vm_alloc_callback_t callback) const override;
