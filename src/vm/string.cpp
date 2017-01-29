@@ -301,23 +301,17 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
 
 vm_string_t::~vm_string_t()
 {
-    // Free memory and string buffer
-    if (_is_alloc)
-    {
-        if (static_cast<void *>(_mem.alloc) != static_cast<void *>(_encoded_str))
-            free_memory(_encoded_str);
+    // Determine if local or allocated memory
+    auto source = (_is_alloc) ? _mem.alloc : _mem.local;
+    if (static_cast<void *>(source) != static_cast<void *>(_encoded_str))
+        free_memory(_encoded_str);
 
-        free_memory(_mem.alloc);
-    }
-    else
-    {
-        if (static_cast<void *>(_mem.local) != static_cast<void *>(_encoded_str))
-            free_memory(_encoded_str);
-    }
+    if (_is_alloc)
+        free_memory(source);
 
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
 
-    debug::assign_debug_pointer(&_mem.alloc);
+    debug::assign_debug_pointer(&source);
     debug::assign_debug_pointer(&_encoded_str);
 }
 
@@ -341,14 +335,10 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
     const auto local_source = (_is_alloc) ? _mem.alloc : _mem.local;
 
     // Release the encoded string for this instance.
-    {
-        std::lock_guard<std::mutex> lock{ _encoded_str_lock };
-        if (_encoded_str != reinterpret_cast<char*>(local_source))
-        {
-            free_memory(_encoded_str);
-            _encoded_str = nullptr;
-        }
-    }
+    if (_encoded_str != reinterpret_cast<char*>(local_source))
+        free_memory(_encoded_str);
+
+    _encoded_str = nullptr;
 
     // Define the values for the appended string
     const auto new_length = local_length + other_length;
@@ -427,17 +417,12 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         throw index_out_of_range_memory{ 0, _length, index };
 
     // Determine if local or allocated memory
-    auto source = static_cast<uint8_t *>(_mem.local);
-    if (_is_alloc)
-    {
-        source = static_cast<uint8_t *>(_mem.alloc);
+    auto source = (_is_alloc) ? _mem.alloc : _mem.local;
 
-        // Since we are setting a rune, the string value should be freed.
-        if (_encoded_str != nullptr)
-            free_memory(_encoded_str);
-    }
+    // Release the encoded string for this instance.
+    if (_encoded_str != reinterpret_cast<char*>(source))
+        free_memory(_encoded_str);
 
-    // Reset the string so it can be regenerated.
     _encoded_str = nullptr;
 
     const auto new_character_size = (value > utf8::constants::max_codepoint_ascii) ? sizeof(rune_t) : sizeof(char);
@@ -513,6 +498,7 @@ const char *vm_string_t::str() const
         if (_character_size == sizeof(char))
         {
             _encoded_str = (_is_alloc) ? reinterpret_cast<char *>(_mem.alloc) : reinterpret_cast<char *>(_mem.local);
+            _encoded_str[_length] = '\0';
             return _encoded_str;
         }
 

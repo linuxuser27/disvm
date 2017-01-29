@@ -158,17 +158,20 @@ namespace
 
 void disvm::runtime::destroy_memory(const type_descriptor_t &type_desc, void *data)
 {
-    enum_pointer_fields(type_desc, data, dec_ref_and_free_pointer_field);
-
+    dec_ref_count_in_memory(type_desc, data);
     debug::assign_debug_memory(data, type_desc.size_in_bytes);
 }
 
 void disvm::runtime::inc_ref_count_in_memory(const type_descriptor_t &type_desc, void *data)
 {
-    if (data == nullptr)
-        return;
-
+    assert(data != nullptr);
     enum_pointer_fields(type_desc, data, add_ref_pointer_field);
+}
+
+void disvm::runtime::dec_ref_count_in_memory(const type_descriptor_t &type_desc, void *data)
+{
+    assert(data != nullptr);
+    enum_pointer_fields(type_desc, data, dec_ref_and_free_pointer_field);
 }
 
 void disvm::runtime::dec_ref_count_and_free(vm_alloc_t *alloc)
@@ -460,7 +463,7 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             pointer_map_local[i] = pointer_map[i];
     }
 
-    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer, "#" };
+    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer, "?" };
     return std::shared_ptr<type_descriptor_t>{ new_type, deleter };
 }
 

@@ -43,16 +43,14 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d", array_len);
 }
 
-vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t length)
+vm_array_t::vm_array_t(vm_array_t &original, word_t begin_index, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
-    , _element_type{ original->get_element_type() }
+    , _element_type{ original.get_element_type() }
     , _length{ length }
-    , _original{ original }
+    , _original{ &original }
 {
-    assert(_original != nullptr);
-    assert(0 <= begin_index && begin_index < _original->get_length());
-    assert(_length >= 0 && (_length + begin_index) <= _original->get_length());
+    assert(0 <= begin_index && (begin_index < _original->get_length() || (begin_index == _original->get_length() && length == 0)));
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d", begin_index, _length);
@@ -164,7 +162,6 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
     {
         // [PERF] There is a chance this copy is within the same array, therefore
         // a check could be made to not ref count memory that is going to be moved.
-        // The Inferno implementation of slicela handles this case (libinterp/xec.c).
         const auto &type_desc = *_element_type;
         auto source_array_element = source._arr;
         auto dest_array_element = dest_arr;
@@ -173,7 +170,7 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
             inc_ref_count_in_memory(type_desc, source_array_element);
             source_array_element += type_desc.size_in_bytes;
 
-            destroy_memory(type_desc, dest_array_element);
+            dec_ref_count_in_memory(type_desc, dest_array_element);
             dest_array_element += type_desc.size_in_bytes;
         }
     }

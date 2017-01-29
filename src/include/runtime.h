@@ -198,7 +198,7 @@ namespace disvm
 
         public:
             vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length);
-            vm_array_t(vm_array_t *original, word_t begin_index, word_t length);
+            vm_array_t(vm_array_t &original, word_t begin_index, word_t length);
             vm_array_t(const vm_string_t *s);
             ~vm_array_t();
 

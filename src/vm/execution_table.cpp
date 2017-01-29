@@ -548,8 +548,6 @@ namespace
         auto type = types[type_id];
 
         disvm::runtime::inc_ref_count_in_memory(*type, r.src);
-
-        // Decrement allocated pointers in the destination.
         destroy_memory(*type, r.dest);
 
         assert(r.src != nullptr && r.dest != nullptr);
@@ -863,7 +861,7 @@ namespace
             throw out_of_range_memory{};
         }
 
-        auto new_array = new vm_array_t(arr, begin_index, length);
+        auto new_array = new vm_array_t(*arr, begin_index, length);
 
         if (arr->alloc_type->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_array);

@@ -60,8 +60,11 @@ namespace disvm
         // Destroy supplied memory based on the type descriptor
         void destroy_memory(const type_descriptor_t &type_desc, void *data);
 
-        // Increment the ref count of all points in the supplied memory allocation
+        // Increment the ref count of all pointers in the supplied memory allocation
         void inc_ref_count_in_memory(const type_descriptor_t &type_desc, void *data);
+
+        // Decrement the ref count of all pointers in the supplied memory allocation
+        void dec_ref_count_in_memory(const type_descriptor_t &type_desc, void *data);
 
         // Decrement the ref count and if 0 free the allocation
         void dec_ref_count_and_free(vm_alloc_t *alloc);
@@ -81,20 +84,21 @@ namespace disvm
             for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
             {
                 const auto words8 = type_desc.pointer_map[i];
-                if (words8 != 0)
-                {
-                    const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+                assert(sizeof(words8) == 1);
+                if (words8 == 0)
+                    continue;
 
-                    // Enumerating the flags in reverse order so memory access is sequential.
-                    if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), offset_accum);
-                    if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), offset_accum + (1 * sizeof(pointer_t)));
-                    if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), offset_accum + (2 * sizeof(pointer_t)));
-                    if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), offset_accum + (3 * sizeof(pointer_t)));
-                    if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), offset_accum + (4 * sizeof(pointer_t)));
-                    if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), offset_accum + (5 * sizeof(pointer_t)));
-                    if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), offset_accum + (6 * sizeof(pointer_t)));
-                    if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), offset_accum + (7 * sizeof(pointer_t)));
-                }
+                const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+                // Enumerating the flags in reverse order so memory access is sequential.
+                if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), offset_accum);
+                if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), offset_accum + (1 * sizeof(pointer_t)));
+                if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), offset_accum + (2 * sizeof(pointer_t)));
+                if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), offset_accum + (3 * sizeof(pointer_t)));
+                if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), offset_accum + (4 * sizeof(pointer_t)));
+                if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), offset_accum + (5 * sizeof(pointer_t)));
+                if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), offset_accum + (6 * sizeof(pointer_t)));
+                if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), offset_accum + (7 * sizeof(pointer_t)));
             }
         }
 
@@ -112,6 +116,7 @@ namespace disvm
             if (byte_offset < type_desc.map_in_bytes)
             {
                 const auto words8 = type_desc.pointer_map[byte_offset];
+                assert(sizeof(words8) == 1);
                 if (words8 != 0)
                 {
                     const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
