@@ -53,6 +53,14 @@ namespace
 #undef CSI
     }
 
+    bool vm_debug_enabled = false;
+
+    template<typename T>
+    struct vm_dbg_type final
+    {
+        T t;
+    };
+
     struct debug_cmd_error_t : std::runtime_error
     {
         debug_cmd_error_t(const char *message)
@@ -183,6 +191,17 @@ namespace
         return register_string.str();
     }
 
+    std::ostream& operator<<(std::ostream &ss, const std::shared_ptr<const type_descriptor_t> &t)
+    {
+        ss << "size: " << t->size_in_bytes;
+
+#ifndef NDEBUG
+        ss << " n: " << t->debug_type_name;
+#endif
+
+        return ss;
+    }
+
     std::ostream& operator<<(std::ostream &ss, const vm_string_t *s)
     {
         auto escaped_string = std::stringstream{};
@@ -225,57 +244,72 @@ namespace
             }
         }
 
-        ss << escaped_string.str() << "    length: " << s->get_length() << "    string";
+        ss << escaped_string.str() << "    length: " << s->get_length() << " - string";
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_array_t *a)
     {
-        ss << "length: " << a->get_length() << "    array";
+        ss << "length: " << a->get_length()
+            << " - array of " << a->get_element_type();
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_list_t *l)
     {
-        ss << "length: " << l->get_length() << "    list";
+        ss << "length: " << l->get_length()
+            << " - list of " << l->get_element_type();
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_channel_t *c)
     {
-        ss << "buffer size: " << c->get_buffer_size() << "    channel";
+        ss << "buffer size: " << c->get_buffer_size()
+            << " - channel of" << c->get_data_type();
 
         return ss;
+    }
+
+    std::ostream& operator<<(std::ostream &ss, const vm_dbg_type<const vm_alloc_t *> &dbg_alloc)
+    {
+        if (!vm_debug_enabled)
+            return ss;
+
+        return ss
+            << " [[ref: " << dbg_alloc.t->get_ref_count()
+            << " addr: " << reinterpret_cast<const void *>(dbg_alloc.t)
+            << " gc_res: " << reinterpret_cast<const void *>(dbg_alloc.t->gc_reserved)
+            << "]]";
     }
 
     std::ostream& safe_alloc_print(std::ostream &ss, const vm_alloc_t *alloc, int recurse_depth)
     {
         if (alloc == nullptr)
+            return ss << "<nil>";
+
+        vm_dbg_type<const vm_alloc_t *> dbg_alloc{ alloc };
+        if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
         {
-            ss << "<nil>";
-        }
-        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
-        {
-            ss << vm_alloc_t::from_allocation<vm_string_t>(alloc->get_allocation());
+            ss << vm_alloc_t::from_allocation<vm_string_t>(alloc->get_allocation()) << dbg_alloc;
         }
         else if (alloc->alloc_type == intrinsic_type_desc::type<vm_array_t>())
         {
-            ss << vm_alloc_t::from_allocation<vm_array_t>(alloc->get_allocation());
+            ss << vm_alloc_t::from_allocation<vm_array_t>(alloc->get_allocation()) << dbg_alloc;
         }
         else if (alloc->alloc_type == intrinsic_type_desc::type<vm_list_t>())
         {
-            ss << vm_alloc_t::from_allocation<vm_list_t>(alloc->get_allocation());
+            ss << vm_alloc_t::from_allocation<vm_list_t>(alloc->get_allocation()) << dbg_alloc;
         }
         else if (alloc->alloc_type == intrinsic_type_desc::type<vm_channel_t>())
         {
-            ss << vm_alloc_t::from_allocation<vm_channel_t>(alloc->get_allocation());
+            ss << vm_alloc_t::from_allocation<vm_channel_t>(alloc->get_allocation()) << dbg_alloc;
         }
         else
         {
-            ss << "size: " << alloc->alloc_type->size_in_bytes << "    alloc";
+            ss << alloc->alloc_type << " - alloc" << dbg_alloc;
 
             enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
             {
@@ -867,7 +901,8 @@ namespace
     std::set<std::string> dbg_options =
     {
         { "bp-cmd" },
-        { "step-cmd" }
+        { "step-cmd" },
+        { "vm-dbg" }
     };
 
     void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &cxt)
@@ -893,19 +928,29 @@ namespace
         if (std::cend(dbg_options) == dbg_options.find(curr_option))
             throw debug_cmd_error_t{ "Invalid debug option" };
 
-        auto new_value = std::stringstream{};
+        auto ss_value = std::stringstream{};
 
         // Reconstitute the parsed debug arguments - in-case of space breaks.
         for (auto i = std::size_t{ 2 }; i < args.size(); ++i)
         {
-            new_value << args[i];
+            ss_value << args[i];
 
             // For the last parsed arg
             if (i + 1 < args.size())
-                new_value << " ";
+                ss_value << " ";
         }
 
-        cxt.dbg.set_option(curr_option, new_value.str());
+        auto new_value = ss_value.str();
+        if (std::strcmp(curr_option.c_str(), "vm-dbg") == 0)
+        {
+            vm_debug_enabled = !new_value.empty();
+            if (vm_debug_enabled)
+                new_value = "true";
+            else
+                new_value = "";
+        }
+
+        cxt.dbg.set_option(curr_option, new_value);
     }
 
     const dbg_cmd_t cmds[] =
