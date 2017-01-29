@@ -161,14 +161,25 @@ void
 Math_bits32real(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_bits32real>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto x = fp.b;
+    float t;
+    std::memcpy(&t, &x, sizeof(x));
+
+    *fp.ret = real_t{ t };
 }
 
 void
 Math_bits64real(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_bits64real>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto x = fp.b;
+    real_t t;
+    std::memcpy(&t, &x, sizeof(x));
+    static_assert(sizeof(t) == sizeof(x), "Real should be 64-bits");
+
+    *fp.ret = t;
 }
 
 void
@@ -252,7 +263,35 @@ void
 Math_export_real(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+
+    auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(values->get_element_type()->size_in_bytes == intrinsic_type_desc::type<real_t>()->size_in_bytes);
+    const auto values_len = values->get_length();
+
+    if (buffer->get_length() != (8 * values_len))
+        throw vm_user_exception{ "Invalid buffer size based on conversion" };
+
+    // Insert as big endian
+    for (int i = 0; i < values_len; ++i)
+    {
+        auto x = values->at<real_t>(i);
+        uint64_t t;
+        std::memcpy(&t, &x, sizeof(x));
+        static_assert(sizeof(t) == sizeof(x), "Real should be 64-bits");
+
+        auto base = reinterpret_cast<byte_t *>(buffer->at(i * sizeof(x)));
+        base[0] = static_cast<byte_t>(t >> 56);
+        base[1] = static_cast<byte_t>(t >> 48);
+        base[2] = static_cast<byte_t>(t >> 40);
+        base[3] = static_cast<byte_t>(t >> 32);
+        base[4] = static_cast<byte_t>(t >> 24);
+        base[5] = static_cast<byte_t>(t >> 16);
+        base[6] = static_cast<byte_t>(t >> 8);
+        base[7] = static_cast<byte_t>(t);
+    }
 }
 
 void
@@ -382,11 +421,11 @@ Math_import_real(vm_registers_t &r, vm_t &vm)
         for (int j = 1; j < 8; ++j)
             t = (t << 8) | buffer->at<byte_t>(j);
 
-        auto r = real_t{};
-        std::memcpy(&r, &t, sizeof(t));
-        static_assert(sizeof(t) == sizeof(r), "Real should be 64-bits");
+        real_t x;
+        std::memcpy(&x, &t, sizeof(t));
+        static_assert(sizeof(t) == sizeof(x), "Real should be 64-bits");
 
-        result->at<real_t>(i) = r;
+        result->at<real_t>(i) = x;
     }
 }
 
@@ -499,14 +538,25 @@ void
 Math_realbits32(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_realbits32>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto x = static_cast<float>(fp.x);
+    uint32_t t;
+    std::memcpy(&t, &x, sizeof(x));
+
+    *fp.ret = t;
 }
 
 void
 Math_realbits64(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_realbits64>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto x = fp.x;
+    uint64_t t;
+    std::memcpy(&t, &x, sizeof(x));
+    static_assert(sizeof(t) == sizeof(x), "Real should be 64-bits");
+
+    *fp.ret = t;
 }
 
 void
