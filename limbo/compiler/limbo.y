@@ -1,6 +1,5 @@
 %{
 include "limbo.m";
-include "draw.m";
 
 %}
 
@@ -1631,9 +1630,6 @@ tpoly	: ids Llabs
 
 %%
 
-include "ipints.m";
-include "crypt.m";
-
 sys:	Sys;
 	print, fprint, sprint: import sys;
 
@@ -1641,9 +1637,6 @@ bufio:	Bufio;
 	Iobuf: import bufio;
 
 str:		String;
-
-crypt:Crypt;
-	md5: import crypt;
 
 math:	Math;
 	import_real, export_real, isnan: import math;
@@ -1683,7 +1676,6 @@ init(nil: ref Draw->Context, argv: list of string)
 	s: string;
 
 	sys = load Sys Sys->PATH;
-	crypt = load Crypt Crypt->PATH;
 	math = load Math Math->PATH;
 	bufio = load Bufio Bufio->PATH;
 	if(bufio == nil){

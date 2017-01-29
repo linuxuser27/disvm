@@ -2,11 +2,10 @@ implement Limbo;
 
 #line	2	"limbo.y"
 include "limbo.m";
-include "draw.m";
 
 Limbo: module {
 
-	init:		fn(ctxt: ref Draw->Context, argv: list of string);
+	init:		fn(argv: list of string);
 
 	YYSTYPE: adt{
 		tok:	Tok;
@@ -176,9 +175,6 @@ YYMAXDEPTH: con 200;
 #line	1632	"limbo.y"
 
 
-include "ipints.m";
-include "crypt.m";
-
 sys:	Sys;
 	print, fprint, sprint: import sys;
 
@@ -186,9 +182,6 @@ bufio:	Bufio;
 	Iobuf: import bufio;
 
 str:		String;
-
-crypt:Crypt;
-	md5: import crypt;
 
 math:	Math;
 	import_real, export_real, isnan: import math;
@@ -223,12 +216,11 @@ include "stubs.b";
 include "com.b";
 include "optim.b";
 
-init(nil: ref Draw->Context, argv: list of string)
+init(argv: list of string)
 {
 	s: string;
 
 	sys = load Sys Sys->PATH;
-	crypt = load Crypt Crypt->PATH;
 	math = load Math Math->PATH;
 	bufio = load Bufio Bufio->PATH;
 	if(bufio == nil){
