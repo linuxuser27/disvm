@@ -22,6 +22,7 @@ namespace disvm
             // Prints the format and arguments to the supplied buffer.
             // Returns the number of bytes written.
             word_t printf_to_buffer(
+                disvm::vm_t &vm,
                 const vm_string_t &msg_fmt,
                 byte_t *msg_args,
                 pointer_t base,
@@ -31,6 +32,7 @@ namespace disvm
             // Prints the format and arguments to the supplied dynamic buffer.
             // Returns the number of bytes written.
             word_t printf_to_dynamic_buffer(
+                disvm::vm_t &vm,
                 const vm_string_t &msg_fmt,
                 byte_t *msg_args,
                 pointer_t base,
@@ -39,8 +41,8 @@ namespace disvm
             enum class cfs_flags_t
             {
                 none = 0,
-                atomic = 1,
-                ensure_create = 2,
+                atomic = 1 << 0,
+                ensure_create = 1 << 1,
             };
 
             DEFINE_ENUM_FLAG_OPERATORS(cfs_flags_t);
@@ -52,10 +54,10 @@ namespace disvm
             // The first three FD records are optimized for lock-less access.
             word_t create_fd_record(vm_alloc_t *fd_alloc);
 
+            // Returns null if the record does not exist.
             vm_alloc_t * fetch_fd_record(word_t fd);
 
             void drop_fd_record(word_t fd);
-
         }
     }
 }

@@ -32,6 +32,9 @@ namespace disvm
             // Unloads the tool associated with the supplied ID and returns the current tool count
             std::size_t unload_tool(std::size_t tool_id);
 
+            // Callback for a trap event.
+            void on_trap(vm_registers_t &r, vm_trap_flags_t f);
+
             // Callback on a breakpoint event.
             // Returns opcode that was replaced by breakpoint opcode.
             opcode_t on_breakpoint(vm_registers_t &r);
@@ -74,6 +77,7 @@ namespace disvm
 
             void suspend_all_threads() override;
             void resume_all_threads() override;
+            void set_thread_trap_flag(const vm_registers_t &, vm_trap_flags_t flag) override;
 
         private:
             std::tuple<opcode_t, cookie_t> get_original_opcode_and_cookie(const vm_registers_t &r);

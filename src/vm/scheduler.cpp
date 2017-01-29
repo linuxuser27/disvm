@@ -130,7 +130,7 @@ vm_scheduler_control_t &default_scheduler_t::get_controller() const
 const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread)
 {
     assert(thread != nullptr);
-    if (thread->get_state() != vm_thread_state_t::ready)
+    if (thread->get_registers().current_thread_state != vm_thread_state_t::ready)
         throw vm_system_exception{ "Scheduled thread in invalid state" };
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
@@ -284,7 +284,7 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
     // Check if the passed in thread should be enqueued
     if (prev_thread != nullptr)
     {
-        const auto current_state = prev_thread->vm_thread->get_state();
+        const auto current_state = prev_thread->vm_thread->get_registers().current_thread_state;
 
         // This system thread releases ownership of the vm thread after it has been enqueued
         std::lock_guard<std::mutex> vm_thread_ownership{ prev_thread->system_thread_ownership, std::adopt_lock };
@@ -367,11 +367,11 @@ void default_scheduler_t::perform_gc(bool is_gc_thread, std::unique_lock<std::mu
         for (auto &p : _all_vm_threads)
         {
             auto &vm_thread = p.second->vm_thread;
-            if (vm_thread->get_state() != vm_thread_state_t::broken)
+            if (vm_thread->get_registers().current_thread_state != vm_thread_state_t::broken)
                 result.push_back(vm_thread);
         }
 
-        _vm.get_garbage_collector().collect(result);
+        _vm.get_garbage_collector().collect(std::move(result));
         _gc_complete = true;
         _gc_done_event.notify_all();
     }
@@ -431,8 +431,6 @@ bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_
         throw vm_term_request{ err_msg };
     }
 
-    case vm_thread_state_t::release:
-    case vm_thread_state_t::running:
     default:
         assert(false && "Unexpected thread state");
         throw vm_system_exception{ "Unexpected thread state" };

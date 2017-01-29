@@ -91,7 +91,7 @@ namespace
 
         // Initialize the module base register
         const auto mp_type = type_descriptor_t::create(8, { 0xc0 });
-        e.original_mp.reset(vm_alloc_t::allocate(mp_type, vm_alloc_t::zero_memory));
+        e.original_mp.reset(vm_alloc_t::allocate(mp_type));
         auto mp_base = e.original_mp->get_allocation<pointer_t>();
 
         // Take a reference on the command module path and store it on the entry frame
@@ -195,14 +195,12 @@ struct exec_options
         , enabled_debugger{ false }
         , quiet_start{ false }
         , print_help{ false }
-        , sys_thread_count{ vm_t::default_system_thread_count }
-        , thread_quanta{ vm_t::default_thread_quanta }
+        , vm_config{}
     { }
 
     std::vector<char *> vm_args;
 
-    uint32_t sys_thread_count;
-    uint32_t thread_quanta;
+    vm_config_t vm_config;
 
     bool print_help;
     bool quiet_start;
@@ -220,7 +218,7 @@ void print_banner(const exec_options &options)
     std::cout
         << "\n----------------\n"
         << "Debugger enabled: " << std::boolalpha << options.enabled_debugger << "\n"
-        << "System thread usage: " << options.sys_thread_count << "\n";
+        << "System thread usage: " << options.vm_config.sys_thread_pool_size << "\n";
 
     if (options.enabled_debugger)
         std::cout << "\n" << options.debugger << "\n";
@@ -242,6 +240,7 @@ void print_help()
            "         t - Threads\n"
            "         T - Tool extensions\n"
            "         e - Exceptions\n"
+           "         d - Duration of actions\n"
            "         g - Garbage collector (noisy)\n"
            "         m - Memory allocations (noisy)\n"
            "    q - Suppress banner and configuration\n"
@@ -272,14 +271,6 @@ void log_callback(const debug::component_trace_t origin, const debug::log_level_
         ss << " <Possible truncation>\n";
 
     std::cout << ss.str();
-}
-
-void enable_logging(debug::component_trace_t c)
-{
-    debug::set_component_tracing(c, true);
-
-    // Constantly setting the callback
-    debug::set_logging_callback(log_callback);
 }
 
 void process_arg(char* arg, std::function<char *()> next, exec_options &options)
@@ -326,28 +317,32 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
             if (sys_threads <= 0 || 4 < sys_threads)
                 throw arg_exception_t{ "Invalid system thread value", sys_threads_str };
 
-            options.sys_thread_count = sys_threads;
+            options.vm_config.sys_thread_pool_size = sys_threads;
         }
         break;
 
     case 'l':
+        // Set the callback
+        debug::set_logging_callback(log_callback);
         for (auto i = std::size_t{ 2 }; i < arg_len; ++i)
         {
             switch (arg[i])
             {
-            case 's': enable_logging(debug::component_trace_t::scheduler);
+            case 's': debug::set_component_tracing(debug::component_trace_t::scheduler, true);
                 break;
-            case 'S': enable_logging(debug::component_trace_t::stack);
+            case 'S': debug::set_component_tracing(debug::component_trace_t::stack, true);
                 break;
-            case 't': enable_logging(debug::component_trace_t::thread);
+            case 't': debug::set_component_tracing(debug::component_trace_t::thread, true);
                 break;
-            case 'T': enable_logging(debug::component_trace_t::tool);
+            case 'T': debug::set_component_tracing(debug::component_trace_t::tool, true);
                 break;
-            case 'e': enable_logging(debug::component_trace_t::exception);
+            case 'e': debug::set_component_tracing(debug::component_trace_t::exception, true);
                 break;
-            case 'g': enable_logging(debug::component_trace_t::garbage_collector);
+            case 'g': debug::set_component_tracing(debug::component_trace_t::garbage_collector, true);
                 break;
-            case 'm': enable_logging(debug::component_trace_t::memory);
+            case 'm': debug::set_component_tracing(debug::component_trace_t::memory, true);
+                break;
+            case 'd': debug::set_component_tracing(debug::component_trace_t::duration, true);
                 break;
             }
         }
@@ -402,7 +397,7 @@ int main(int argc, char* argv[])
         return EXIT_SUCCESS;
     }
 
-    vm_t vm{ options.sys_thread_count, options.thread_quanta };
+    vm_t vm{ std::move(options.vm_config) };
 
     if (options.enabled_debugger)
         vm.load_tool(std::make_shared<debugger>(options.debugger));

@@ -64,9 +64,10 @@ namespace disvm
         // Reference into source code
         struct source_ref_t
         {
-            int32_t source_id;
+            int32_t begin_source_id;
             int32_t begin_line;
             int32_t begin_column;
+            int32_t end_source_id;
             int32_t end_line;
             int32_t end_column;
         };

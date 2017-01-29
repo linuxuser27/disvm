@@ -8,7 +8,7 @@
 #include <limits>
 #include <memory>
 #include <iostream>
-#include <fstream>
+#include <sstream>
 #include <array>
 #include <tuple>
 #include <disvm.h>
@@ -51,7 +51,7 @@ namespace
     // Read the next operand as defined in the Dis VM specification.
     std::tuple<bool, operand_t> read_next_operand(util::buffered_reader_t &reader)
     {
-        auto result = operand_t{ 0 };
+        operand_t result;
 
         // Converting stack allocation to buffer since max size of operand is a machine word
         byte_t buffer[sizeof(result)];
@@ -59,16 +59,16 @@ namespace
         if (!reader.get_next_bytes(1, buffer))
             return std::make_tuple(false, 0);
 
-        switch (buffer[0] & 0xc0)
+        result = buffer[0];
+        switch (result & 0xc0)
         {
         case 0x00:
             // 1 byte operand
-            result = buffer[0];
             break;
 
         case 0x40:
             // 1 byte operand - Preserve sign
-            result = buffer[0] | ~0x7f;
+            result |= ~0x7f;
             break;
 
         case 0x80:
@@ -77,12 +77,12 @@ namespace
                 return std::make_tuple(false, 0);
 
             // Preserve sign
-            if ((buffer[0] & 0x20) != 0)
-                buffer[0] |= ~0x3f;
+            if ((result & 0x20) != 0)
+                result |= ~0x3f;
             else
-                buffer[0] &= 0x3f;
+                result &= 0x3f;
 
-            result = (buffer[0] << 8);
+            result = (result << 8);
             result |= buffer[1];
             break;
 
@@ -92,12 +92,12 @@ namespace
                 return std::make_tuple(false, 0);
 
             // Preserve sign
-            if ((buffer[0] & 0x20) != 0)
-                buffer[0] |= ~0x3f;
+            if ((result & 0x20) != 0)
+                result |= ~0x3f;
             else
-                buffer[0] &= 0x3f;
+                result &= 0x3f;
 
-            result = (buffer[0] << 24);
+            result = (result << 24);
             result |= (buffer[1] << 16);
             result |= (buffer[2] << 8);
             result |= buffer[3];
@@ -362,10 +362,7 @@ namespace
         {
             auto vm_module_type = modobj.type_section[module_constants::vm_module_type_desc_number];
             if (vm_module_type->size_in_bytes != modobj.header.data_size) throw module_reader_exception{ "Invalid type desc for MP" };
-
-            // [SPEC] The Dis VM spec does not guarantee the MP segment (i.e. data segment) of the loaded
-            // module will be initialized to zero, but it is the C/C++ approach so defer to that.
-            modobj.original_mp.reset(vm_alloc_t::allocate(vm_module_type, vm_alloc_t::zero_memory));
+            modobj.original_mp.reset(vm_alloc_t::allocate(vm_module_type));
         }
 
         auto array_stack = std::array<byte_t *, module_constants::array_address_stack_size>{};
@@ -431,7 +428,7 @@ namespace
                 if (str_bytes != count)
                     throw module_reader_exception{ "Failed to read string data" };
 
-                auto new_string = new vm_string_t(str_buffer.size(), str_buffer.data());
+                auto new_string = new vm_string_t{ str_buffer.size(), str_buffer.data() };
                 *reinterpret_cast<pointer_t *>(data_dest) = new_string->get_allocation();
                 break;
             }
@@ -737,20 +734,6 @@ vm_module_t::~vm_module_t()
 
     if (original_mp != nullptr)
         original_mp->release();
-}
-
-std::unique_ptr<vm_module_t> disvm::read_module(const char *path)
-{
-    assert(path != nullptr);
-
-    auto module_file = std::ifstream{ path, std::ifstream::binary };
-    if (!module_file.is_open())
-    {
-        assert(false && "Failed to open module");
-        throw vm_user_exception{ "Failed to open module" };
-    }
-
-    return read_module(module_file);
 }
 
 std::unique_ptr<runtime::vm_module_t> disvm::read_module(std::istream &data)

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <memory>
 #include <algorithm>
+#include <sstream>
 #include <disvm.h>
 #include <debug.h>
 #include <runtime.h>
@@ -16,41 +17,109 @@
 #include "scheduler.h"
 #include "garbage_collector.h"
 #include "tool_dispatch.h"
+#include "module_resolver.h"
 
 using namespace disvm;
 using namespace disvm::runtime;
 
-const uint32_t vm_t::root_vm_thread_id = 0;
-const uint32_t vm_t::default_system_thread_count = 1;
-
-// The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
-const uint32_t vm_t::default_thread_quanta = 2048;
-
-vm_t::vm_t(
-    create_vm_interface_callback_t<runtime::vm_scheduler_t> create_scheduler,
-    create_vm_interface_callback_t<runtime::vm_garbage_collector_t> create_gc)
+namespace
 {
-    // Initialize built-in modules.
-    builtin::initialize_builtin_modules();
+    // Ideally this would be custom assembly based on the CPU,
+    // but since this is just for the setting of the last error
+    // message there is already a large cost associated with the
+    // fact an error occurred so this is okay.
+    struct inefficient_spin_lock_t final
+    {
+        inefficient_spin_lock_t(std::atomic_flag &is_lock)
+            : _lf{ is_lock }
+        {
+            while (!_lf.test_and_set())
+                ;
+        }
 
-    if (create_gc == nullptr)
-        _gc = std::make_unique<default_garbage_collector_t>(*this);
-    else
-        _gc = create_gc(*this);
+        ~inefficient_spin_lock_t()
+        {
+            _lf.clear();
+        }
 
-    if (create_scheduler == nullptr)
-        _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
-    else
-        _scheduler = create_scheduler(*this);
+    private:
+        std::atomic_flag &_lf;
+    };
 }
 
-vm_t::vm_t(uint32_t system_thread_count, uint32_t thread_quanta)
+void disvm::runtime::push_syscall_error_message(disvm::vm_t &vm, const char *msg) noexcept
+{
+    inefficient_spin_lock_t sl{ vm._last_syscall_error_message_lock };
+
+    assert(msg != nullptr);
+    auto bytes_to_copy = std::min(std::strlen(msg), vm._last_syscall_error_message.size() - 1);
+    std::memcpy(vm._last_syscall_error_message.data(), msg, bytes_to_copy);
+
+    // Ensure there is always a null
+    vm._last_syscall_error_message[bytes_to_copy] = '\0';
+}
+
+std::string disvm::runtime::pop_syscall_error_message(disvm::vm_t &vm)
+{
+    inefficient_spin_lock_t sl{ vm._last_syscall_error_message_lock };
+
+    std::string msg{ vm._last_syscall_error_message.data() };
+    vm._last_syscall_error_message[0] = '\0';
+    return msg;
+}
+
+const uint32_t vm_t::root_vm_thread_id = 0;
+
+// The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
+const uint32_t default_thread_quanta = 2048;
+const uint32_t default_system_thread_count = 1;
+
+vm_config_t::vm_config_t()
+    : create_gc{ nullptr }
+    , create_scheduler{ nullptr }
+    , sys_thread_pool_size{ default_system_thread_count }
+    , thread_quanta{ default_thread_quanta }
+{ }
+
+vm_config_t::vm_config_t(vm_config_t &&other)
+    : additional_resolvers{ std::move(other.additional_resolvers) }
+    , create_gc{ other.create_gc }
+    , create_scheduler{ other.create_scheduler }
+    , probing_paths{ std::move(other.probing_paths) }
+    , sys_thread_pool_size{ other.sys_thread_pool_size }
+    , thread_quanta{ other.thread_quanta }
+{ }
+
+vm_t::vm_t()
+    : _last_syscall_error_message{}
+    , _last_syscall_error_message_lock{ ATOMIC_FLAG_INIT }
 {
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();
 
     _gc = std::make_unique<default_garbage_collector_t>(*this);
-    _scheduler = std::make_unique<default_scheduler_t>(*this, system_thread_count, thread_quanta);
+    _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
+    _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this));
+}
+
+vm_t::vm_t(vm_config_t config)
+    : _last_syscall_error_message{}
+{
+    // Initialize built-in modules.
+    builtin::initialize_builtin_modules();
+
+    if (config.create_gc == nullptr)
+        _gc = std::make_unique<default_garbage_collector_t>(*this);
+    else
+        _gc = config.create_gc(*this);
+
+    if (config.create_scheduler == nullptr)
+        _scheduler = std::make_unique<default_scheduler_t>(*this, config.sys_thread_pool_size, config.thread_quanta);
+    else
+        _scheduler = config.create_scheduler(*this);
+
+    _module_resolvers = std::move(config.additional_resolvers);
+    _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this, std::move(config.probing_paths)));
 }
 
 vm_t::~vm_t()
@@ -74,7 +143,7 @@ vm_version_t vm_t::get_version() const
 
 namespace
 {
-    std::unique_ptr<runtime::vm_thread_t> _create_thread_safe(std::unique_ptr<runtime::vm_module_ref_t> &entry_module_ref)
+    std::unique_ptr<runtime::vm_thread_t> _create_thread_safe(std::unique_ptr<runtime::vm_module_ref_t> entry_module_ref)
     {
         auto thread = std::make_unique<vm_thread_t>(*entry_module_ref, disvm::vm_t::root_vm_thread_id);
 
@@ -92,7 +161,7 @@ const runtime::vm_thread_t& vm_t::exec(const char *path)
     auto entry_module = load_module(path);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(entry_module);
-    auto thread = _create_thread_safe(entry_module_ref);
+    auto thread = _create_thread_safe(std::move(entry_module_ref));
     return schedule_thread(std::move(thread));
 }
 
@@ -101,7 +170,7 @@ const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> ent
     assert(entry_module != nullptr);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(std::move(entry_module));
-    auto thread = _create_thread_safe(entry_module_ref);
+    auto thread = _create_thread_safe(std::move(entry_module_ref));
     return schedule_thread(std::move(thread));
 }
 
@@ -112,10 +181,62 @@ const runtime::vm_thread_t& vm_t::fork(
     runtime::vm_pc_t initial_pc)
 {
     if (initial_pc < 0 || static_cast<vm_pc_t>(module_ref.code_section.size()) <= initial_pc)
-        throw vm_system_exception{ "Invalid entry program counter" };
+        throw vm_user_exception{ "Invalid entry program counter" };
 
     auto thread = std::make_unique<vm_thread_t>(module_ref, parent_tid, initial_frame, initial_pc);
     return schedule_thread(std::move(thread));
+}
+
+namespace
+{
+    std::unique_ptr<vm_module_t> resolve_module_from_path(const char *path, const std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> &resolvers)
+    {
+        assert(!resolvers.empty());
+        std::unique_ptr<vm_module_t> resolved_module;
+
+        // Check if the path is for the Inferno OS.
+        const char *inferno_root_path = "/dis/";
+        if (std::strncmp(path, inferno_root_path, sizeof(inferno_root_path)) == 0)
+        {
+            if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
+                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: Inferno OS path detected - >>%s<<", path);
+
+            // Plus 1 for the next character. We know this will either be
+            // null or valid character since we searched for a string
+            // containing the character above.
+            const char *module_name = std::strrchr(path, '/') + 1;
+
+            if (*module_name != '\0')
+            {
+                for (auto &r : resolvers)
+                {
+                    // Since we are using a modified path, throwing an exception
+                    // isn't fair. We will catch all exceptions here and rely on
+                    // non-modified path resolution to trigger the actual failure.
+                    try
+                    {
+                        if (r->try_resolve_module(module_name, resolved_module))
+                            return resolved_module;
+                    }
+                    catch (...)
+                    {
+                        // No-op
+                    }
+                }
+            }
+        }
+
+        // Attempt to resolve the path
+        for (auto &r : resolvers)
+        {
+            if (r->try_resolve_module(path, resolved_module))
+                return resolved_module;
+        }
+
+        std::stringstream ss;
+        ss << "Failed to resolve path to module: " << path;
+        throw vm_module_exception{ ss.str().c_str() };
+    }
 }
 
 std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
@@ -139,12 +260,13 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
                 // If an entry exists but is null, the module was loaded before. Read the module again and return.
                 if (module == nullptr)
                 {
-                    module = std::shared_ptr<vm_module_t>{ std::move(read_module(path)) };
+                    module = std::shared_ptr<vm_module_t>{ std::move(resolve_module_from_path(path, _module_resolvers)) };
                     module->vm_id = iter->vm_id;
 
                     iter->module = module;
 
-                    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<", path);
+                    if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
+                        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<", path);
                 }
 
                 return module;
@@ -159,8 +281,8 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
         }
         else
         {
-            // Read in the module
-            new_module = std::move(read_module(path));
+            new_module = resolve_module_from_path(path, _module_resolvers);
+            assert(new_module != nullptr);
         }
 
         auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));

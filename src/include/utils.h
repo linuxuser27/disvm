@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <string>
 #include <cstring>
+#include <cassert>
 #include <vector>
 
 namespace disvm
@@ -36,34 +37,39 @@ namespace disvm
         }
 
         // split the string using the delimiters contained in the supplied string
-        inline std::vector<std::string> split(const std::string &str, const char *delims)
+        inline std::vector<std::string> split(const char *str, const char *delims)
         {
-            auto split_string = std::vector<std::string>{};
+            assert(str != nullptr);
 
-            auto curr = str.begin();
-            auto end = str.cend();
-            while (curr != end)
+            std::vector<std::string> parts;
+            auto begin = str;
+            while (*str != '\0')
             {
-                auto curr_begin = curr;
+                auto curr = str++;
+                // Check for any delimiter
+                if (nullptr != std::strchr(delims, *curr))
+                {
+                    if (begin != curr)
+                        parts.push_back({ begin, curr });
 
-                while (curr != end && (nullptr == std::strchr(delims, *curr)))
-                    ++curr;
-
-                if (curr_begin != curr)
-                    split_string.push_back(std::move(std::string{ curr_begin, curr }));
-
-                if (curr == end)
-                    break;
-
-                ++curr;
+                    begin = str;
+                }
             }
 
-            return split_string;
+            if (begin != str)
+                parts.push_back({ begin, str });
+
+            return parts;
+        }
+
+        inline std::vector<std::string> split(const std::string &str, const char *delims)
+        {
+            return split(str.c_str(), delims);
         }
 
         inline std::vector<std::string> split(const std::string &str)
         {
-            return split(str, " ");
+            return split(str.c_str(), " ");
         }
     }
 }

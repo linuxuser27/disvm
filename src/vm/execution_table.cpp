@@ -79,7 +79,7 @@ namespace
         vt_ref<big_t>(r.dest) = vt_ref<big_t>(r.mid) >> vt_ref<big_t>(r.src);
         // Right shifting a negative number is implementation dependent in C++.
         // Assert the current compiler defaults to arithmetic shifting, not logical.
-        assert(vt_ref<word_t>(r.mid) >= 0 || (vt_ref<word_t>(r.mid) < 0 && vt_ref<word_t>(r.dest) < 0));
+        assert(vt_ref<big_t>(r.mid) >= 0 || (vt_ref<big_t>(r.mid) < 0 && vt_ref<big_t>(r.dest) < 0));
     }
 
     EXEC_DECL(lsrw) { vt_ref<word_t>(r.dest) = vt_ref<uword_t>(r.mid) >> vt_ref<word_t>(r.src); }
@@ -179,7 +179,7 @@ namespace
             if (arr->get_element_type() != intrinsic_type_desc::type<byte_t>())
                 throw vm_user_exception{ "Invalid array element type for string conversion" };
 
-            auto new_string = new vm_string_t(arr->get_length(), reinterpret_cast<uint8_t *>(arr->at(0)));
+            auto new_string = new vm_string_t{ static_cast<std::size_t>(arr->get_length()), reinterpret_cast<uint8_t *>(arr->at(0)) };
             str = new_string->get_allocation();
         }
 
@@ -202,12 +202,11 @@ namespace
         auto buffer = std::array<char, sizeof("-2147483648")>{};
 
         const auto w = vt_ref<word_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%d", w);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%d", w));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
-        auto str = at_val<vm_string_t>(r.dest);
-        dec_ref_count_and_free(str);
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         pt_ref(r.dest) = new_string->get_allocation();
     }
@@ -228,14 +227,13 @@ namespace
         auto buffer = std::array<char, sizeof("-2.2250738585072014e-308")>{};
 
         const auto real = vt_ref<real_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%g", real);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%g", real));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
-        auto str = at_val<vm_string_t>(r.dest);
         pt_ref(r.dest) = new_string->get_allocation();
-        dec_ref_count_and_free(str);
     }
 
     EXEC_DECL(cvtcl)
@@ -254,14 +252,13 @@ namespace
         auto buffer = std::array<char, sizeof("-9223372036854775808")>{};
 
         const auto b = vt_ref<big_t>(r.src);
-        const auto len = std::sprintf(buffer.data(), "%lld", b);
-        assert(static_cast<std::size_t>(len) <= buffer.size());
+        const auto len = static_cast<std::size_t>(std::sprintf(buffer.data(), "%lld", b));
+        assert(len <= buffer.size());
 
-        auto new_string = new vm_string_t(len, reinterpret_cast<uint8_t *>(buffer.data()));
+        auto new_string = new vm_string_t{ len, reinterpret_cast<uint8_t *>(buffer.data()) };
+        dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
-        auto str = at_val<vm_string_t>(r.dest);
         pt_ref(r.dest) = new_string->get_allocation();
-        dec_ref_count_and_free(str);
     }
 
     //
@@ -290,6 +287,16 @@ namespace
             throw divide_by_zero{};
 
         vt_ref<PrimitiveType>(r.dest) = vt_ref<PrimitiveType>(r.mid) / denom;
+    }
+
+    // [SPEC] The C++ defines division by 0 as undefined, however the IEEE standard does
+    // define the behavior. Therefore the behavior is platform dependent and controlled
+    // by the built-in Math module.
+    template<>
+    void _div<real_t>(vm_registers_t &r)
+    {
+        const auto denom = vt_ref<real_t>(r.src);
+        vt_ref<real_t>(r.dest) = vt_ref<real_t>(r.mid) / denom;
     }
 
     EXEC_DECL(divb) { _div<byte_t>(r); }
@@ -501,8 +508,6 @@ namespace
     void _mov_<vm_alloc_t>(pointer_t dest, pointer_t src, const type_descriptor_t *)
     {
         auto alloc_prev = at_val<vm_alloc_t>(dest);
-        dec_ref_count_and_free(alloc_prev);
-
         auto alloc = at_val<vm_alloc_t>(src);
         if (alloc != nullptr)
         {
@@ -513,6 +518,8 @@ namespace
         {
             pt_ref(dest) = nullptr;
         }
+
+        dec_ref_count_and_free(alloc_prev);
     }
 
     EXEC_DECL(movb) { _mov_<byte_t>(r.dest, r.src, nullptr); }
@@ -536,8 +543,6 @@ namespace
         auto type = types[type_id];
 
         disvm::runtime::inc_ref_count_in_memory(*type, r.src);
-
-        // Decrement allocated pointers in the destination.
         destroy_memory(*type, r.dest);
 
         assert(r.src != nullptr && r.dest != nullptr);
@@ -548,33 +553,33 @@ namespace
     // Compare and Branch operations
     //
 
-    EXEC_DECL(bltb) { if (vt_ref<byte_t>(r.src) < vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtb) { if (vt_ref<byte_t>(r.src) > vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bleb) { if (vt_ref<byte_t>(r.src) <= vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgeb) { if (vt_ref<byte_t>(r.src) >= vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqb) { if (vt_ref<byte_t>(r.src) == vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bneb) { if (vt_ref<byte_t>(r.src) != vt_ref<byte_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltb) { if (vt_ref<byte_t>(r.src) < vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtb) { if (vt_ref<byte_t>(r.src) > vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bleb) { if (vt_ref<byte_t>(r.src) <= vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgeb) { if (vt_ref<byte_t>(r.src) >= vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqb) { if (vt_ref<byte_t>(r.src) == vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bneb) { if (vt_ref<byte_t>(r.src) != vt_ref<byte_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltw) { if (vt_ref<word_t>(r.src) < vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtw) { if (vt_ref<word_t>(r.src) > vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blew) { if (vt_ref<word_t>(r.src) <= vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgew) { if (vt_ref<word_t>(r.src) >= vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqw) { if (vt_ref<word_t>(r.src) == vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnew) { if (vt_ref<word_t>(r.src) != vt_ref<word_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltw) { if (vt_ref<word_t>(r.src) < vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtw) { if (vt_ref<word_t>(r.src) > vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blew) { if (vt_ref<word_t>(r.src) <= vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgew) { if (vt_ref<word_t>(r.src) >= vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqw) { if (vt_ref<word_t>(r.src) == vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnew) { if (vt_ref<word_t>(r.src) != vt_ref<word_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltf) { if (vt_ref<real_t>(r.src) < vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtf) { if (vt_ref<real_t>(r.src) > vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blef) { if (vt_ref<real_t>(r.src) <= vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgef) { if (vt_ref<real_t>(r.src) >= vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqf) { if (vt_ref<real_t>(r.src) == vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnef) { if (vt_ref<real_t>(r.src) != vt_ref<real_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltf) { if (vt_ref<real_t>(r.src) < vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtf) { if (vt_ref<real_t>(r.src) > vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blef) { if (vt_ref<real_t>(r.src) <= vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgef) { if (vt_ref<real_t>(r.src) >= vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqf) { if (vt_ref<real_t>(r.src) == vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnef) { if (vt_ref<real_t>(r.src) != vt_ref<real_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
-    EXEC_DECL(bltl) { if (vt_ref<big_t>(r.src) < vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtl) { if (vt_ref<big_t>(r.src) > vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blel) { if (vt_ref<big_t>(r.src) <= vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgel) { if (vt_ref<big_t>(r.src) >= vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beql) { if (vt_ref<big_t>(r.src) == vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnel) { if (vt_ref<big_t>(r.src) != vt_ref<big_t>(r.mid)) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltl) { if (vt_ref<big_t>(r.src) < vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtl) { if (vt_ref<big_t>(r.src) > vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blel) { if (vt_ref<big_t>(r.src) <= vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgel) { if (vt_ref<big_t>(r.src) >= vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beql) { if (vt_ref<big_t>(r.src) == vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnel) { if (vt_ref<big_t>(r.src) != vt_ref<big_t>(r.mid)) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     // Define case table constants
     // [SPEC]Table format is partially defined in Dis VM specification
@@ -621,7 +626,7 @@ namespace
         }
 
         assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
-        r.pc = static_cast<vm_pc_t>(target_pc);
+        r.next_pc = static_cast<vm_pc_t>(target_pc);
     }
 
     EXEC_DECL(casew) { _case<word_t>(r); }
@@ -675,19 +680,19 @@ namespace
         }
 
         assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
-        r.pc = target_pc;
+        r.next_pc = target_pc;
     }
 
     //
     // String operations
     //
 
-    EXEC_DECL(bltc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) < 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgtc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) > 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(blec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) <= 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bgec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) >= 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(beqc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) == 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
-    EXEC_DECL(bnec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) != 0) r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bltc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) < 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgtc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) > 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(blec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) <= 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bgec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) >= 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(beqc) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) == 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(bnec) { if (vm_string_t::compare(at_val<vm_string_t>(r.src), at_val<vm_string_t>(r.mid)) != 0) r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     EXEC_DECL(lenc)
     {
@@ -725,9 +730,9 @@ namespace
         auto index = vt_ref<word_t>(r.mid);
         auto str = at_val<vm_string_t>(r.dest);
         if (str == nullptr)
-            str = new vm_string_t();
+            str = new vm_string_t{};
         else if (str->get_ref_count() > 1)
-            str = new vm_string_t(*str, 0, str->get_length());
+            str = new vm_string_t{ *str, 0, str->get_length() };
 
         // Set the rune at the supplied index.
         str->set_rune(index, rune);
@@ -740,7 +745,8 @@ namespace
         }
     }
 
-    vm_string_t *_addc(vm_string_t *s1, const vm_string_t *s2, /* in out */ bool &append_to_s1)
+    // Returns a string instance only if it is new
+    vm_string_t *concat_string(vm_string_t *s1, const vm_string_t *s2, bool try_append_to_s1)
     {
         if (s1 == nullptr)
         {
@@ -750,19 +756,23 @@ namespace
             return new vm_string_t{ *s2, 0, s2->get_length() };
         }
 
-        // There are other references to this string so we will not alter it.
+        // If there are other references to the string, it is immutable.
         if (s1->get_ref_count() > 1)
-            append_to_s1 = false;
+            try_append_to_s1 = false;
 
         if (s2 == nullptr)
         {
-            if (append_to_s1)
-                return s1;
+            if (try_append_to_s1)
+                return nullptr;
 
-            return new vm_string_t(*s1, 0, s1->get_length());
+            return new vm_string_t{ *s1, 0, s1->get_length() };
         }
 
-        return (append_to_s1) ? &(s1->append(*s2)) : new vm_string_t(*s1, *s2);
+        if (!try_append_to_s1)
+            return new vm_string_t{ *s1, *s2 };
+
+        s1->append(*s2);
+        return nullptr;
     }
 
     // [SPEC] 'Concat strings' op code
@@ -775,20 +785,18 @@ namespace
     //   dst = src2 + src1
     EXEC_DECL(addc)
     {
+        const auto try_append_to_s1 = r.mid == r.dest;
         auto s1 = at_val<vm_string_t>(r.mid);
         const auto s2 = at_val<vm_string_t>(r.src);
-        auto dest_maybe = at_val<vm_string_t>(r.dest);
 
-        // If the source is the same as the destination and the
-        // destination is not null, append the string. This can 
-        // change during the concat process.
-        auto append_to_source = dest_maybe != nullptr && s1 == dest_maybe;
-        const auto str = _addc(s1, s2, append_to_source);
-
-        if (!append_to_source)
+        // If the source is the same as the destination, try to append the string during concatenation.
+        const auto new_str_maybe = concat_string(s1, s2, try_append_to_s1);
+        if (new_str_maybe != nullptr)
         {
-            pt_ref(r.dest) = str->get_allocation();
+            auto dest_maybe = at_val<vm_alloc_t>(r.dest);
             dec_ref_count_and_free(dest_maybe);
+
+            pt_ref(r.dest) = new_str_maybe->get_allocation();
         }
     }
 
@@ -800,7 +808,7 @@ namespace
 
         if (str != nullptr)
         {
-            auto new_string = new vm_string_t(*str, start, end);
+            auto new_string = new vm_string_t{ *str, start, end };
             pt_ref(r.dest) = new_string->get_allocation();
         }
         else if (start == 0 && end == 0)
@@ -848,7 +856,7 @@ namespace
             throw out_of_range_memory{};
         }
 
-        auto new_array = new vm_array_t(arr, begin_index, length);
+        auto new_array = new vm_array_t(*arr, begin_index, length);
 
         if (arr->alloc_type->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_array);
@@ -1313,7 +1321,7 @@ namespace
 
     namespace
     {
-        void new_instance(vm_registers_t &r, const vm_t &vm, const bool zero_memory)
+        void new_instance(vm_registers_t &r, const vm_t &vm)
         {
             const auto type_id = vt_ref<word_t>(r.src);
             const auto &types = r.module_ref->type_section;
@@ -1322,7 +1330,7 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             auto type_desc = types[type_id];
-            auto new_alloc = !zero_memory ? vm_alloc_t::allocate(type_desc) : vm_alloc_t::allocate(type_desc, vm_alloc_t::zero_memory);
+            auto new_alloc = vm_alloc_t::allocate(type_desc);
 
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_alloc);
@@ -1333,12 +1341,14 @@ namespace
 
     EXEC_DECL(new_)
     {
-        new_instance(r, vm, false /* zero memory */);
+        new_instance(r, vm);
     }
 
     EXEC_DECL(newz)
     {
-        new_instance(r, vm, true /* zero memory */);
+        // See allocation implementation for guarantee about
+        // always using zeroed memory.
+        new_instance(r, vm);
     }
 
     EXEC_DECL(mnewz)
@@ -1354,7 +1364,7 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto type_desc = types[type_id];
-        auto new_alloc = vm_alloc_t::allocate(type_desc, vm_alloc_t::zero_memory);
+        auto new_alloc = vm_alloc_t::allocate(type_desc);
 
         if (type_desc->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_alloc);
@@ -1364,7 +1374,7 @@ namespace
 
     namespace
     {
-        void new_array(vm_registers_t &r, const vm_t &vm, const bool zero_memory)
+        void new_array(vm_registers_t &r, const vm_t &vm)
         {
             assert(r.module_ref != nullptr);
             const auto &types = r.module_ref->type_section;
@@ -1376,7 +1386,7 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             const auto array_size = vt_ref<word_t>(r.src);
-            auto new_array = !zero_memory ? new vm_array_t(type_desc, array_size) : new vm_array_t(type_desc, array_size, vm_alloc_t::zero_memory);
+            auto new_array = new vm_array_t(type_desc, array_size);
 
             if (type_desc->map_in_bytes > 0)
                 vm.get_garbage_collector().track_allocation(new_array);
@@ -1387,12 +1397,14 @@ namespace
 
     EXEC_DECL(newa)
     {
-        new_array(r, vm, false /* zero memory */);
+        new_array(r, vm);
     }
 
     EXEC_DECL(newaz)
     {
-        new_array(r, vm, true /* zero memory */);
+        // See allocation implementation for guarantee about
+        // always using zeroed memory.
+        new_array(r, vm);
     }
 
     EXEC_DECL(tcmp)
@@ -1403,7 +1415,7 @@ namespace
         if (s == nullptr)
             return;
 
-        if (d == nullptr || s->alloc_type != d->alloc_type)
+        if (d == nullptr || !s->alloc_type->is_equal(d->alloc_type.get()))
             throw type_violation{};
     }
 
@@ -1454,7 +1466,7 @@ namespace
     {
         const auto current_top_frame = r.stack.peek_frame();
         assert(current_top_frame != nullptr);
-        r.pc = current_top_frame->prev_pc();
+        r.next_pc = current_top_frame->prev_pc();
 
         if (current_top_frame->prev_module_ref() != nullptr)
         {
@@ -1477,7 +1489,7 @@ namespace
     EXEC_DECL(call)
     {
         auto top_frame = r.stack.push_frame();
-        top_frame->prev_pc() = r.pc;
+        top_frame->prev_pc() = r.next_pc;
 
 #ifndef NDEBUG
         // Validate the stack state
@@ -1486,7 +1498,7 @@ namespace
         assert(top_frame->base() == frame_base_pointer);
 #endif
 
-        r.pc = vt_ref<vm_pc_t>(r.dest);
+        r.next_pc = vt_ref<vm_pc_t>(r.dest);
 
         debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
@@ -1514,7 +1526,7 @@ namespace
 #endif
 
         // Store current state
-        top_frame->prev_pc() = r.pc;
+        top_frame->prev_pc() = r.next_pc;
         top_frame->prev_module_ref() = r.module_ref;
 
         if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
@@ -1533,7 +1545,7 @@ namespace
         r.module_ref = target_module;
         r.module_ref->add_ref();
         r.mp_base = r.module_ref->mp_base;
-        r.pc = function_pc;
+        r.next_pc = function_pc;
 
         if (r.module_ref->is_builtin_module())
         {
@@ -1554,7 +1566,7 @@ namespace
         }
     }
 
-    EXEC_DECL(jmp) { r.pc = vt_ref<vm_pc_t>(r.dest); }
+    EXEC_DECL(jmp) { r.next_pc = vt_ref<vm_pc_t>(r.dest); }
 
     EXEC_DECL(goto_)
     {
@@ -1563,7 +1575,7 @@ namespace
         assert(r.dest != nullptr);
         const auto pc_table = reinterpret_cast<vm_pc_t *>(r.dest);
 
-        r.pc = pc_table[pc_index];
+        r.next_pc = pc_table[pc_index];
     }
 
     //
@@ -1659,6 +1671,7 @@ namespace
             // The remainder of the type is user-defined.
             auto content = e->get_allocation();
             exception_id = at_val<vm_string_t>(content);
+            assert(exception_id != nullptr);
 
             if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
                 debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<", exception_id->str());
@@ -1673,8 +1686,7 @@ namespace
         vm_frame_t *target_frame;
         vm_pc_t handler_pc;
 
-        // The faulting pc is minus one since the VM has already incremented the counter.
-        const auto faulting_pc = r.pc - 1;
+        const auto faulting_pc = r.pc;
 
         assert(r.module_ref != nullptr);
         std::tie(handler, target_frame, handler_pc) = find_exception_handler(r.stack, *r.module_ref, faulting_pc, *exception_id);
@@ -1712,13 +1724,12 @@ namespace
         auto exception_destination = reinterpret_cast<pointer_t>(frame_pointer + handler->exception_offset);
 
         // Destroy any data at this location.
-        auto current_value = at_val<vm_alloc_t>(exception_destination);
-        dec_ref_count_and_free(current_value);
+        dec_ref_count_and_free(at_val<vm_alloc_t>(exception_destination));
 
         // Set the exception destination.
         pt_ref(exception_destination) = e->get_allocation();
 
-        r.pc = handler_pc;
+        r.next_pc = handler_pc;
     }
 
     // [SPEC] Added to support debugger.
@@ -1773,7 +1784,6 @@ namespace
             catch (const vm_module_exception &e)
             {
                 debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<", e.what());
-                assert(false && "Failure reading module");
                 return;
             }
         }

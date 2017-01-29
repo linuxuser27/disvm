@@ -69,6 +69,8 @@ namespace disvm
             type_descriptor_t(const type_descriptor_t&) = delete;
             type_descriptor_t& operator=(const type_descriptor_t&) = delete;
 
+            bool is_equal(const type_descriptor_t *) const;
+
             const word_t size_in_bytes;
             const word_t map_in_bytes;
             const byte_t * const pointer_map;
@@ -87,21 +89,14 @@ namespace disvm
             static std::shared_ptr<const type_descriptor_t> type();
         };
 
-        // Type used to indicate allocated memory should be zeroed out.
-        struct zero_memory_t
-        { };
-
         // VM memory allocation
         class vm_alloc_t
         {
         public: // static
-            static const zero_memory_t zero_memory;
-
             static void *operator new(std::size_t sz);
             static void operator delete(void *ptr);
 
             static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td);
-            static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td, const zero_memory_t &);
             static vm_alloc_t *copy(const vm_alloc_t &other);
             static vm_alloc_t *from_allocation(pointer_t allocation);
 
@@ -109,7 +104,7 @@ namespace disvm
             static T *from_allocation(pointer_t allocation)
             {
                 auto alloc_inst = vm_alloc_t::from_allocation(allocation);
-                assert(alloc_inst == nullptr || alloc_inst->alloc_type == intrinsic_type_desc::type<T>());
+                assert(alloc_inst == nullptr || alloc_inst->alloc_type->is_equal(intrinsic_type_desc::type<T>().get()));
                 return static_cast<T *>(alloc_inst);
             }
 
@@ -203,8 +198,7 @@ namespace disvm
 
         public:
             vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length);
-            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&);
-            vm_array_t(vm_array_t *original, word_t begin_index, word_t length);
+            vm_array_t(vm_array_t &original, word_t begin_index, word_t length);
             vm_array_t(const vm_string_t *s);
             ~vm_array_t();
 
@@ -709,7 +703,7 @@ namespace disvm
             const vm_string_t &exception_id);
 
         // VM thread states
-        enum class vm_thread_state_t : uint16_t
+        enum class vm_thread_state_t : uint8_t
         {
             unknown = 0,
 
@@ -729,6 +723,13 @@ namespace disvm
             broken,   // thread crashed - the scheduler is free to terminate the entire VM if any thread enters this state.
         };
 
+        // VM trap flags
+        enum class vm_trap_flags_t : uint8_t
+        {
+            none = 0,
+            instruction = 1 << 0,
+        };
+
         // Forward declaration
         class vm_thread_t;
         class vm_tool_dispatch_t;
@@ -738,20 +739,22 @@ namespace disvm
         {
         public:
             vm_registers_t(
-                const vm_thread_t &thread,
+                vm_thread_t &thread,
                 vm_module_ref_t &entry);
             ~vm_registers_t();
 
-            const vm_thread_t &thread;
+            vm_thread_t &thread;
             std::atomic<vm_tool_dispatch_t *> tool_dispatch;
             vm_stack_t stack;  // Frame pointer access (FP)
-            vm_pc_t pc;  // Program counter (Index into module code section)
+            vm_pc_t pc;  // Current Program counter (Index into module code section)
+            vm_pc_t next_pc;  // Next Program counter
             vm_alloc_t *mp_base;  // Module data base pointer (MP)
             vm_module_ref_t *module_ref;  // Module reference
             vm_request_mutex_t request_mutex;
 
-            vm_thread_state_t current_thread_state;
             uint16_t current_thread_quanta;
+            vm_thread_state_t current_thread_state;
+            vm_trap_flags_t trap_flags;
 
             pointer_t src;
             pointer_t mid;
@@ -793,8 +796,6 @@ namespace disvm
             // thread is concurrently executing instructions associated with
             // this vm thread.
             void set_tool_dispatch(vm_tool_dispatch_t *dispatch);
-
-            vm_thread_state_t get_state() const;
 
             // This function will only return a non-null
             // value if this thread is in the broken state.
@@ -874,11 +875,24 @@ namespace disvm
             // Called by the scheduler to inform the collector it should attempt to free resources.
             // All VM threads are guaranteed to be idle when called.
             // Returns true if the collection algorithm was run, otherwise false.
-            virtual bool collect(std::vector<std::shared_ptr<const vm_thread_t>> &threads) = 0;
+            virtual bool collect(std::vector<std::shared_ptr<const vm_thread_t>> threads) = 0;
         };
 
         // Create a garbage collector that does nothing.
         std::unique_ptr<vm_garbage_collector_t> create_no_op_gc(vm_t &);
+
+        // VM module path resolver interface
+        class vm_module_resolver_t
+        {
+        public:
+            virtual ~vm_module_resolver_t() = 0;
+
+            // Try to resolve the supplied path to a module.
+            // Implementers of this interface should never explicitly throw
+            // an exception and instead return 'false'. Exception thrown
+            // indirectly by calling supplied DisVM functions are valid.
+            virtual bool try_resolve_module(const char *path, std::unique_ptr<vm_module_t> &new_module) = 0;
+        };
 
         // Forward declaration
         class vm_tool_controller_t;

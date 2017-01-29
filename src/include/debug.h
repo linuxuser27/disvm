@@ -31,9 +31,10 @@ namespace disvm
             // Potentially logged from a VM extension.
             scheduler,
             garbage_collector,
+            duration,
 
             // Tracking purposes
-            last = garbage_collector
+            last = duration
         };
 
         // Trace component enable state.
@@ -91,7 +92,7 @@ namespace disvm
         {
 #ifndef NDEBUG
             assert(t != nullptr);
-            *t = reinterpret_cast<T *>(0xbada110c);
+            assign_debug_memory(t, sizeof(t));
 #endif
         }
     }

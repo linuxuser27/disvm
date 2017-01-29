@@ -166,26 +166,26 @@ namespace
             return _fd_path;
         }
 
-        word_t read(const word_t buffer_size_in_bytes, void *buffer)
+        word_t read(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
         {
             if (_istream == nullptr)
                 throw vm_system_exception{ "File descriptor not open for read operation" };
 
             _istream->read(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
             if (_istream->bad())
-                throw vm_user_exception{ "Read operation error" };
+                throw vm_syscall_exception{ vm, "Read operation error" };
 
             return static_cast<word_t>(_istream->gcount());
         }
 
-        void write(const word_t buffer_size_in_bytes, void *buffer)
+        void write(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
         {
             if (_ostream == nullptr)
                 throw vm_system_exception{ "File descriptor not open for write operation" };
 
             _ostream->write(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
             if (_ostream->bad())
-                throw vm_user_exception{ "Write operation error" };
+                throw vm_syscall_exception{ vm, "Write operation error" };
         }
 
         big_t seek(const std::ios::seekdir start, const big_t offset)
@@ -208,6 +208,29 @@ namespace
     vm_fd_t *fd_stdin = nullptr;
     vm_fd_t *fd_stdout = nullptr;
     vm_fd_t *fd_stderr = nullptr;
+
+    word_t printf_to_fd(
+        disvm::vm_t &vm,
+        vm_fd_t &fd,
+        const disvm::runtime::vm_string_t &msg_fmt,
+        disvm::runtime::byte_t *msg_args,
+        disvm::runtime::pointer_t base)
+    {
+        auto static_buffer = std::array<char, 1024>{};
+        auto written = sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
+        if (written >= 0)
+        {
+            fd.write(vm, written, static_buffer.data());
+        }
+        else
+        {
+            auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
+            written = sys::printf_to_dynamic_buffer(vm, msg_fmt, msg_args, base, dynamic_buffer);
+            fd.write(vm, written, dynamic_buffer.data());
+        }
+
+        return written;
+    }
 
     std::ios::openmode convert_to_openmode(const word_t mode)
     {
@@ -422,6 +445,7 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
+    fd_alloc->add_ref();
 }
 
 void
@@ -470,7 +494,16 @@ void
 Sys_fildes(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fildes>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = nullptr;
+
+    auto fd = sys::fetch_fd_record(fp.fd);
+    if (fd != nullptr)
+    {
+        fd->add_ref();
+        *fp.ret = fd->get_allocation();
+    }
 }
 
 void
@@ -483,8 +516,16 @@ Sys_file2chan(vm_registers_t &r, vm_t &vm)
 void
 Sys_fprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_fprint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
+    assert(fd_alloc->alloc_type == T_FD);
+    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to FD" };
+
+    *fp.ret = printf_to_fd(vm, *fd, *str, &fp.vargs, fp_base);
 }
 
 void
@@ -573,6 +614,7 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
+    fd_alloc->add_ref();
 }
 
 void
@@ -602,25 +644,10 @@ Sys_print(vm_registers_t &r, vm_t &vm)
     auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_print>();
     auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
-
     if (str == nullptr)
         throw dereference_nil{ "Print string" };
 
-    auto static_buffer = std::array<char, 1024>{};
-    auto msg_args = &fp.vargs;
-    auto written = sys::printf_to_buffer(*str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
-    if (written >= 0)
-    {
-        fd_stdout->write(written, static_buffer.data());
-    }
-    else
-    {
-        auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = sys::printf_to_dynamic_buffer(*str, msg_args, fp_base, dynamic_buffer);
-        fd_stdout->write(written, dynamic_buffer.data());
-    }
-
-    *fp.ret = written;
+    *fp.ret = printf_to_fd(vm, *fd_stdout, *str, &fp.vargs, fp_base);
 }
 
 void
@@ -657,7 +684,7 @@ Sys_read(vm_registers_t &r, vm_t &vm)
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    *fp.ret = fd->read(n, buffer->at(0));
+    *fp.ret = fd->read(vm, n, buffer->at(0));
 }
 
 void
@@ -671,7 +698,13 @@ void
 Sys_remove(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_remove>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Remove path" };
+
+    // [PAL] There are a lot of implementation details with this function.
+    // Consider adding a PAL function to optimize per platform.
+    *fp.ret = std::remove(str->str());
 }
 
 void
@@ -706,8 +739,29 @@ Sys_sleep(vm_registers_t &r, vm_t &vm)
 void
 Sys_sprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_sprint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to string" };
+
+    vm_string_t *new_string;
+    auto static_buffer = std::array<char, 128>{};
+    auto msg_args = &fp.vargs;
+    auto written = sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
+    if (written >= 0)
+    {
+        new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(static_buffer.data()) };
+    }
+    else
+    {
+        auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
+        written = sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
+        new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
+    }
+
+    assert(new_string != nullptr);
+    *fp.ret = new_string->get_allocation();
 }
 
 void
@@ -729,19 +783,28 @@ namespace
     bool is_delim(const runtime::rune_t c, const vm_string_t &delim)
     {
         const auto max = delim.get_length();
-        assert(max > 0);
 
         // Optimization for 3 or less delimiters
         switch (max)
         {
         default:
             break;
-        case 1:
-            return (delim.get_rune(0) == c);
-        case 2:
-            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c);
         case 3:
-            return (delim.get_rune(0) == c) || (delim.get_rune(1) == c) || (delim.get_rune(2) == c);
+            if (delim.get_rune(2) != c)
+            {
+        case 2:
+                if (delim.get_rune(1) != c)
+                {
+        case 1:
+                    if (delim.get_rune(0) != c)
+                    {
+        case 0:
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         for (auto i = word_t{ 0 }; i < max; ++i)
@@ -900,7 +963,7 @@ Sys_write(vm_registers_t &r, vm_t &vm)
     assert(fd_alloc->alloc_type == T_FD);
 
     auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    fd->write(n, buffer->at(0));
+    fd->write(vm, n, buffer->at(0));
 
     *fp.ret = n;
 }

@@ -11,7 +11,7 @@
 #include <string>
 #include <algorithm>
 #include <map>
-#include <unordered_set>
+#include <set>
 #include <utils.h>
 #include <vm_memory.h>
 #include <vm_asm.h>
@@ -53,6 +53,14 @@ namespace
 #undef CSI
     }
 
+    bool vm_debug_enabled = false;
+
+    template<typename T>
+    struct vm_dbg_type final
+    {
+        T t;
+    };
+
     struct debug_cmd_error_t : std::runtime_error
     {
         debug_cmd_error_t(const char *message)
@@ -89,22 +97,36 @@ namespace
     // Debug command context
     struct dbg_cmd_cxt_t
     {
-        dbg_cmd_cxt_t(debugger &d, const vm_registers_t &r)
+        static std::string last_successful_cmd_option;
+
+        dbg_cmd_cxt_t(debugger &d, vm_registers_t &r, bool transient_context = false)
             : dbg{ d }
             , exit_break{ false }
+            , current_register{ &r }
             , initial_register{ r }
+            , transient_context{ transient_context }
             , vm{ d.controller->get_vm_instance() }
         {
-            current_register = &initial_register;
+            last_successful_cmd = dbg.get_option(last_successful_cmd_option);
         }
 
+        ~dbg_cmd_cxt_t()
+        {
+            if (!transient_context)
+                dbg.set_option(last_successful_cmd_option, std::move(last_successful_cmd));
+        }
+
+        const bool transient_context;
         bool exit_break;
+        std::string last_successful_cmd;
 
         debugger &dbg;
         const vm_t &vm;
         const vm_registers_t *current_register;
-        const vm_registers_t &initial_register;
+        vm_registers_t &initial_register;
     };
+
+    std::string dbg_cmd_cxt_t::last_successful_cmd_option = "last_successful_cmd";
 
     // Debug command exec operation
     using dbg_cmd_exec_t = void(*)(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt);
@@ -151,11 +173,33 @@ namespace
         auto register_string = std::stringstream{};
 
         register_string
-            << "  Thread ID:  " << r.thread.get_thread_id() << "\n"
-            << "         PC:  " << r.pc << "  Module:  " << r.module_ref->module->module_name->str() << "\n"
-            << "     Opcode:  " << r.module_ref->code_section[r.pc].op << "\n";
+            << "  Thread ID:  " << r.thread.get_thread_id()
+            << "\n     Module:  " << r.module_ref->module->module_name->str()
+            << "\n         PC:  " << r.pc;
 
+        if (!r.module_ref->is_builtin_module())
+        {
+            assert(static_cast<std::size_t>(r.pc) < r.module_ref->code_section.size());
+            const auto &op = r.module_ref->code_section[r.pc].op;
+            register_string
+                << "\n        Src:  " << op.source
+                << "\n        Mid:  " << op.middle
+                << "\n        Dst:  " << op.destination;
+        }
+
+        register_string << "\n";
         return register_string.str();
+    }
+
+    std::ostream& operator<<(std::ostream &ss, const std::shared_ptr<const type_descriptor_t> &t)
+    {
+        ss << "size: " << t->size_in_bytes;
+
+#ifndef NDEBUG
+        ss << " n: " << t->debug_type_name;
+#endif
+
+        return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_string_t *s)
@@ -200,65 +244,92 @@ namespace
             }
         }
 
-        ss << escaped_string.str() << "    length: " << s->get_length() << "    string";
+        ss << escaped_string.str() << "    length: " << s->get_length() << " - string";
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_array_t *a)
     {
-        ss << "length: " << a->get_length() << "    array";
+        ss << "length: " << a->get_length()
+            << " - array of " << a->get_element_type();
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_list_t *l)
     {
-        ss << "length: " << l->get_length() << "    list";
+        ss << "length: " << l->get_length()
+            << " - list of " << l->get_element_type();
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_channel_t *c)
     {
-        ss << "buffer size: " << c->get_buffer_size() << "    channel";
+        ss << "buffer size: " << c->get_buffer_size()
+            << " - channel of" << c->get_data_type();
+
+        return ss;
+    }
+
+    std::ostream& operator<<(std::ostream &ss, const vm_dbg_type<const vm_alloc_t *> &dbg_alloc)
+    {
+        if (!vm_debug_enabled)
+            return ss;
+
+        return ss
+            << " [[ref: " << dbg_alloc.t->get_ref_count()
+            << " addr: " << reinterpret_cast<const void *>(dbg_alloc.t)
+            << " gc_res: " << reinterpret_cast<const void *>(dbg_alloc.t->gc_reserved)
+            << "]]";
+    }
+
+    std::ostream& safe_alloc_print(std::ostream &ss, const vm_alloc_t *alloc, int recurse_depth)
+    {
+        if (alloc == nullptr)
+            return ss << "<nil>";
+
+        vm_dbg_type<const vm_alloc_t *> dbg_alloc{ alloc };
+        if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_string_t>(alloc->get_allocation()) << dbg_alloc;
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_array_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_array_t>(alloc->get_allocation()) << dbg_alloc;
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_list_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_list_t>(alloc->get_allocation()) << dbg_alloc;
+        }
+        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_channel_t>())
+        {
+            ss << vm_alloc_t::from_allocation<vm_channel_t>(alloc->get_allocation()) << dbg_alloc;
+        }
+        else
+        {
+            ss << alloc->alloc_type << " - alloc" << dbg_alloc;
+
+            enum_pointer_fields_with_offset(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
+            {
+                ss << "\n";
+                std::fill_n(std::ostream_iterator<std::ostream::char_type>{ ss }, 4 * recurse_depth, ' ');
+                ss << "[" << o << "]  ";
+
+                if (recurse_depth < 2)
+                    safe_alloc_print(ss, vm_alloc_t::from_allocation(p), recurse_depth + 1);
+                else
+                    ss << "...";
+            });
+        }
 
         return ss;
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_alloc_t *alloc)
     {
-        if (alloc == nullptr)
-        {
-            ss << "<nil>";
-        }
-        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_string_t>())
-        {
-            ss << vm_alloc_t::from_allocation<vm_string_t>(alloc->get_allocation());
-        }
-        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_array_t>())
-        {
-            ss << vm_alloc_t::from_allocation<vm_array_t>(alloc->get_allocation());
-        }
-        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_list_t>())
-        {
-            ss << vm_alloc_t::from_allocation<vm_list_t>(alloc->get_allocation());
-        }
-        else if (alloc->alloc_type == intrinsic_type_desc::type<vm_channel_t>())
-        {
-            ss << vm_alloc_t::from_allocation<vm_channel_t>(alloc->get_allocation());
-        }
-        else
-        {
-            ss << "size: " << alloc->alloc_type->size_in_bytes << "    alloc";
-
-            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss](pointer_t p, std::size_t o)
-            {
-                ss << "\n  [" << o << "]  " << vm_alloc_t::from_allocation(p);
-            });
-        }
-
-        return ss;
+        return safe_alloc_print(ss, alloc, 0);
     }
 
     std::ostream& operator<<(std::ostream &ss, const vm_thread_state_t s)
@@ -310,6 +381,12 @@ namespace
         cxt.exit_break = true;
     }
 
+    void cmd_step(const std::vector<std::string> &, dbg_cmd_cxt_t &cxt)
+    {
+        cxt.dbg.controller->set_thread_trap_flag(*cxt.current_register, vm_trap_flags_t::instruction);
+        cxt.exit_break = true;
+    }
+
     void cmd_term(const std::vector<std::string> &, dbg_cmd_cxt_t &)
     {
         throw vm_term_request{};
@@ -325,7 +402,7 @@ namespace
     {
         auto msg = std::stringstream{};
         for (auto t : cxt.vm.get_scheduler_control().get_all_threads())
-            msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_state() << "\n";
+            msg << "  " << std::setw(5) << t->get_thread_id() << "  -  " << t->get_registers().current_thread_state << "\n";
 
         debug_print_info(msg.str());
     }
@@ -379,7 +456,7 @@ namespace
 
         auto msg = std::stringstream{};
         auto module_funcs = cxt.dbg.get_module_functions(vm_id, name_to_match);
-        msg << "[PC range]      Function";
+        msg << " [PC range]      Function";
         for (auto &f : module_funcs)
             msg << "\n  " << f;
 
@@ -594,11 +671,15 @@ namespace
 
     void cmd_disassemble(const std::vector<std::string> &a, dbg_cmd_cxt_t &cxt)
     {
-        auto absolute_pc = false;
-        auto disassemble_length = int{ 4 };
-        if (a.size() > 1)
+        const auto &r = *cxt.current_register;
+        auto begin_pc = r.pc;
+
+        const auto default_disassemble_length = int{ 4 };
+        auto disassemble_length = default_disassemble_length;
+        for (auto i = std::size_t{ 1 }; i < a.size(); ++i)
         {
-            auto disassemble_length_maybe = a[1];
+            auto absolute_pc = false;
+            auto disassemble_length_maybe = a[i];
             if (disassemble_length_maybe[0] == '@')
             {
                 absolute_pc = true;
@@ -613,25 +694,22 @@ namespace
             {
                 throw debug_cmd_error_t{ "Invalid disassemble count format" };
             }
+
+            if (absolute_pc)
+            {
+                begin_pc = disassemble_length;
+                disassemble_length = default_disassemble_length;
+            }
         }
 
+        auto end_pc = begin_pc;
         auto &dbg = cxt.dbg;
-        const auto &r = *cxt.current_register;
         const auto &code_section = r.module_ref->code_section;
 
-        // The current PC is actually the next PC to execute.
-        auto begin_pc = r.pc == 0 ? r.pc : r.pc - 1;
-        auto end_pc = begin_pc;
-        if (absolute_pc)
-        {
-            begin_pc = disassemble_length;
-            end_pc = disassemble_length;
-            disassemble_length = 0;
+        if (begin_pc < 0 || static_cast<int32_t>(code_section.size()) <= end_pc)
+            throw debug_cmd_error_t{ "Invalid absolute pc" };
 
-            if (begin_pc < 0 || static_cast<int32_t>(code_section.size()) <= end_pc)
-                throw debug_cmd_error_t{ "Invalid absolute pc" };
-        }
-        else if (disassemble_length < 0)
+        if (disassemble_length < 0)
         {
             const auto begin_maybe = begin_pc - (-disassemble_length);
             begin_pc = std::max(begin_maybe, 0);
@@ -650,7 +728,7 @@ namespace
         {
             auto op = code_section[curr_pc].op;
 
-            auto op_prefix = "  ";
+            auto op_prefix = "   ";
 
             // If the opcode is a breakpoint then try and replace it with the real opcode
             if (op.opcode == opcode_t::brkpt)
@@ -662,7 +740,7 @@ namespace
                     if (details.pc == curr_pc && details.module == r.module_ref->module)
                     {
                         op.opcode = details.original_opcode;
-                        op_prefix = " b";
+                        op_prefix = " b ";
                         break;
                     }
                 }
@@ -822,9 +900,11 @@ namespace
             << console_modifiers::reset_all;
     }
 
-    std::unordered_set<std::string> dbg_options =
+    std::set<std::string> dbg_options =
     {
-        { "bp-cmd" }
+        { "bp-cmd" },
+        { "step-cmd" },
+        { "vm-dbg" }
     };
 
     void set_value_cmd(const std::vector<std::string> &args, dbg_cmd_cxt_t &cxt)
@@ -850,24 +930,35 @@ namespace
         if (std::cend(dbg_options) == dbg_options.find(curr_option))
             throw debug_cmd_error_t{ "Invalid debug option" };
 
-        auto new_value = std::stringstream{};
+        auto ss_value = std::stringstream{};
 
         // Reconstitute the parsed debug arguments - in-case of space breaks.
         for (auto i = std::size_t{ 2 }; i < args.size(); ++i)
         {
-            new_value << args[i];
+            ss_value << args[i];
 
             // For the last parsed arg
             if (i + 1 < args.size())
-                new_value << " ";
+                ss_value << " ";
         }
 
-        cxt.dbg.set_option(curr_option, new_value.str());
+        auto new_value = ss_value.str();
+        if (std::strcmp(curr_option.c_str(), "vm-dbg") == 0)
+        {
+            vm_debug_enabled = !new_value.empty();
+            if (vm_debug_enabled)
+                new_value = "true";
+            else
+                new_value = "";
+        }
+
+        cxt.dbg.set_option(curr_option, new_value);
     }
 
     const dbg_cmd_t cmds[] =
     {
         { "c", "Continue", nullptr, nullptr, cmd_continue },
+        { "s", "Step over", nullptr, nullptr, cmd_step },
         { "term", "Terminate the VM instance", nullptr, nullptr, cmd_term },
 
         { "r", "Print registers", nullptr, nullptr, cmd_print_registers },
@@ -881,7 +972,7 @@ namespace
 
         { "sw", "Stack walk for the current or supplied thread", "sw ([0-9]+|\\*)?", "sw, sw 34, sw *", cmd_stackwalk },
         { "~", "Switch to thread", "~ [0-9]+", "~ 42", cmd_switchthread },
-        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (@?-?[0-9]+)?", "d, d -4, d 5, d @36", cmd_disassemble },
+        { "d", "Disassemble the next/previous N instructions (default N = 4)", "d (@?-?[0-9]+)? (-?[0-9]+)?", "d, d -4, d 5, d @36 3", cmd_disassemble },
         { "x", "Examine memory", "x [mp|fp] [0-9]+ ([0-9]+)?", "x mp 3, x fp 20 6", cmd_examine },
 
         { "set" , "Set a debug option", "set [ _a-zA-Z0-9]*", "'set' for available options", set_value_cmd },
@@ -929,7 +1020,7 @@ namespace
         debug_print_info(msg.str());
     }
 
-    void execute_single_command(dbg_cmd_cxt_t &cxt, const std::string &cmd)
+    void execute_single_command(dbg_cmd_cxt_t &cxt, std::string cmd)
     {
         const auto cmd_tokens = util::split(cmd);
         if (cmd_tokens.empty())
@@ -939,6 +1030,8 @@ namespace
         {
             auto cmd_exec = find_cmd(cmd_tokens[0]);
             cmd_exec(cmd_tokens, cxt);
+
+            cxt.last_successful_cmd = std::move(cmd);
         }
         catch (const debug_cmd_error_t &e)
         {
@@ -946,15 +1039,19 @@ namespace
         }
     }
 
-    void prompt(debugger &debugger, const vm_registers_t &r)
+    void prompt(debugger &debugger, vm_registers_t &r)
     {
         debugger.controller->suspend_all_threads();
 
-        std::cout
-            << console_modifiers::green_font
-            << console_modifiers::bold
-            << "'?' for help\n"
-            << console_modifiers::reset_all;
+        if (debugger.first_break)
+        {
+            debugger.first_break = false;
+            std::cout
+                << console_modifiers::green_font
+                << console_modifiers::bold
+                << "'?' for help\n"
+                << console_modifiers::reset_all;
+        }
 
         std::string cmd;
 
@@ -969,9 +1066,11 @@ namespace
                 << console_modifiers::reset_all;
 
             std::getline(std::cin, cmd);
+            if (cmd.empty())
+                cmd = cxt.last_successful_cmd;
 
             assert(!cxt.exit_break && "Precondition on exit_break state before execute failed");
-            execute_single_command(cxt, cmd);
+            execute_single_command(cxt, std::move(cmd));
             if (cxt.exit_break)
                 break;
         }
@@ -993,6 +1092,7 @@ debugger::debugger(const debugger_options opt)
     : _options{ opt }
     , _tool_id{ 0 }
     , controller{ nullptr }
+    , first_break{ true }
 { }
 
 std::vector<std::string> debugger::resolve_to_function_source_line(
@@ -1023,7 +1123,7 @@ std::vector<std::string> debugger::resolve_to_function_source_line(
             ss << function_name << " at ";
 
         const auto source_loc = d.current_source_location();
-        ss << d.get_source_by_id(source_loc.source_id)
+        ss << d.get_source_by_id(source_loc.begin_source_id)
             << ':'
             << source_loc.begin_line;
 
@@ -1178,11 +1278,23 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        const auto bp_cmd = get_option({ "bp-cmd" });
-        if (!bp_cmd.empty())
+        auto cmd = get_option({ "bp-cmd" });
+        if (!cmd.empty())
         {
-            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers };
-            execute_single_command(dbg_cxt, bp_cmd);
+            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers, true };
+            execute_single_command(dbg_cxt, std::move(cmd));
+        }
+
+        prompt(*this, *cxt.value1.registers);
+    }));
+
+    _event_cookies.emplace(controller->subscribe_event(vm_event_t::trap, [&](vm_event_t, vm_event_context_t &cxt)
+    {
+        auto cmd = get_option({ "step-cmd" });
+        if (!cmd.empty())
+        {
+            dbg_cmd_cxt_t dbg_cxt{ *this, *cxt.value1.registers, true };
+            execute_single_command(dbg_cxt, std::move(cmd));
         }
 
         prompt(*this, *cxt.value1.registers);

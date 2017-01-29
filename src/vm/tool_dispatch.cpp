@@ -92,6 +92,22 @@ std::size_t vm_tool_dispatch_t::unload_tool(std::size_t tool_id)
     return _tools.size();
 }
 
+namespace
+{
+    DEFINE_ENUM_FLAG_OPERATORS(vm_trap_flags_t);
+}
+
+void vm_tool_dispatch_t::on_trap(vm_registers_t &r, vm_trap_flags_t f)
+{
+    vm_event_context_t cxt{};
+    cxt.value1.registers = &r;
+    cxt.value2.trap = f;
+
+    // Clear the trap flag
+    r.trap_flags &= ~f;
+    _events.fire_event_callbacks(vm_event_t::trap, cxt);
+}
+
 opcode_t vm_tool_dispatch_t::on_breakpoint(vm_registers_t &r)
 {
     opcode_t original_op;
@@ -361,10 +377,18 @@ void vm_tool_dispatch_t::resume_all_threads()
     _threads_resume.notify_all();
 }
 
+void vm_tool_dispatch_t::set_thread_trap_flag(const vm_registers_t &r, vm_trap_flags_t flag)
+{
+    std::lock_guard<std::mutex> suspend_lock{ _threads_resume_lock };
+    if (!_threads_suspended)
+        throw vm_system_exception{ "Unable to set thread trap flag while threads are not suspended" };
+
+    const_cast<vm_trap_flags_t &>(r.trap_flags) |= flag;
+}
+
 std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cookie(const vm_registers_t &r)
 {
     const auto module = r.module_ref->module.get();
-    const auto current_pc = r.pc - 1;
 
     if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to determine original opcode in supplied module" };
@@ -375,7 +399,7 @@ std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cooki
     if (iter_orig != _breakpoints.original_opcodes.cend())
     {
         auto &pc_map = iter_orig->second;
-        auto iter_pc = pc_map.find(current_pc);
+        auto iter_pc = pc_map.find(r.pc);
         if (iter_pc != pc_map.cend())
             return iter_pc->second;
     }

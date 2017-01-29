@@ -29,43 +29,17 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: %d", _length);
 
-    // Initialize the array
-    auto arr_local = _arr;
-    const auto array_len = _length;
-    const auto &element_type = *_element_type;
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: init: elements: %d", array_len);
-    for (word_t i = 0; i < array_len; ++i)
-    {
-        init_memory(element_type, arr_local);
-        arr_local += element_type.size_in_bytes;
-    }
-
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: init: elements: %d", array_len);
+    // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
 }
 
-vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length, const zero_memory_t&)
+vm_array_t::vm_array_t(vm_array_t &original, word_t begin_index, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
-    , _element_type{ td }
+    , _element_type{ original.get_element_type() }
     , _length{ length }
-    , _original{ nullptr }
+    , _original{ &original }
 {
-    assert(_element_type != nullptr);
-    assert(_length >= 0);
-    _arr = calloc_memory<byte_t>(_length * _element_type->size_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "initz: vm array: %d", _length);
-}
-
-vm_array_t::vm_array_t(vm_array_t *original, word_t begin_index, word_t length)
-    : vm_alloc_t(vm_array_t::type_desc())
-    , _arr{ nullptr }
-    , _element_type{ original->get_element_type() }
-    , _length{ length }
-    , _original{ original }
-{
-    assert(_original != nullptr);
-    assert(0 <= begin_index && begin_index < _original->get_length());
-    assert(_length >= 0 && (_length + begin_index) <= _original->get_length());
+    assert(0 <= begin_index && (begin_index < _original->get_length() || (begin_index == _original->get_length() && length == 0)));
 
     if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d", begin_index, _length);
@@ -166,23 +140,30 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
     if (this_begin_index < 0 || _length < (this_begin_index + source._length))
         throw out_of_range_memory{};
 
-    if (source._element_type != _element_type)
+    if (!source._element_type->is_equal(_element_type.get()))
         throw type_violation{};
 
     auto dest_arr = _arr + (this_begin_index * _element_type->size_in_bytes);
 
-    // Increment all pointers if we have reference types.
+    // If we have reference types, increment references in the
+    // source array and decrement them in the destination array.
     if (_element_type->map_in_bytes != 0)
     {
-        assert(false && "Not implemented");
-        //auto &type_desc = *_element_type;
-        //auto source_array_element = source->_arr;
-        //for (word_t i = 0; i < source->_length; ++i)
-        //{
-        //    source_array_element += (i * type_desc.size_in_bytes);
-        //    inc_ref_count_in_alloc(type_desc, source_array_element);
-        //}
+        // [PERF] There is a chance this copy is within the same array, therefore
+        // a check could be made to not ref count memory that is going to be moved.
+        const auto &type_desc = *_element_type;
+        auto source_array_element = source._arr;
+        auto dest_array_element = dest_arr;
+        for (auto i = word_t{ 0 }; i < source._length; ++i)
+        {
+            inc_ref_count_in_memory(type_desc, source_array_element);
+            source_array_element += type_desc.size_in_bytes;
+
+            dec_ref_count_in_memory(type_desc, dest_array_element);
+            dest_array_element += type_desc.size_in_bytes;
+        }
     }
 
-    std::memcpy(dest_arr, source._arr, (source._length * _element_type->size_in_bytes));
+    // Copy data from within the same array is permitted.
+    std::memmove(dest_arr, source._arr, (source._length * _element_type->size_in_bytes));
 }

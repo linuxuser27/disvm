@@ -169,6 +169,12 @@ namespace
         // Length + 1 (null) + space for string expansion
         return (current_length + 1 + (current_length / 4));
     }
+
+    template<typename T, word_t S>
+    constexpr word_t compute_max_length(const T(&)[S])
+    {
+        return S - 1;
+    }
 }
 
 vm_string_t::vm_string_t()
@@ -177,7 +183,7 @@ vm_string_t::vm_string_t()
     , _encoded_str{ nullptr }
     , _is_alloc{ false }
     , _length{ 0 }
-    , _length_max{ sizeof(_mem.local) }
+    , _length_max{ compute_max_length(_mem.local) }
     , _mem{}
 { }
 
@@ -187,10 +193,13 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     , _encoded_str{ nullptr }
     , _is_alloc{ false }
     , _length{ 0 }
-    , _length_max{ sizeof(_mem.local) }
+    , _length_max{ compute_max_length(_mem.local) }
     , _mem{}
 {
-    assert((encoded_str_len > 0 && encoded_str != nullptr) || (encoded_str_len == 0 && encoded_str == nullptr));
+    assert((encoded_str_len > 0 && encoded_str != nullptr) || encoded_str_len == 0);
+    if (encoded_str_len == 0)
+        encoded_str = nullptr;
+
     const auto utf8_length = utf8::count_codepoints(encoded_str, encoded_str_len);
 
     // Check if the supplied string is completely valid UTF-8 - only valid UTF-8 strings can be DisVM strings.
@@ -200,15 +209,15 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
     _character_size = (encoded_str_len != utf8_length.codepoint_count) ? sizeof(rune_t) : sizeof(char);
 
     _length = static_cast<word_t>(utf8_length.codepoint_count);
-    _length_max = sizeof(_mem.local) / _character_size;
+    _length_max = compute_max_length(_mem.local) / _character_size;
 
     // Allocate memory based on character count and size
     auto dest = _mem.local;
-    if ((encoded_str_len + 1) > sizeof(_mem.local))
+    if (encoded_str_len > static_cast<std::size_t>(compute_max_length(_mem.local)))
     {
         // If we are going to allocate, make sure it is larger than needed.
         _length_max = compute_max_length(_length);
-        _mem.alloc = calloc_memory<uint8_t>(_length_max * _character_size);
+        _mem.alloc = alloc_memory<uint8_t>(_length_max * _character_size);
         _is_alloc = true;
 
         dest = _mem.alloc;
@@ -239,7 +248,7 @@ vm_string_t::vm_string_t(const vm_string_t &s1, const vm_string_t &s2)
     , _length_max{ compute_max_length(s1._length + s2._length) }
     , _mem{}
 {
-    _mem.alloc = calloc_memory<uint8_t>(_length_max * _character_size);
+    _mem.alloc = alloc_memory<uint8_t>(_length_max * _character_size);
 
     const auto s1_data = (s1._is_alloc) ? s1._mem.alloc : s1._mem.local;
     const auto s2_data = (s2._is_alloc) ? s2._mem.alloc : s2._mem.local;
@@ -265,7 +274,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     , _length_max{ compute_max_length(end_index - begin_index) }
     , _mem{}
 {
-    if (end_index <= begin_index)
+    if (end_index < begin_index)
         throw out_of_range_memory{};
 
     if (begin_index < 0)
@@ -281,7 +290,7 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     if (_is_alloc)
     {
         src = other._mem.alloc;
-        _mem.alloc = calloc_memory<uint8_t>(_length_max);
+        _mem.alloc = alloc_memory<uint8_t>(_length_max);
         dest = _mem.alloc;
     }
 
@@ -292,23 +301,17 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
 
 vm_string_t::~vm_string_t()
 {
-    // Free memory and string buffer
-    if (_is_alloc)
-    {
-        if (static_cast<void *>(_mem.alloc) != static_cast<void *>(_encoded_str))
-            free_memory(_encoded_str);
+    // Determine if local or allocated memory
+    auto source = (_is_alloc) ? _mem.alloc : _mem.local;
+    if (static_cast<void *>(source) != static_cast<void *>(_encoded_str))
+        free_memory(_encoded_str);
 
-        free_memory(_mem.alloc);
-    }
-    else
-    {
-        if (static_cast<void *>(_mem.local) != static_cast<void *>(_encoded_str))
-            free_memory(_encoded_str);
-    }
+    if (_is_alloc)
+        free_memory(source);
 
     debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
 
-    debug::assign_debug_pointer(&_mem.alloc);
+    debug::assign_debug_pointer(&source);
     debug::assign_debug_pointer(&_encoded_str);
 }
 
@@ -332,26 +335,22 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
     const auto local_source = (_is_alloc) ? _mem.alloc : _mem.local;
 
     // Release the encoded string for this instance.
-    {
-        std::lock_guard<std::mutex> lock{ _encoded_str_lock };
-        if (_encoded_str != reinterpret_cast<char*>(local_source))
-        {
-            free_memory(_encoded_str);
-            _encoded_str = nullptr;
-        }
-    }
+    if (_encoded_str != reinterpret_cast<char*>(local_source))
+        free_memory(_encoded_str);
+
+    _encoded_str = nullptr;
 
     // Define the values for the appended string
     const auto new_length = local_length + other_length;
-    const auto new_length_max = (new_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(new_length);
+    const auto new_length_max = (new_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(new_length);
     const auto new_is_rune = local_is_rune || other_is_rune;
     uint8_t *new_source = nullptr;
 
     // Check if this string and the supplied string have the same character size.
     if (new_is_rune)
-        new_source = calloc_memory<uint8_t>(new_length_max * sizeof(rune_t));
+        new_source = alloc_memory<uint8_t>(new_length_max * sizeof(rune_t));
     else
-        new_source = calloc_memory<uint8_t>(new_length_max);
+        new_source = alloc_memory<uint8_t>(new_length_max);
 
     // Combine the two string sources
     combine(
@@ -388,7 +387,7 @@ word_t vm_string_t::get_length() const
 
 runtime::rune_t vm_string_t::get_rune(word_t index) const
 {
-    if (index < 0 && _length <= index)
+    if (index < 0 || _length <= index)
         throw index_out_of_range_memory{ 0, _length - 1, index };
 
     // Determine if local or allocated memory
@@ -414,21 +413,16 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         throw invalid_utf8{};
 
     // Index equal to length is allowed to grow the string
-    if (index < 0 && _length <= index)
+    if (index < 0 || _length < index)
         throw index_out_of_range_memory{ 0, _length, index };
 
     // Determine if local or allocated memory
-    auto source = static_cast<uint8_t *>(_mem.local);
-    if (_is_alloc)
-    {
-        source = static_cast<uint8_t *>(_mem.alloc);
+    auto source = (_is_alloc) ? _mem.alloc : _mem.local;
 
-        // Since we are setting a rune, the string value should be freed.
-        if (_encoded_str != nullptr)
-            free_memory(_encoded_str);
-    }
+    // Release the encoded string for this instance.
+    if (_encoded_str != reinterpret_cast<char*>(source))
+        free_memory(_encoded_str);
 
-    // Reset the string so it can be regenerated.
     _encoded_str = nullptr;
 
     const auto new_character_size = (value > utf8::constants::max_codepoint_ascii) ? sizeof(rune_t) : sizeof(char);
@@ -439,8 +433,8 @@ void vm_string_t::set_rune(word_t index, rune_t value)
         _character_size = static_cast<uint8_t>(new_character_size);
         assert(_character_size == sizeof(rune_t));
 
-        _length_max = (_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(_length);
-        auto new_alloc = calloc_memory<rune_t>(_length_max * _character_size);
+        _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
+        auto new_alloc = alloc_memory<rune_t>(_length_max * _character_size);
 
         // Copy source into the new alloc.
         copy_characters_to(new_alloc, 0, source, _length);
@@ -457,9 +451,9 @@ void vm_string_t::set_rune(word_t index, rune_t value)
     }
     else if (static_cast<word_t>(_length_max) <= index) // Check if string can accomodate the new character.
     {
-        _length_max = (_length == 0) ? static_cast<word_t>(sizeof(_mem.local)) : compute_max_length(_length);
-        auto new_alloc = calloc_memory<uint8_t>(_length_max * _character_size);
-        ::memcpy(new_alloc, source, _length * _character_size);
+        _length_max = (_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(_length);
+        auto new_alloc = alloc_memory<uint8_t>(_length_max * _character_size);
+        std::memcpy(new_alloc, source, _length * _character_size);
 
         // Free memory, if allocated
         if (_is_alloc)
@@ -500,10 +494,11 @@ const char *vm_string_t::str() const
         if (_encoded_str != nullptr)
             return _encoded_str;
 
-        // If the string is ASCII then just return the memory
+        // If the string is ASCII then return the memory
         if (_character_size == sizeof(char))
         {
             _encoded_str = (_is_alloc) ? reinterpret_cast<char *>(_mem.alloc) : reinterpret_cast<char *>(_mem.local);
+            _encoded_str[_length] = '\0';
             return _encoded_str;
         }
 

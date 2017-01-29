@@ -16,6 +16,10 @@ namespace disvm
 {
     namespace runtime
     {
+        // Functions for managing syscall exception messages
+        void push_syscall_error_message(disvm::vm_t &, const char *) noexcept;
+        std::string pop_syscall_error_message(disvm::vm_t &);
+
         class vm_user_exception : public std::runtime_error
         {
         public:
@@ -32,6 +36,16 @@ namespace disvm
             { }
         };
 
+        class vm_syscall_exception final : public vm_system_exception
+        {
+        public:
+            explicit vm_syscall_exception(disvm::vm_t &vm, const char *message)
+                : vm_system_exception(message)
+            {
+                push_syscall_error_message(vm, message);
+            }
+        };
+
         class vm_module_exception : public vm_system_exception
         {
         public:
@@ -43,10 +57,6 @@ namespace disvm
         class module_reader_exception final : public vm_module_exception
         {
         public:
-            explicit module_reader_exception()
-                : vm_module_exception("Invalid module")
-            { }
-
             explicit module_reader_exception(const char *message)
                 : vm_module_exception(message)
             { }
