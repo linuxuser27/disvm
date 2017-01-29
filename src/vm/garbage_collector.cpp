@@ -25,6 +25,11 @@ std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
     class no_op_gc final : public vm_garbage_collector_t
     {
     public:
+        vm_memory_allocator_t get_allocator() const
+        {
+            return{ std::calloc, std::free };
+        }
+
         void track_allocation(vm_alloc_t *) override
         {
         }
@@ -86,6 +91,11 @@ namespace
     {
         a->gc_reserved = reinterpret_cast<pointer_t>(c);
     }
+}
+
+vm_memory_allocator_t default_garbage_collector_t::get_allocator() const
+{
+    return{ std::calloc, std::free };
 }
 
 void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc)

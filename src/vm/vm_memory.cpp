@@ -20,9 +20,13 @@
 using namespace disvm;
 using namespace disvm::runtime;
 
+// Defined in vm.cpp
+extern thread_local vm_memory_alloc_t vm_memory_alloc;
+extern thread_local vm_memory_free_t vm_memory_free;
+
 void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
 {
-    auto memory = std::calloc(amount_in_bytes, sizeof(byte_t));
+    auto memory = vm_memory_alloc(amount_in_bytes, sizeof(byte_t));
     if (memory == nullptr)
         throw vm_system_exception{ "Out of memory" };
 
@@ -34,13 +38,10 @@ void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
 
 void disvm::runtime::free_memory(void *memory)
 {
-    if (memory == nullptr)
-        return;
+    vm_memory_free(memory);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+    if (memory != nullptr && debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
         debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: %#" PRIxPTR, memory);
-
-    std::free(memory);
 }
 
 void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)

@@ -27,6 +27,7 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
 {
     debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: worker: start");
 
+    register_system_thread(instance._vm);
     auto current_thread = std::shared_ptr<thread_instance_t>{};
 
     try
@@ -77,6 +78,8 @@ void default_scheduler_t::worker_main(default_scheduler_t &instance)
         instance._terminating = true;
         instance._worker_event.notify_all();
     }
+
+    unregister_system_thread(instance._vm);
 }
 
 default_scheduler_t::default_scheduler_t(vm_t &vm, uint32_t system_thread_count, uint32_t thread_quanta)

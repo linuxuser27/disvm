@@ -818,6 +818,21 @@ namespace disvm
         // VM interfaces
         //
 
+        // Function that must be called by all system threads prior to entering the VM.
+        // The only exception to this rule is the thread that creates the VM instance,
+        // which will automatically be registered during VM creation.
+        //
+        // It is safe to call this function multiple times with the same VM instance.
+        //
+        // A system thread should only be associated with a single VM. Registering a
+        // thread with multiple VM is undefined.
+        void register_system_thread(vm_t &vm);
+
+        // Function that can be called by any system thread that has previously registered.
+        //
+        // It is safe to call this function multiple times with the same VM instance.
+        void unregister_system_thread(vm_t &vm);
+
         // VM thread scheduler control interface
         class vm_scheduler_control_t
         {
@@ -836,6 +851,8 @@ namespace disvm
         };
 
         // VM thread scheduler interface
+        // Implementors of this interface will need to register each system thread
+        // created with the VM. See register_system_thread() and unregister_system_thread().
         class vm_scheduler_t
         {
         public:
@@ -858,11 +875,29 @@ namespace disvm
         // The supplied allocation is guaranteed to be valid for the lifetime of the callback.
         using vm_alloc_callback_t = std::function<void(const vm_alloc_t *)>;
 
+        using vm_memory_alloc_t = void *(*)(std::size_t element_count, std::size_t element_size);
+        using vm_memory_free_t = void(*)(void *);
+
+        // Memory allocator functions to be used by the VM
+        struct vm_memory_allocator_t final
+        {
+            // Function must adhere to the documented semantics of std::calloc
+            // http://en.cppreference.com/w/cpp/memory/c/calloc
+            vm_memory_alloc_t alloc;
+
+            // Function must adhere to the documented semantics of std::free
+            // http://en.cppreference.com/w/cpp/memory/c/free
+            vm_memory_free_t free;
+        };
+
         // VM garbage collector interface
         class vm_garbage_collector_t
         {
         public:
             virtual ~vm_garbage_collector_t() = 0;
+
+            // Supplies the core memory management functions for the associated VM
+            virtual vm_memory_allocator_t get_allocator() const = 0;
 
             // Supply an allocation for the collector to track.
             // Note that it is assumed the collector implementation will increment the reference count on the supplied alloc.

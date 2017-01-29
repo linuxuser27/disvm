@@ -68,6 +68,47 @@ std::string disvm::runtime::pop_syscall_error_message(disvm::vm_t &vm)
     return msg;
 }
 
+// Consumed in vm_memory.cpp
+thread_local vm_memory_alloc_t vm_memory_alloc;
+thread_local vm_memory_free_t vm_memory_free;
+
+namespace
+{
+    void internal_register_system_thread(vm_memory_allocator_t allocator) noexcept
+    {
+        assert(((vm_memory_alloc == nullptr && vm_memory_free == nullptr)
+            || (vm_memory_alloc == allocator.alloc && vm_memory_free == allocator.free))
+            && "Thread already registered with another VM");
+
+        vm_memory_alloc = allocator.alloc;
+        vm_memory_free = allocator.free;
+
+        assert(vm_memory_alloc != nullptr && vm_memory_free != nullptr && "Invalid allocator functions supplied");
+    }
+
+    void internal_unregister_system_thread(vm_memory_allocator_t allocator) noexcept
+    {
+        assert(((vm_memory_alloc == nullptr && vm_memory_free == nullptr)
+            || (vm_memory_alloc == allocator.alloc && vm_memory_free == allocator.free))
+            && "Thread already registered with another VM");
+
+        vm_memory_alloc = nullptr;
+        vm_memory_free = nullptr;
+    }
+}
+
+void disvm::runtime::register_system_thread(vm_t &vm)
+{
+    auto allocator = vm.get_garbage_collector().get_allocator();
+    internal_register_system_thread(std::move(allocator));
+}
+
+void disvm::runtime::unregister_system_thread(vm_t &vm)
+{
+    auto allocator = vm.get_garbage_collector().get_allocator();
+    internal_unregister_system_thread(std::move(allocator));
+}
+
 const uint32_t vm_t::root_vm_thread_id = 0;
 
 // The Inferno implementation defined the thread quanta as 2048 (include/interp.h)
@@ -94,10 +135,13 @@ vm_t::vm_t()
     : _last_syscall_error_message{}
     , _last_syscall_error_message_lock{ ATOMIC_FLAG_INIT }
 {
+    _gc = std::make_unique<default_garbage_collector_t>(*this);
+
+    internal_register_system_thread(_gc->get_allocator());
+
     // Initialize built-in modules.
     builtin::initialize_builtin_modules();
 
-    _gc = std::make_unique<default_garbage_collector_t>(*this);
     _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
     _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this));
 }
@@ -105,13 +149,15 @@ vm_t::vm_t()
 vm_t::vm_t(vm_config_t config)
     : _last_syscall_error_message{}
 {
-    // Initialize built-in modules.
-    builtin::initialize_builtin_modules();
-
     if (config.create_gc == nullptr)
         _gc = std::make_unique<default_garbage_collector_t>(*this);
     else
         _gc = config.create_gc(*this);
+
+    internal_register_system_thread(_gc->get_allocator());
+
+    // Initialize built-in modules.
+    builtin::initialize_builtin_modules();
 
     if (config.create_scheduler == nullptr)
         _scheduler = std::make_unique<default_scheduler_t>(*this, config.sys_thread_pool_size, config.thread_quanta);
