@@ -6,7 +6,7 @@
 
 #include <cinttypes>
 #include <array>
-#include <queue>
+#include <stack>
 #include <debug.h>
 #include <vm_memory.h>
 #include <exceptions.h>
@@ -124,20 +124,37 @@ void default_garbage_collector_t::enum_tracked_allocations(vm_alloc_callback_t c
 
 namespace
 {
+    struct mark_cxt_t final : public std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>
+    {
+        mark_cxt_t(const type_descriptor_t *string_type, const gc_colour_t curr_colour)
+            : std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>{}
+            , string_type{ string_type }
+            , curr_colour{ curr_colour }
+        { }
+
+        const type_descriptor_t *string_type;
+        const gc_colour_t curr_colour;
+    };
+
+    void mark_pointers(pointer_t p, void *cxt)
+    {
+        auto a = vm_alloc_t::from_allocation(p);
+
+        assert(cxt != nullptr);
+        auto c = reinterpret_cast<mark_cxt_t *>(cxt);
+
+        // Don't examine vm strings or allocations with the current colour
+        if (c->curr_colour != get_gc_colour(a) && a->alloc_type.get() != c->string_type)
+            c->push(a);
+    }
+
     void mark(const std::vector<std::shared_ptr<const vm_thread_t>> &threads, const gc_colour_t curr_colour)
     {
-        std::queue<vm_alloc_t *> allocs;
-
-        // Making this raw since it is a built-in type and has unlimited lifetime.
-        const auto string_type_raw = intrinsic_type_desc::type<vm_string_t>().get();
-        auto add_pointer_to_queue = std::function<void(pointer_t p)>{ [&allocs, string_type_raw, curr_colour](pointer_t p) -> void
+        mark_cxt_t mark_cxt
         {
-            auto a = vm_alloc_t::from_allocation(p);
-
-            // Don't examine vm strings or allocations with the current colour
-            if (curr_colour != get_gc_colour(a) && a->alloc_type.get() != string_type_raw)
-                allocs.push(a);
-        } };
+            intrinsic_type_desc::type<vm_string_t>().get(), // Using raw pointer since it is a built-in type and has unlimited lifetime
+            curr_colour
+        };
 
         // Get roots from threads
         for (auto &t : threads)
@@ -145,7 +162,7 @@ namespace
             auto &r = t->get_registers();
 
             // Current MP
-            allocs.push(r.mp_base);
+            mark_cxt.push(r.mp_base);
 
             // Traverse the stack for roots
             for (auto frame = r.stack.peek_frame(); frame != nullptr; frame = frame->prev_frame())
@@ -154,29 +171,29 @@ namespace
                 if (frame->prev_module_ref() != nullptr)
                 {
                     auto prev_mp = frame->prev_module_ref()->mp_base;
-                    allocs.push(prev_mp);
+                    mark_cxt.push(prev_mp);
                 }
 
                 if (frame->frame_type->map_in_bytes > 0)
-                    enum_pointer_fields(*frame->frame_type, frame->base(), add_pointer_to_queue);
+                    enum_pointer_fields(*frame->frame_type, frame->base(), mark_pointers, &mark_cxt);
             }
         }
 
         const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
         if (log_enabled)
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR, allocs.size());
+            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR, mark_cxt.size());
 
         // Traverse the graph
-        while (!allocs.empty())
+        while (!mark_cxt.empty())
         {
-            auto curr = allocs.front();
-            allocs.pop();
+            auto curr = mark_cxt.top();
+            mark_cxt.pop();
 
             if (log_enabled)
                 debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR, curr);
 
             if (curr->alloc_type->map_in_bytes > 0)
-                enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), add_pointer_to_queue);
+                enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), mark_pointers, &mark_cxt);
 
             set_gc_colour(curr, curr_colour);
         }
