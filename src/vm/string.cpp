@@ -123,14 +123,14 @@ namespace
     template<>
     void copy_characters_to(char *dest, word_t dest_start, const char *source, word_t source_length)
     {
-        assert(dest != nullptr && source != nullptr);
+        assert(dest != nullptr && source != nullptr && dest != source);
         std::memcpy((dest + dest_start), source, source_length);
     }
 
     template<>
     void copy_characters_to(runtime::rune_t *dest, word_t dest_start, const runtime::rune_t *source, word_t source_length)
     {
-        assert(dest != nullptr && source != nullptr);
+        assert(dest != nullptr && source != nullptr && dest != source);
         std::memcpy((dest + dest_start), source, (source_length * sizeof(runtime::rune_t)));
     }
 
@@ -286,17 +286,19 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     // Allocate memory based on character count and size
     auto src = other._mem.local;
     auto dest = _mem.local;
-    const auto length_in_bytes = _length * _character_size;
     if (_is_alloc)
     {
         src = other._mem.alloc;
-        _mem.alloc = alloc_memory<uint8_t>(_length_max);
+        _mem.alloc = alloc_memory<uint8_t>(_length_max * _character_size);
         dest = _mem.alloc;
     }
 
     // Copy over string content starting at the correct index (char vs. rune_t)
+    const auto length_in_bytes = _length * _character_size;
     std::memcpy(dest, (src + (begin_index * _character_size)), length_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR, &other, begin_index, end_index, this);
+
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR, &other, begin_index, end_index, this);
 }
 
 vm_string_t::~vm_string_t()
@@ -309,10 +311,11 @@ vm_string_t::~vm_string_t()
     if (_is_alloc)
         free_memory(source);
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
-
     debug::assign_debug_pointer(&source);
     debug::assign_debug_pointer(&_encoded_str);
+
+    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
+        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
 }
 
 vm_string_t &vm_string_t::append(const vm_string_t &other)
@@ -324,6 +327,7 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
 
     // Check if the new string has any length at all.
     const auto other_length = other._length;
+    assert(other_length >= 0);
     if (other_length == 0)
         return *this;
 
@@ -342,7 +346,7 @@ vm_string_t &vm_string_t::append(const vm_string_t &other)
 
     // Define the values for the appended string
     const auto new_length = local_length + other_length;
-    const auto new_length_max = (new_length == 0) ? static_cast<word_t>(compute_max_length(_mem.local)) : compute_max_length(new_length);
+    const auto new_length_max = compute_max_length(new_length);
     const auto new_is_rune = local_is_rune || other_is_rune;
     uint8_t *new_source = nullptr;
 
@@ -497,8 +501,15 @@ const char *vm_string_t::str() const
         // If the string is ASCII then return the memory
         if (_character_size == sizeof(char))
         {
-            _encoded_str = (_is_alloc) ? reinterpret_cast<char *>(_mem.alloc) : reinterpret_cast<char *>(_mem.local);
-            _encoded_str[_length] = '\0';
+            auto str = (_is_alloc) ? _mem.alloc : _mem.local;
+            if (_length_max <= _length)
+            {
+                auto tmp = alloc_memory<char>(_length + 1); // +1 for null
+                str = static_cast<uint8_t *>(std::memcpy(tmp, str, _length));
+            }
+
+            _encoded_str = reinterpret_cast<char *>(str);
+            assert(_encoded_str[_length] == '\0');
             return _encoded_str;
         }
 

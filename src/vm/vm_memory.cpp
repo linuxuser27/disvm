@@ -81,13 +81,17 @@ void disvm::runtime::destroy_memory(const type_descriptor_t &type_desc, void *da
 
 void disvm::runtime::inc_ref_count_in_memory(const type_descriptor_t &type_desc, void *data)
 {
-    assert(data != nullptr);
+    if (type_desc.size_in_bytes == 0)
+        return;
+
     enum_pointer_fields(type_desc, data, add_ref_pointer_field);
 }
 
 void disvm::runtime::dec_ref_count_in_memory(const type_descriptor_t &type_desc, void *data)
 {
-    assert(data != nullptr);
+    if (type_desc.size_in_bytes == 0)
+        return;
+
     enum_pointer_fields(type_desc, data, dec_ref_and_free_pointer_field);
 }
 
@@ -104,8 +108,6 @@ void disvm::runtime::dec_ref_count_and_free(vm_alloc_t *alloc)
 void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback)
 {
     assert(data != nullptr && callback != nullptr);
-    if (type_desc.size_in_bytes == 0)
-        return;
 
     auto offset_accum = std::size_t{ 0 };
     auto memory = reinterpret_cast<word_t *>(data);
@@ -127,6 +129,33 @@ void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, voi
         if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]));
         if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]));
         if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]));
+    }
+}
+
+void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_ext_t callback, void *cxt)
+{
+    assert(data != nullptr && callback != nullptr);
+
+    auto offset_accum = std::size_t{ 0 };
+    auto memory = reinterpret_cast<word_t *>(data);
+    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
+    {
+        const auto words8 = type_desc.pointer_map[i];
+        assert(sizeof(words8) == 1);
+        if (words8 == 0)
+            continue;
+
+        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+        // Enumerating the flags in reverse order so memory access is sequential.
+        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), cxt);
+        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), cxt);
+        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), cxt);
+        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), cxt);
+        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), cxt);
+        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), cxt);
+        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), cxt);
+        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), cxt);
     }
 }
 

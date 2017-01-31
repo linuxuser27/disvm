@@ -73,7 +73,7 @@ namespace disvm
 
             // Add the thread to the queue in a non-thread safe manner.
             // Returns 'true' if the runnable thread queue has been updated, otherwise 'false'.
-            bool enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread, runtime::vm_thread_state_t current_state);
+            bool enqueue_thread_unsafe(thread_instance_t *thread, runtime::vm_thread_state_t current_state);
 
         private:
             vm_t &_vm;

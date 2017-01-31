@@ -254,7 +254,7 @@ void default_scheduler_t::enqueue_blocked_thread(uint32_t thread_id)
     if (debug::is_component_tracing_enabled<debug::component_trace_t::scheduler>())
         debug::log_msg(debug::component_trace_t::scheduler, debug::log_level_t::debug, "scheduler: enqueue blocked: %d", thread_id);
 
-    const bool runnable_thread = enqueue_thread_unsafe(std::move(thread_container), vm_thread_state_t::ready);
+    const bool runnable_thread = enqueue_thread_unsafe(thread_container.get(), vm_thread_state_t::ready);
     if (runnable_thread)
     {
         lock_all.unlock();
@@ -294,7 +294,7 @@ std::shared_ptr<default_scheduler_t::thread_instance_t> default_scheduler_t::nex
 
         std::unique_lock<std::mutex> lock_all{ _vm_threads_lock };
         --_running_vm_thread_count;
-        const bool runnable_thread = enqueue_thread_unsafe(std::move(prev_thread), current_state);
+        const bool runnable_thread = enqueue_thread_unsafe(prev_thread.get(), current_state);
         if (runnable_thread)
         {
             lock_all.unlock();
@@ -380,7 +380,7 @@ void default_scheduler_t::perform_gc(bool is_gc_thread, std::unique_lock<std::mu
     }
 }
 
-bool default_scheduler_t::enqueue_thread_unsafe(std::shared_ptr<thread_instance_t> thread_instance, runtime::vm_thread_state_t current_state)
+bool default_scheduler_t::enqueue_thread_unsafe(thread_instance_t *thread_instance, runtime::vm_thread_state_t current_state)
 {
     assert(thread_instance != nullptr);
 

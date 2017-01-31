@@ -50,10 +50,16 @@ namespace disvm
         void dec_ref_count_and_free(vm_alloc_t *alloc);
 
         // Callback for a pointer field supplying the pointer
-        using pointer_field_callback_t = std::function<void(pointer_t)>;
+        using pointer_field_callback_t = void(*)(pointer_t);
 
         // The callback will be called on all non-null pointer fields.
         void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback);
+
+        // Callback for a pointer field supplying the pointer and a calling context
+        using pointer_field_callback_ext_t = void(*)(pointer_t, void *cxt);
+
+        // The callback will be called on all non-null pointer fields.
+        void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_ext_t callback, void *cxt);
 
         // Callback for a pointer field supplying the pointer and byte offset
         using pointer_field_offset_callback_t = std::function<void(pointer_t, std::size_t)>;
