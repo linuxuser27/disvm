@@ -305,21 +305,21 @@ void
 Sys_announce(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_announce>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_aprint(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_aprint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_bind(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_bind>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -403,7 +403,7 @@ void
 Sys_chdir(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_chdir>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -445,49 +445,48 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
-    fd_alloc->add_ref();
 }
 
 void
 Sys_dial(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dial>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_dirread(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dirread>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_dup(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dup>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_export(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_export>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_fauth(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fauth>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_fd2path(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fd2path>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -510,7 +509,7 @@ void
 Sys_file2chan(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_file2chan>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -532,35 +531,35 @@ void
 Sys_fstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fstat>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_fversion(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fversion>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_fwstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fwstat>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_iounit(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_iounit>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_listen(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_listen>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -577,7 +576,7 @@ void
 Sys_mount(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_mount>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -614,28 +613,27 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     }
 
     *fp.ret = fd_alloc->get_allocation();
-    fd_alloc->add_ref();
 }
 
 void
 Sys_pctl(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pctl>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_pipe(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pipe>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_pread(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pread>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -654,7 +652,7 @@ void
 Sys_pwrite(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pwrite>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -691,7 +689,7 @@ void
 Sys_readn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_readn>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -760,7 +758,6 @@ Sys_sprint(vm_registers_t &r, vm_t &vm)
         new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
     }
 
-    assert(new_string != nullptr);
     *fp.ret = new_string->get_allocation();
 }
 
@@ -768,14 +765,14 @@ void
 Sys_stat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stat>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_stream(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stream>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 namespace
@@ -907,7 +904,7 @@ void
 Sys_unmount(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_unmount>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -933,7 +930,14 @@ void
 Sys_werrstr(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_werrstr>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto new_err = "";
+    auto s = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (s != nullptr)
+        new_err = s->str();
+
+    push_syscall_error_message(vm, new_err);
+    *fp.ret = 0;
 }
 
 void
@@ -972,5 +976,5 @@ void
 Sys_wstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_wstat>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
