@@ -4,6 +4,7 @@
 // Author: arr
 //
 
+#include <debug.h>
 #include "Mathmod.h"
 
 using namespace disvm;
@@ -97,7 +98,9 @@ Math_FPcontrol(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPcontrol>();
 
-    // [PAL] Properly implment floating point control
+    // [PAL] Properly implement floating point control
+    debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::warning, "FPControl is not properly implemented");
+
     *fp.ret = fp.mask;
 }
 
@@ -105,56 +108,56 @@ void
 Math_FPstatus(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPstatus>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_acos(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_acos>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::acos(fp.x);
 }
 
 void
 Math_acosh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_acosh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::acosh(fp.x);
 }
 
 void
 Math_asin(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_asin>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::asin(fp.x);
 }
 
 void
 Math_asinh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_asinh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::asinh(fp.x);
 }
 
 void
 Math_atan(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_atan>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::atan(fp.x);
 }
 
 void
 Math_atan2(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_atan2>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::atan2(fp.x, fp.y);
 }
 
 void
 Math_atanh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_atanh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::atanh(fp.x);
 }
 
 void
@@ -186,77 +189,97 @@ void
 Math_cbrt(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_cbrt>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::cbrt(fp.x);
 }
 
 void
 Math_ceil(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_ceil>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::ceil(fp.x);
 }
 
 void
 Math_copysign(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_copysign>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::copysign(fp.x, fp.s);
 }
 
 void
 Math_cos(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_cos>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::cos(fp.x);
 }
 
 void
 Math_cosh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_cosh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::cosh(fp.x);
 }
 
 void
 Math_dot(vm_registers_t &r, vm_t &vm)
 {
+    // Defined as: dot(x, y) = sum(x[i] * y[i])
     auto &fp = r.stack.peek_frame()->base<F_Math_dot>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto xs = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    auto ys = vm_alloc_t::from_allocation<vm_array_t>(fp.y);
+    if (xs == nullptr || ys == nullptr)
+        throw dereference_nil{ "dot product" };
+
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(ys->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    const auto x_len = xs->get_length();
+    if (x_len != ys->get_length())
+        throw vm_user_exception{ "Array lengths must be equal" };
+
+    auto x_raw = reinterpret_cast<real_t *>(xs->at(0));
+    auto y_raw = reinterpret_cast<real_t *>(ys->at(0));
+
+    auto result = real_t{ 0 };
+    for (auto i = 0; i < x_len; ++i)
+        result += (x_raw[i] * y_raw[i]);
+
+    *fp.ret = result;
 }
 
 void
 Math_erf(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_erf>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::erf(fp.x);
 }
 
 void
 Math_erfc(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_erfc>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::erfc(fp.x);
 }
 
 void
 Math_exp(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_exp>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::exp(fp.x);
 }
 
 void
 Math_expm1(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_expm1>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::expm1(fp.x);
 }
 
 void
 Math_export_int(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_export_int>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -265,10 +288,10 @@ Math_export_real(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
 
     auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(values->get_element_type()->size_in_bytes == intrinsic_type_desc::type<real_t>()->size_in_bytes);
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
     const auto values_len = values->get_length();
 
     if (buffer->get_length() != (8 * values_len))
@@ -298,105 +321,105 @@ void
 Math_export_real32(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real32>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_fabs(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_fabs>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::fabs(fp.x);
 }
 
 void
 Math_fdim(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_fdim>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::fdim(fp.x, fp.y);
 }
 
 void
 Math_finite(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_finite>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::isfinite(fp.x) ? 1 : 0;
 }
 
 void
 Math_floor(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_floor>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::floor(fp.x);
 }
 
 void
 Math_fmax(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_fmax>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::fmax(fp.x, fp.y);
 }
 
 void
 Math_fmin(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_fmin>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::fmin(fp.x, fp.y);
 }
 
 void
 Math_fmod(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_fmod>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::fmod(fp.x, fp.y);
 }
 
 void
 Math_gemm(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_gemm>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_getFPcontrol(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPcontrol>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_getFPstatus(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPstatus>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_hypot(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_hypot>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::hypot(fp.x, fp.y);
 }
 
 void
 Math_iamax(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_iamax>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_ilogb(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_ilogb>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::ilogb(fp.x);
 }
 
 void
 Math_import_int(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_import_int>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -405,10 +428,10 @@ Math_import_real(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_import_real>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->size_in_bytes == intrinsic_type_desc::type<byte_t>()->size_in_bytes);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
 
     auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(result->get_element_type()->size_in_bytes == intrinsic_type_desc::type<real_t>()->size_in_bytes);
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
     const auto result_len = result->get_length();
 
     if (buffer->get_length() != (8 * result_len))
@@ -433,7 +456,7 @@ void
 Math_import_real32(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_import_real32>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -447,91 +470,126 @@ void
 Math_j0(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_j0>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_j1(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_j1>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_jn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_jn>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_lgamma(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_lgamma>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_log(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_log>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::log(fp.x);
 }
 
 void
 Math_log10(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_log10>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::log10(fp.x);
 }
 
 void
 Math_log1p(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_log1p>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::log1p(fp.x);
 }
 
 void
 Math_modf(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_modf>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_nextafter(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_nextafter>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::nextafter(fp.x, fp.y);
 }
 
 void
 Math_norm1(vm_registers_t &r, vm_t &vm)
 {
+    // Defined as: norm1(x) = sum(fabs(x[i]))
     auto &fp = r.stack.peek_frame()->base<F_Math_norm1>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto xs = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    if (xs == nullptr)
+        throw dereference_nil{ "norm1" };
+
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+
+    const auto x_len = xs->get_length();
+    auto x_raw = reinterpret_cast<real_t *>(xs->at(0));
+
+    auto result = real_t{ 0 };
+    for (auto i = 0; i < x_len; ++i)
+        result += std::fabs(x_raw[i]);
+
+    *fp.ret = result;
 }
 
 void
 Math_norm2(vm_registers_t &r, vm_t &vm)
 {
+    // [SPEC] This function is defined as: norm2(x) = sqrt(dot(x, x))
+    // The Inferno implementation (libmath/blas.c) doesn't appear to take
+    // the square root of the resulting dot product.
     auto &fp = r.stack.peek_frame()->base<F_Math_norm2>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto xs = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    if (xs == nullptr)
+        throw dereference_nil{ "norm2" };
+
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+
+    const auto x_len = xs->get_length();
+    auto x_raw = reinterpret_cast<real_t *>(xs->at(0));
+
+    auto result = real_t{ 0 };
+    for (auto i = 0; i < x_len; ++i)
+    {
+        const auto x_l = x_raw[i];
+        result += (x_l * x_l);
+    }
+
+    *fp.ret = std::sqrt(result);
 }
 
 void
 Math_pow(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_pow>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::pow(fp.x, fp.y);
 }
 
 void
 Math_pow10(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_pow10>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
@@ -563,82 +621,110 @@ void
 Math_remainder(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_remainder>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::remainder(fp.x, fp.p);
 }
 
 void
 Math_rint(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_rint>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::rint(fp.x);
 }
 
 void
 Math_scalbn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_scalbn>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_sin(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_sin>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::sin(fp.x);
 }
 
 void
 Math_sinh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_sinh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::sinh(fp.x);
 }
 
 void
 Math_sort(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_sort>();
-    throw vm_system_exception{ "Instruction not implemented" };
+
+    auto reals = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    auto words = vm_alloc_t::from_allocation<vm_array_t>(fp.pi);
+    if (reals == nullptr || words == nullptr)
+        throw dereference_nil{ "Sort reals" };
+
+    assert(reals->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(words->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+
+    const auto words_len = words->get_length();
+    if (reals->get_length() != words_len)
+        throw vm_user_exception{ "Array lengths must be equal" };
+
+    // Handle trivial sort cases
+    if (words_len <= 1)
+        return;
+
+    auto begin_words = reinterpret_cast<word_t *>(words->at(0));
+    auto end_words = begin_words + words_len;
+
+    // Validate array of indices
+    for (auto iter = begin_words; iter != end_words; ++iter)
+    {
+        if (*iter < 0 || words_len <= *iter)
+            throw vm_user_exception{ "Invalid sort index values" };
+    }
+
+    const auto reals_raw = reinterpret_cast<real_t *>(reals->at(0));
+    std::sort(begin_words, end_words, [reals_raw](word_t l, word_t r) { return reals_raw[l] < reals_raw[r]; });
 }
 
 void
 Math_sqrt(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_sqrt>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::sqrt(fp.x);
 }
 
 void
 Math_tan(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_tan>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::tan(fp.x);
 }
 
 void
 Math_tanh(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_tanh>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    *fp.ret = std::tanh(fp.x);
 }
 
 void
 Math_y0(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_y0>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_y1(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_y1>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Math_yn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_yn>();
-    throw vm_system_exception{ "Instruction not implemented" };
+    throw vm_system_exception{ "Function not implemented" };
 }
