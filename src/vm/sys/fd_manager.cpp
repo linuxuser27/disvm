@@ -11,7 +11,8 @@
 #include <vm_memory.h>
 #include "sys_utils.h"
 
-using namespace disvm::runtime;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::word_t;
 
 namespace
 {

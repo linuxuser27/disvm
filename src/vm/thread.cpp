@@ -16,8 +16,28 @@
 #include "execution_table.h"
 #include "tool_dispatch.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+using disvm::opcode_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::word_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_exec_op_t;
+using disvm::runtime::vm_thread_t;
+using disvm::runtime::vm_frame_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_module_ref_t;
+using disvm::runtime::vm_registers_t;
+using disvm::runtime::address_mode_t;
+using disvm::runtime::address_mode_middle_t;
+using disvm::runtime::vm_trap_flags_t;
+using disvm::runtime::vm_thread_state_t;
+using disvm::runtime::vm_tool_dispatch_t;
+using disvm::runtime::vm_system_exception;
 
 namespace
 {
@@ -30,11 +50,11 @@ namespace
 
 #ifndef NDEBUG
         // This is a perf critical function so logging is only available in debug builds
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::addressing>())
+        if (disvm::debug::is_component_tracing_enabled<component_trace_t::addressing>())
         {
-            debug::log_msg(
-                debug::component_trace_t::addressing,
-                debug::log_level_t::debug,
+            disvm::debug::log_msg(
+                component_trace_t::addressing,
+                log_level_t::debug,
                 "decode: registers: %d (%#" PRIxPTR " %#" PRIxPTR " %#" PRIxPTR ")",
                 inst.opcode,
                 reg.src,
@@ -130,7 +150,7 @@ vm_thread_t::vm_thread_t(
     // Pushing the initial frame sets the FP register
     _registers.stack.push_frame();
 
-    debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
+    disvm::debug::log_msg(component_trace_t::thread, log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
 }
 
 vm_thread_t::vm_thread_t(
@@ -159,14 +179,14 @@ vm_thread_t::vm_thread_t(
     //  Copy over the frame into this thread - pass arguments to the thread
     current_frame->copy_frame_contents(initial_frame);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::thread>())
+        disvm::debug::log_msg(component_trace_t::thread, log_level_t::debug, "init: vm thread: %d %d", _thread_id, _parent_thread_id);
 }
 
 vm_thread_t::~vm_thread_t()
 {
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
-        debug::log_msg(debug::component_trace_t::thread, debug::log_level_t::debug, "destroy: vm thread: %d %d", _thread_id, _parent_thread_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::thread>())
+        disvm::debug::log_msg(component_trace_t::thread, log_level_t::debug, "destroy: vm thread: %d %d", _thread_id, _parent_thread_id);
 
     free_memory(_error_message);
     debug::assign_debug_pointer(&_error_message);
@@ -187,7 +207,7 @@ namespace
         static void after_exec(vm_registers_t &r, vm_t &)
         {
             if (r.trap_flags == vm_trap_flags_t::none
-                || !util::has_flag(r.trap_flags, vm_trap_flags_t::instruction))
+                || !disvm::util::has_flag(r.trap_flags, vm_trap_flags_t::instruction))
                 return;
 
             auto tool_dispatch = r.tool_dispatch.load();
@@ -217,13 +237,12 @@ namespace
             assert(!r.module_ref->is_builtin_module() && "Interpreter thread is unable to execute native instructions");
             const auto &inst = code_section[r.pc].op;
             const auto opcode = static_cast<std::size_t>(inst.opcode);
-            if (static_cast<std::size_t>(opcode_t::last_opcode) < opcode)
-                throw vm_system_exception{ "Unknown op-code" };
+            assert(opcode <= static_cast<std::size_t>(opcode_t::last_opcode));
 
             // Instruction is valid, decode and update registers for operation
             decode_address(inst, r);
             r.next_pc = (r.pc + 1);
-            vm_exec_table[opcode](r, vm);
+            disvm::runtime::vm_exec_table[opcode](r, vm);
             r.pc = r.next_pc;
 
             EXEC_DETOUR::after_exec(r, vm);
@@ -280,11 +299,11 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
     }
 
     // Log the execution result
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::thread>())
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::thread>())
     {
-        debug::log_msg(
-            debug::component_trace_t::thread,
-            debug::log_level_t::debug,
+        disvm::debug::log_msg(
+            component_trace_t::thread,
+            log_level_t::debug,
             "status: vm thread: execute: %d %d %d %d",
             _thread_id,
             (quanta - _registers.current_thread_quanta),

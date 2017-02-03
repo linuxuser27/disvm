@@ -7,8 +7,6 @@
 #include <ostream>
 #include <vm_asm.h>
 
-using namespace disvm::runtime;
-
 std::ostream& disvm::runtime::operator<<(std::ostream &ss, const inst_data_generic_t &m)
 {
     switch (m.mode)

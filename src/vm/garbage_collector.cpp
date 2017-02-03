@@ -12,8 +12,22 @@
 #include <exceptions.h>
 #include "garbage_collector.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::default_garbage_collector_t;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::pointer_t;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_alloc_callback_t;
+using disvm::runtime::vm_garbage_collector_t;
+using disvm::runtime::vm_memory_allocator_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_thread_t;
+using disvm::runtime::vm_tool_controller_t;
 
 // Empty destructors for vm garbage collector 'interfaces'
 vm_garbage_collector_t::~vm_garbage_collector_t()
@@ -102,8 +116,8 @@ void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc)
 {
     assert(alloc != nullptr);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>())
-        debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: track: %#" PRIxPTR, alloc);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>())
+        disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: track: %#" PRIxPTR, alloc);
 
     alloc->add_ref();
     set_gc_colour(alloc, get_current_colour(_collection_epoch));
@@ -179,9 +193,9 @@ namespace
             }
         }
 
-        const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>();
+        const auto log_enabled = disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>();
         if (log_enabled)
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: roots found: %" PRIuPTR, mark_cxt.size());
+            disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: roots found: %" PRIuPTR, mark_cxt.size());
 
         // Traverse the graph
         while (!mark_cxt.empty())
@@ -190,7 +204,7 @@ namespace
             mark_cxt.pop();
 
             if (log_enabled)
-                debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR, curr);
+                disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR, curr);
 
             if (curr->alloc_type->map_in_bytes > 0)
                 enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), mark_pointers, &mark_cxt);
@@ -213,8 +227,8 @@ namespace
                 tracking_allocs.push_back(a);
         }
 
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::garbage_collector>())
-            debug::log_msg(debug::component_trace_t::garbage_collector, debug::log_level_t::debug, "gc: sweep: %u", starting_size - tracking_allocs.size());
+        if (disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>())
+            disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: sweep: %u", starting_size - tracking_allocs.size());
     }
 }
 
@@ -228,11 +242,11 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
         return false;
 
     std::chrono::high_resolution_clock::time_point start;
-    const auto log_enabled = debug::is_component_tracing_enabled<debug::component_trace_t::duration>();
+    const auto log_enabled = debug::is_component_tracing_enabled<component_trace_t::duration>();
     if (log_enabled)
     {
         start = std::chrono::high_resolution_clock::now();
-        debug::log_msg(debug::component_trace_t::duration, debug::log_level_t::debug, "gc: begin: collect");
+        disvm::debug::log_msg(component_trace_t::duration, log_level_t::debug, "gc: begin: collect");
     }
 
     const auto curr_colour = get_current_colour(_collection_epoch);
@@ -244,7 +258,7 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
     if (log_enabled)
     {
         const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
-        debug::log_msg(debug::component_trace_t::duration, debug::log_level_t::debug, "gc: end: collect: %lld us", elapsed.count());
+        disvm::debug::log_msg(component_trace_t::duration, log_level_t::debug, "gc: end: collect: %lld us", elapsed.count());
     }
 
     ++_collection_epoch;

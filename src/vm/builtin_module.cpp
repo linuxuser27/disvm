@@ -14,8 +14,8 @@
 #include <debug.h>
 #include <exceptions.h>
 
-using namespace disvm::runtime;
-using namespace disvm::runtime::builtin;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_module_t;
 
 namespace
 {

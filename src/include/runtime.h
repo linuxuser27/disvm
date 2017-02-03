@@ -519,30 +519,30 @@ namespace disvm
         };
 
         // Exception entry for handler
-        struct exception_t
+        struct exception_entry_t
         {
-            exception_t() = default;
-            exception_t(exception_t &&);
+            exception_entry_t() = default;
+            exception_entry_t(exception_entry_t &&);
 
-            exception_t(const exception_t &) = delete;
-            exception_t &operator=(const exception_t &) = delete;
+            exception_entry_t(const exception_entry_t &) = delete;
+            exception_entry_t &operator=(const exception_entry_t &) = delete;
 
-            ~exception_t();
+            ~exception_entry_t();
 
             vm_pc_t pc;
             std::unique_ptr<vm_string_t> name;
         };
 
         // Exception handler
-        struct handler_t
+        struct handler_entry_t
         {
-            handler_t() = default;
-            handler_t(handler_t &&);
+            handler_entry_t() = default;
+            handler_entry_t(handler_entry_t &&);
 
-            handler_t(const handler_t &) = delete;
-            handler_t &operator=(const handler_t &) = delete;
+            handler_entry_t(const handler_entry_t &) = delete;
+            handler_entry_t &operator=(const handler_entry_t &) = delete;
 
-            ~handler_t() = default;
+            ~handler_entry_t() = default;
 
             // Byte offset in the handling frame the exception should be placed.
             word_t exception_offset;
@@ -554,14 +554,14 @@ namespace disvm
             word_t exception_type_count;
 
             std::shared_ptr<const type_descriptor_t> type_desc;
-            std::vector<exception_t> exception_table;
+            std::vector<exception_entry_t> exception_table;
         };
 
         using code_section_t = std::vector<vm_instruction_t>;
         using type_section_map_t = std::vector<std::shared_ptr<const type_descriptor_t>>;
         using export_section_t = std::unordered_multimap<word_t, const export_function_t>;
         using import_section_t = std::vector<import_vm_module_t>;
-        using handler_section_t = std::vector<handler_t>;
+        using handler_section_t = std::vector<handler_entry_t>;
 
         using module_id_t = std::size_t;
 
@@ -696,7 +696,7 @@ namespace disvm
 
         // Walk the supplied stack and faulting module find the handler, handling stack frame, and program counter for the supplied exception ID.
         // If an exception handler cannot be found, {null, null, invalid_program_counter} will be returned.
-        std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> find_exception_handler(
+        std::tuple<const handler_entry_t *, vm_frame_t *, vm_pc_t> find_exception_handler(
             const vm_stack_t &stack,
             const vm_module_ref_t &faulting_module,
             const vm_pc_t faulting_pc,

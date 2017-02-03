@@ -10,10 +10,14 @@
 #include <exceptions.h>
 #include <debug.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
 
-std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_exception_handler(
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_frame_t;
+using disvm::runtime::handler_entry_t;
+
+std::tuple<const handler_entry_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_exception_handler(
     const vm_stack_t &stack,
     const vm_module_ref_t &faulting_module,
     const vm_pc_t faulting_pc,
@@ -26,7 +30,7 @@ std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_except
 
     while (current_frame != nullptr)
     {
-        debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "begin: handler: %d", unwind_depth);
+        disvm::debug::log_msg(component_trace_t::exception, log_level_t::debug, "begin: handler: %d", unwind_depth);
 
         auto &handler_section = current_module->module->handler_section;
 
@@ -42,12 +46,12 @@ std::tuple<const handler_t *, vm_frame_t *, vm_pc_t> disvm::runtime::find_except
                 auto exception_name = exception.name.get();
                 if (exception_id.compare_to(exception_name) == 0)
                 {
-                    debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "end: handler: match: %d", unwind_depth);
+                    disvm::debug::log_msg(component_trace_t::exception, log_level_t::debug, "end: handler: match: %d", unwind_depth);
                     return std::make_tuple(&handler, current_frame, exception.pc);
                 }
                 else if (exception_name == nullptr && exception.pc != runtime_constants::invalid_program_counter)
                 {
-                    debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "end: handler: fallback: %d", unwind_depth);
+                    disvm::debug::log_msg(component_trace_t::exception, log_level_t::debug, "end: handler: fallback: %d", unwind_depth);
                     return std::make_tuple(&handler, current_frame, exception.pc);
                 }
             }

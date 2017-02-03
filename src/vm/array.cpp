@@ -9,8 +9,16 @@
 #include <debug.h>
 #include <exceptions.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::pointer_t;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::word_t;
 
 std::shared_ptr<const type_descriptor_t> vm_array_t::type_desc()
 {
@@ -27,7 +35,7 @@ vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t lengt
     assert(_element_type != nullptr);
     assert(_length >= 0);
     _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: %d", _length);
+    disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm array: %d", _length);
 
     // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
 }
@@ -41,8 +49,8 @@ vm_array_t::vm_array_t(vm_array_t &original, word_t begin_index, word_t length)
 {
     assert(0 <= begin_index && (begin_index < _original->get_length() || (begin_index == _original->get_length() && length == 0)));
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: slice: %d %d", begin_index, _length);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm array: slice: %d %d", begin_index, _length);
 
     // Set the data to reference the original array
     _arr = _original->_arr + (begin_index * _element_type->size_in_bytes);
@@ -77,8 +85,8 @@ vm_array_t::vm_array_t(const vm_string_t *s)
         std::memcpy(_arr, str, _length);
     }
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm array: vm string: %d", _length);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm array: vm string: %d", _length);
 }
 
 vm_array_t::~vm_array_t()
@@ -92,7 +100,7 @@ vm_array_t::~vm_array_t()
         dec_ref_count_and_free(_original);
         debug::assign_debug_pointer(&_original);
 
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array: slice");
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm array: slice");
     }
     else
     {
@@ -100,19 +108,19 @@ vm_array_t::~vm_array_t()
         auto arr_local = _arr;
         const auto array_len = _length;
         const auto &element_type = *_element_type;
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "begin: destroy: elements: %d", array_len);
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "begin: destroy: elements: %d", array_len);
         for (word_t i = 0; i < array_len; ++i)
         {
             destroy_memory(element_type, arr_local);
             arr_local += element_type.size_in_bytes;
         }
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "end: destroy: elements: %d", array_len);
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "end: destroy: elements: %d", array_len);
 
         // Free array memory
         free_memory(_arr);
 
         debug::assign_debug_pointer(&_arr);
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm array");
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm array");
     }
 
 }

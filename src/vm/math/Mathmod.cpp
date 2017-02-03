@@ -7,8 +7,19 @@
 #include <debug.h>
 #include "Mathmod.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::dereference_nil;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::real_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_user_exception;
+using disvm::runtime::vm_system_exception;
+using disvm::runtime::word_t;
 
 namespace
 {
@@ -90,7 +101,7 @@ namespace
 void
 Mathmodinit(void)
 {
-    builtin::register_module_exports(Math_PATH, Mathmodlen, Mathmodtab);
+    disvm::runtime::builtin::register_module_exports(Math_PATH, Mathmodlen, Mathmodtab);
 }
 
 void
@@ -99,7 +110,7 @@ Math_FPcontrol(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_FPcontrol>();
 
     // [PAL] Properly implement floating point control
-    debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::warning, "FPControl is not properly implemented");
+    disvm::debug::log_msg(component_trace_t::builtin, log_level_t::warning, "FPControl is not properly implemented");
 
     *fp.ret = fp.mask;
 }

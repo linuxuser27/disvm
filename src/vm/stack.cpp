@@ -11,8 +11,16 @@
 #include <debug.h>
 #include <exceptions.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_module_ref_t;
+using disvm::runtime::vm_frame_t;
+using disvm::runtime::vm_stack_t;
+using disvm::runtime::vm_alloc_t;
 
 namespace
 {
@@ -54,7 +62,7 @@ namespace
         ~vm_stack_layout()
         {
             assert(top_page != nullptr);
-            free_memory(top_page);
+            disvm::runtime::free_memory(top_page);
         }
 
         const std::size_t stack_page_size;
@@ -66,7 +74,7 @@ namespace
         void *new_page()
         {
             auto current_stack_page = top_page;
-            top_page = alloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
+            top_page = disvm::runtime::alloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
 
             // Initialize the stack allocation.
             top_page->prev_page = current_stack_page;
@@ -75,8 +83,8 @@ namespace
             top_page->page_top_frame = nullptr;
             top_page->page_limit_addr = reinterpret_cast<std::uintptr_t>(top_page)+stack_page_size;
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR, top_page, top_page->page_limit_addr);
+            if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR, top_page, top_page->page_limit_addr);
 
             return top_page->stack_data();
         }
@@ -87,10 +95,10 @@ namespace
             auto current_stack_page = top_page->prev_page;
             assert(current_stack_page != nullptr);
 
-            free_memory(top_page);
+            disvm::runtime::free_memory(top_page);
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: vm stack alloc");
+            if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free: vm stack alloc");
 
             // Set the top page
             top_page = current_stack_page;
@@ -110,8 +118,8 @@ vm_frame_t::vm_frame_t(std::shared_ptr<const type_descriptor_t> &td)
     prev_frame() = nullptr;
     prev_module_ref() = nullptr;
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm frame: %#" PRIxPTR " %d", this, frame_type->size_in_bytes);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm frame: %#" PRIxPTR " %d", this, frame_type->size_in_bytes);
 }
 
 vm_frame_t::~vm_frame_t()
@@ -120,8 +128,8 @@ vm_frame_t::~vm_frame_t()
 
     destroy_memory(*frame_type, base());
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm frame: %#" PRIxPTR, this);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm frame: %#" PRIxPTR, this);
 }
 
 void vm_frame_t::copy_frame_contents(const vm_frame_t &other)
@@ -181,7 +189,7 @@ vm_stack_t::vm_stack_t(std::size_t stack_extent)
     : _mem{ std::make_unique<vm_stack_layout>(stack_extent) }
 {
     assert(0 < stack_extent && stack_extent < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm stack");
+    log_msg(component_trace_t::memory, log_level_t::debug, "init: vm stack");
 }
 
 vm_stack_t::~vm_stack_t()
@@ -195,7 +203,7 @@ vm_stack_t::~vm_stack_t()
     _mem->release();
     _mem.reset();
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm stack");
+    log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm stack");
 }
 
 vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> frame_type)
@@ -244,8 +252,8 @@ vm_frame_t *vm_stack_t::push_frame()
 
     layout->top_frame = new_top_frame;
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
-        debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "update: push vm frame: %#" PRIxPTR, new_top_frame);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::stack>())
+        log_msg(component_trace_t::stack, log_level_t::debug, "update: push vm frame: %#" PRIxPTR, new_top_frame);
 
     return new_top_frame;
 }
@@ -284,8 +292,8 @@ vm_frame_t *vm_stack_t::pop_frame()
         }
     }
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
-        debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "update: pop vm frame: %#" PRIxPTR, current_frame);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::stack>())
+        log_msg(component_trace_t::stack, log_level_t::debug, "update: pop vm frame: %#" PRIxPTR, current_frame);
 
     return current_frame;
 }

@@ -18,8 +18,23 @@
 #include "Sysmod.h"
 #include "sys_utils.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::dereference_nil;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::out_of_range_memory;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_list_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_syscall_exception;
+using disvm::runtime::vm_system_exception;
+using disvm::runtime::vm_user_exception;
+using disvm::runtime::word_t;
 
 namespace
 {
@@ -85,16 +100,16 @@ namespace
         {
             auto fd = fileHandle->get_allocation<vm_fd_t>();
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+            if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
             {
-                debug::log_msg(
-                    debug::component_trace_t::builtin,
-                    debug::log_level_t::debug,
+                disvm::debug::log_msg(
+                    component_trace_t::builtin,
+                    log_level_t::debug,
                     "sys: fd: finalize: %d",
                     fd->fd);
             }
 
-            sys::drop_fd_record(fd->fd);
+            disvm::runtime::sys::drop_fd_record(fd->fd);
             fd->~vm_fd_t();
         }
 
@@ -102,7 +117,7 @@ namespace
         {
             assert(s != nullptr);
             auto alloc = vm_alloc_t::allocate(T_FD);
-            const auto fd = sys::create_fd_record(alloc);
+            const auto fd = disvm::runtime::sys::create_fd_record(alloc);
             auto vm_fd = ::new(alloc->get_allocation())vm_fd_t{ fd, std::move(s), fd_mode, fd_path };
 
             return std::make_tuple(vm_fd->fd, alloc);
@@ -143,8 +158,8 @@ namespace
 
         ~vm_fd_t()
         {
-            debug::assign_debug_pointer(&_istream);
-            debug::assign_debug_pointer(&_ostream);
+            disvm::debug::assign_debug_pointer(&_istream);
+            disvm::debug::assign_debug_pointer(&_ostream);
             if (_stream != nullptr)
                 _stream.reset();
 
@@ -153,7 +168,7 @@ namespace
                 std::remove(_fd_path->str());
 
             dec_ref_count_and_free(_fd_path);
-            debug::assign_debug_pointer(&_fd_path);
+            disvm::debug::assign_debug_pointer(&_fd_path);
         }
 
         word_t get_original_mode() const
@@ -217,7 +232,7 @@ namespace
         disvm::runtime::pointer_t base)
     {
         auto static_buffer = std::array<char, 1024>{};
-        auto written = sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
+        auto written = disvm::runtime::sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
         if (written >= 0)
         {
             fd.write(vm, written, static_buffer.data());
@@ -225,7 +240,7 @@ namespace
         else
         {
             auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-            written = sys::printf_to_dynamic_buffer(vm, msg_fmt, msg_args, base, dynamic_buffer);
+            written = disvm::runtime::sys::printf_to_dynamic_buffer(vm, msg_fmt, msg_args, base, dynamic_buffer);
             fd.write(vm, written, dynamic_buffer.data());
         }
 
@@ -270,7 +285,7 @@ namespace
 void
 Sysmodinit(void)
 {
-    builtin::register_module_exports(Sys_PATH, Sysmodlen, Sysmodtab);
+    disvm::runtime::builtin::register_module_exports(Sys_PATH, Sysmodlen, Sysmodtab);
     T_Qid = type_descriptor_t::create(sizeof(Sys_Qid), sizeof(Sys_Qid_map), Sys_Qid_map);
     T_Dir = type_descriptor_t::create(sizeof(Sys_Dir), sizeof(Sys_Dir_map), Sys_Dir_map);
     T_FD = type_descriptor_t::create(sizeof(vm_fd_t), sizeof(Sys_FD_map), Sys_FD_map, vm_fd_t::finalizer);
@@ -281,23 +296,23 @@ Sysmodinit(void)
 
     {
         auto vm_stdin = vm_alloc_t::allocate(T_FD);
-        const auto fd = sys::create_fd_record(vm_stdin);
+        const auto fd = disvm::runtime::sys::create_fd_record(vm_stdin);
         fd_stdin = ::new(vm_stdin->get_allocation())vm_fd_t{ fd, std::cin };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdin: %d", fd);
+        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdin: %d", fd);
     }
 
     {
         auto vm_stdout = vm_alloc_t::allocate(T_FD);
-        const auto fd = sys::create_fd_record(vm_stdout);
+        const auto fd = disvm::runtime::sys::create_fd_record(vm_stdout);
         fd_stdout = ::new(vm_stdout->get_allocation())vm_fd_t{ fd, std::cout };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stdout: %d", fd);
+        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdout: %d", fd);
     }
 
     {
         auto vm_stderr = vm_alloc_t::allocate(T_FD);
-        const auto fd = sys::create_fd_record(vm_stderr);
+        const auto fd = disvm::runtime::sys::create_fd_record(vm_stderr);
         fd_stderr = ::new(vm_stderr->get_allocation())vm_fd_t{ fd, std::cerr };
-        debug::log_msg(debug::component_trace_t::builtin, debug::log_level_t::debug, "sys: stderr: %d", fd);
+        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stderr: %d", fd);
     }
 }
 
@@ -339,21 +354,21 @@ Sys_byte2char(vm_registers_t &r, vm_t &vm)
     fp.ret->t1 = 0;
     fp.ret->t2 = 0;
 
-    auto state = utf8::decode_state_t::accept;
-    auto result = runtime::rune_t{};
+    auto state = disvm::runtime::utf8::decode_state_t::accept;
+    auto result = disvm::runtime::rune_t{};
     const auto buffer_len = buffer->get_length();
     for (auto i = n; i < buffer_len; ++i)
     {
         auto b = buffer->at<byte_t>(i);
-        state = utf8::decode_step(state, result, b);
-        if (state == utf8::decode_state_t::accept)
+        state = disvm::runtime::utf8::decode_step(state, result, b);
+        if (state == disvm::runtime::utf8::decode_state_t::accept)
         {
             fp.ret->t0 = result;
             fp.ret->t1 = (i - n) + 1; // Number of bytes consumed
             fp.ret->t2 = 1;
             return;
         }
-        else if (state == utf8::decode_state_t::reject)
+        else if (state == disvm::runtime::utf8::decode_state_t::reject)
         {
             fp.ret->t1 = 1;
             return;
@@ -373,13 +388,13 @@ Sys_char2byte(vm_registers_t &r, vm_t &vm)
     if (buffer == nullptr || n >= buffer->get_length())
         throw out_of_range_memory{};
 
-    const auto rune = static_cast<runtime::rune_t>(fp.c);
+    const auto rune = static_cast<disvm::runtime::rune_t>(fp.c);
 
     static_assert(Sys_UTFmax == sizeof(rune), "UTF max should be same size as rune");
     uint8_t buffer_local[Sys_UTFmax];
     auto begin = buffer_local;
 
-    auto end = utf8::encode(rune, begin);
+    auto end = disvm::runtime::utf8::encode(rune, begin);
     const auto count = static_cast<word_t>(end - begin);
 
     const auto final_index = n + count;
@@ -414,12 +429,12 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     auto path = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
     const auto open_mode = convert_to_openmode(fp.mode);
 
-    auto cfs_flag = sys::cfs_flags_t::none;
+    auto cfs_flag = disvm::runtime::sys::cfs_flags_t::none;
     if (fp.mode & Sys_OEXCL)
-        cfs_flag = (sys::cfs_flags_t::atomic | sys::cfs_flags_t::ensure_create);
+        cfs_flag = (disvm::runtime::sys::cfs_flags_t::atomic | disvm::runtime::sys::cfs_flags_t::ensure_create);
 
     // [TODO] Apply the requested permissions to the file.
-    auto file_stream = sys::create_file_stream(path->str(), (open_mode | std::ios::binary), cfs_flag);
+    auto file_stream = disvm::runtime::sys::create_file_stream(path->str(), (open_mode | std::ios::binary), cfs_flag);
 
     // Return null if file stream is not open.
     if (file_stream == nullptr)
@@ -432,11 +447,11 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     auto fd = word_t{};
     std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
     {
-        debug::log_msg(
-            debug::component_trace_t::builtin,
-            debug::log_level_t::debug,
+        disvm::debug::log_msg(
+            component_trace_t::builtin,
+            log_level_t::debug,
             "sys: create: %d >>%s<< %#x %#x",
             fd,
             path->str(),
@@ -497,7 +512,7 @@ Sys_fildes(vm_registers_t &r, vm_t &vm)
     dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
     *fp.ret = nullptr;
 
-    auto fd = sys::fetch_fd_record(fp.fd);
+    auto fd = disvm::runtime::sys::fetch_fd_record(fp.fd);
     if (fd != nullptr)
     {
         fd->add_ref();
@@ -588,7 +603,7 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     const auto open_mode = convert_to_openmode(fp.mode);
 
     // [TODO] Handle opening devices - not just files (i.e. /dev/random, /dev/source, /proc/1234)
-    auto file_stream = sys::create_file_stream(path->str(), (open_mode | std::ios::binary));
+    auto file_stream = disvm::runtime::sys::create_file_stream(path->str(), (open_mode | std::ios::binary));
 
     // Return null if file stream is not open.
     if (file_stream == nullptr)
@@ -601,11 +616,11 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     auto fd = word_t{};
     std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::builtin>())
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
     {
-        debug::log_msg(
-            debug::component_trace_t::builtin,
-            debug::log_level_t::debug,
+        disvm::debug::log_msg(
+            component_trace_t::builtin,
+            log_level_t::debug,
             "sys: open: %d >>%s<< %#x",
             fd,
             path->str(),
@@ -746,7 +761,7 @@ Sys_sprint(vm_registers_t &r, vm_t &vm)
     vm_string_t *new_string;
     auto static_buffer = std::array<char, 128>{};
     auto msg_args = &fp.vargs;
-    auto written = sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
+    auto written = disvm::runtime::sys::printf_to_buffer(vm, *str, msg_args, fp_base, static_buffer.size(), static_buffer.data());
     if (written >= 0)
     {
         new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(static_buffer.data()) };
@@ -754,7 +769,7 @@ Sys_sprint(vm_registers_t &r, vm_t &vm)
     else
     {
         auto dynamic_buffer = std::vector<char>(static_buffer.size() * 2);
-        written = sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
+        written = disvm::runtime::sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, dynamic_buffer);
         new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
     }
 
@@ -777,7 +792,7 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
 
 namespace
 {
-    bool is_delim(const runtime::rune_t c, const vm_string_t &delim)
+    bool is_delim(const disvm::runtime::rune_t c, const vm_string_t &delim)
     {
         const auto max = delim.get_length();
 
@@ -837,7 +852,7 @@ Sys_tokenize(vm_registers_t &r, vm_t &vm)
     if (delim == nullptr || delim->get_length() == 0)
     {
         // Add supplied string to list
-        pt_ref(curr_node->value()) = s->get_allocation();
+        disvm::runtime::pt_ref(curr_node->value()) = s->get_allocation();
         s->add_ref();
 
         fp.ret->t0 = 1;
@@ -881,7 +896,7 @@ Sys_tokenize(vm_registers_t &r, vm_t &vm)
             curr_node = new vm_list_t{ intrinsic_type_desc::type<pointer_t>() };
 
         const auto token = new vm_string_t{ *s, begin, end };
-        pt_ref(curr_node->value()) = token->get_allocation();
+        disvm::runtime::pt_ref(curr_node->value()) = token->get_allocation();
 
         // Previous node is initially null
         if (prev_node != nullptr)
@@ -921,7 +936,7 @@ Sys_utfbytes(vm_registers_t &r, vm_t &vm)
 
     auto raw_buffer = reinterpret_cast<uint8_t *>(buffer->at(0));
 
-    const auto len = utf8::count_codepoints(raw_buffer, n);
+    const auto len = disvm::runtime::utf8::count_codepoints(raw_buffer, n);
     *fp.ret = static_cast<word_t>(len.byte_count);
     assert(*fp.ret <= n && "Code points should not exceed number of bytes processed");
 }
@@ -936,7 +951,7 @@ Sys_werrstr(vm_registers_t &r, vm_t &vm)
     if (s != nullptr)
         new_err = s->str();
 
-    push_syscall_error_message(vm, new_err);
+    disvm::runtime::push_syscall_error_message(vm, new_err);
     *fp.ret = 0;
 }
 

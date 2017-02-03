@@ -19,8 +19,33 @@
 #include "tool_dispatch.h"
 #include "module_resolver.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+using disvm::vm_config_t;
+using disvm::vm_version_t;
+using disvm::loaded_vm_module_callback_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_thread_t;
+using disvm::runtime::vm_memory_allocator_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_frame_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_module_ref_t;
+using disvm::runtime::vm_module_resolver_t;
+using disvm::runtime::vm_garbage_collector_t;
+using disvm::runtime::vm_scheduler_t;
+using disvm::runtime::vm_scheduler_control_t;
+using disvm::runtime::vm_tool_t;
+using disvm::runtime::vm_tool_dispatch_t;
+using disvm::runtime::vm_user_exception;
+using disvm::runtime::vm_module_exception;
+using disvm::runtime::vm_system_exception;
+using disvm::runtime::default_garbage_collector_t;
+using disvm::runtime::default_scheduler_t;
+using disvm::runtime::default_resolver_t;
 
 namespace
 {
@@ -69,8 +94,8 @@ std::string disvm::runtime::pop_syscall_error_message(disvm::vm_t &vm)
 }
 
 // Consumed in vm_memory.cpp
-thread_local vm_memory_alloc_t vm_memory_alloc;
-thread_local vm_memory_free_t vm_memory_free;
+thread_local disvm::runtime::vm_memory_alloc_t vm_memory_alloc;
+thread_local disvm::runtime::vm_memory_free_t vm_memory_free;
 
 namespace
 {
@@ -140,7 +165,7 @@ vm_t::vm_t()
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    builtin::initialize_builtin_modules();
+    disvm::runtime::builtin::initialize_builtin_modules();
 
     _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
     _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this));
@@ -157,7 +182,7 @@ vm_t::vm_t(vm_config_t config)
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    builtin::initialize_builtin_modules();
+    disvm::runtime::builtin::initialize_builtin_modules();
 
     if (config.create_scheduler == nullptr)
         _scheduler = std::make_unique<default_scheduler_t>(*this, config.sys_thread_pool_size, config.thread_quanta);
@@ -189,7 +214,7 @@ vm_version_t vm_t::get_version() const
 
 namespace
 {
-    std::unique_ptr<runtime::vm_thread_t> _create_thread_safe(std::unique_ptr<runtime::vm_module_ref_t> entry_module_ref)
+    std::unique_ptr<vm_thread_t> _create_thread_safe(std::unique_ptr<vm_module_ref_t> entry_module_ref)
     {
         auto thread = std::make_unique<vm_thread_t>(*entry_module_ref, disvm::vm_t::root_vm_thread_id);
 
@@ -201,7 +226,7 @@ namespace
     }
 }
 
-const runtime::vm_thread_t& vm_t::exec(const char *path)
+const vm_thread_t& vm_t::exec(const char *path)
 {
     assert(path != nullptr);
     auto entry_module = load_module(path);
@@ -211,7 +236,7 @@ const runtime::vm_thread_t& vm_t::exec(const char *path)
     return schedule_thread(std::move(thread));
 }
 
-const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> entry_module)
+const vm_thread_t& vm_t::exec(std::unique_ptr<vm_module_t> entry_module)
 {
     assert(entry_module != nullptr);
 
@@ -220,11 +245,11 @@ const runtime::vm_thread_t& vm_t::exec(std::unique_ptr<runtime::vm_module_t> ent
     return schedule_thread(std::move(thread));
 }
 
-const runtime::vm_thread_t& vm_t::fork(
+const vm_thread_t& vm_t::fork(
     const uint32_t parent_tid,
-    runtime::vm_module_ref_t &module_ref,
-    const runtime::vm_frame_t &initial_frame,
-    runtime::vm_pc_t initial_pc)
+    vm_module_ref_t &module_ref,
+    const vm_frame_t &initial_frame,
+    vm_pc_t initial_pc)
 {
     if (initial_pc < 0 || static_cast<vm_pc_t>(module_ref.code_section.size()) <= initial_pc)
         throw vm_user_exception{ "Invalid entry program counter" };
@@ -235,7 +260,7 @@ const runtime::vm_thread_t& vm_t::fork(
 
 namespace
 {
-    std::unique_ptr<vm_module_t> resolve_module_from_path(const char *path, const std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> &resolvers)
+    std::unique_ptr<vm_module_t> resolve_module_from_path(const char *path, const std::vector<std::unique_ptr<vm_module_resolver_t>> &resolvers)
     {
         assert(!resolvers.empty());
         std::unique_ptr<vm_module_t> resolved_module;
@@ -244,8 +269,8 @@ namespace
         const char *inferno_root_path = "/dis/";
         if (std::strncmp(path, inferno_root_path, sizeof(inferno_root_path)) == 0)
         {
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
-                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: Inferno OS path detected - >>%s<<", path);
+            if (disvm::debug::is_component_tracing_enabled<component_trace_t::module>())
+                disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "load: vm module: Inferno OS path detected - >>%s<<", path);
 
             // Plus 1 for the next character. We know this will either be
             // null or valid character since we searched for a string
@@ -285,7 +310,7 @@ namespace
     }
 }
 
-std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
+std::shared_ptr<vm_module_t> vm_t::load_module(const char *path)
 {
     if (path == nullptr)
         throw vm_user_exception{ "Invalid module path" };
@@ -311,8 +336,8 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
 
                     iter->module = module;
 
-                    if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
-                        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "reload: vm module: >>%s<<", path);
+                    if (disvm::debug::is_component_tracing_enabled<component_trace_t::module>())
+                        disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "reload: vm module: >>%s<<", path);
                 }
 
                 return module;
@@ -323,7 +348,7 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
 
         if (path[0] == BUILTIN_MODULE_PREFIX_CHAR)
         {
-            new_module = std::move(builtin::get_builtin_module(path));
+            new_module = std::move(disvm::runtime::builtin::get_builtin_module(path));
         }
         else
         {
@@ -349,8 +374,8 @@ std::shared_ptr<runtime::vm_module_t> vm_t::load_module(const char *path)
             _tool_dispatch->on_module_vm_load(*new_module_iter);
     }
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::module>())
-        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "load: vm module: >>%s<<", path);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::module>())
+        disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "load: vm module: >>%s<<", path);
 
     return new_module;
 }
@@ -368,12 +393,12 @@ void vm_t::enum_loaded_modules(loaded_vm_module_callback_t callback) const
     }
 }
 
-runtime::vm_scheduler_control_t &vm_t::get_scheduler_control() const
+vm_scheduler_control_t &vm_t::get_scheduler_control() const
 {
     return _scheduler->get_controller();
 }
 
-runtime::vm_garbage_collector_t &vm_t::get_garbage_collector() const
+vm_garbage_collector_t &vm_t::get_garbage_collector() const
 {
     return *_gc;
 }
@@ -385,7 +410,7 @@ void vm_t::spin_sleep_till_idle(std::chrono::milliseconds sleep_interval) const
     while (!_scheduler->is_idle());
 }
 
-std::size_t vm_t::load_tool(std::shared_ptr<runtime::vm_tool_t> tool)
+std::size_t vm_t::load_tool(std::shared_ptr<vm_tool_t> tool)
 {
     std::lock_guard<std::mutex> lock{ _tool_dispatch_lock };
 
@@ -420,7 +445,7 @@ void vm_t::unload_tool(std::size_t tool_id)
     }
 }
 
-const runtime::vm_thread_t &vm_t::schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread)
+const vm_thread_t &vm_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
 {
     assert(thread != nullptr);
 

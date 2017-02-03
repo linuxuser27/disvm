@@ -11,8 +11,13 @@
 #include <debug.h>
 #include <exceptions.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::word_t;
 
 std::shared_ptr<const type_descriptor_t> vm_string_t::type_desc()
 {
@@ -47,8 +52,8 @@ namespace
     {
         for (auto i = word_t{ 0 }; i < len; ++i)
         {
-            const auto sc1 = static_cast<runtime::rune_t>(s1[i]);
-            const auto sc2 = static_cast<runtime::rune_t>(s2[i]);
+            const auto sc1 = static_cast<disvm::runtime::rune_t>(s1[i]);
+            const auto sc2 = static_cast<disvm::runtime::rune_t>(s2[i]);
 
             if (sc1 != sc2)
                 return (sc1 < sc2) ? (-1) : 1;
@@ -128,10 +133,10 @@ namespace
     }
 
     template<>
-    void copy_characters_to(runtime::rune_t *dest, word_t dest_start, const runtime::rune_t *source, word_t source_length)
+    void copy_characters_to(disvm::runtime::rune_t *dest, word_t dest_start, const disvm::runtime::rune_t *source, word_t source_length)
     {
         assert(dest != nullptr && source != nullptr && dest != source);
-        std::memcpy((dest + dest_start), source, (source_length * sizeof(runtime::rune_t)));
+        std::memcpy((dest + dest_start), source, (source_length * sizeof(disvm::runtime::rune_t)));
     }
 
     void combine(
@@ -146,14 +151,14 @@ namespace
     {
         if (dest_is_rune)
         {
-            auto dest_rune = reinterpret_cast<runtime::rune_t *>(dest);
+            auto dest_rune = reinterpret_cast<disvm::runtime::rune_t *>(dest);
             if (source1_is_rune)
-                copy_characters_to(dest_rune, 0, reinterpret_cast<const runtime::rune_t *>(source1), source1_length);
+                copy_characters_to(dest_rune, 0, reinterpret_cast<const disvm::runtime::rune_t *>(source1), source1_length);
             else
                 copy_characters_to(dest_rune, 0, source1, source1_length);
 
             if (source2_is_rune)
-                copy_characters_to(dest_rune, source1_length, reinterpret_cast<const runtime::rune_t *>(source2), source2_length);
+                copy_characters_to(dest_rune, source1_length, reinterpret_cast<const disvm::runtime::rune_t *>(source2), source2_length);
             else
                 copy_characters_to(dest_rune, source1_length, source2, source2_length);
         }
@@ -235,8 +240,8 @@ vm_string_t::vm_string_t(std::size_t encoded_str_len, const uint8_t *encoded_str
             encoded_str += utf8::decode(encoded_str, rune_dest[i]);
     }
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm string: %d %d >>%s<<", _length, (_length_max * _character_size), dest);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm string: %d %d >>%s<<", _length, (_length_max * _character_size), dest);
 }
 
 vm_string_t::vm_string_t(const vm_string_t &s1, const vm_string_t &s2)
@@ -297,8 +302,8 @@ vm_string_t::vm_string_t(const vm_string_t &other, word_t begin_index, word_t en
     const auto length_in_bytes = _length * _character_size;
     std::memcpy(dest, (src + (begin_index * _character_size)), length_in_bytes);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR, &other, begin_index, end_index, this);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "copy: vm string: %#" PRIxPTR " %d %d %#" PRIxPTR, &other, begin_index, end_index, this);
 }
 
 vm_string_t::~vm_string_t()
@@ -314,8 +319,8 @@ vm_string_t::~vm_string_t()
     debug::assign_debug_pointer(&source);
     debug::assign_debug_pointer(&_encoded_str);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm string");
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm string");
 }
 
 vm_string_t &vm_string_t::append(const vm_string_t &other)
@@ -389,7 +394,7 @@ word_t vm_string_t::get_length() const
     return _length;
 }
 
-runtime::rune_t vm_string_t::get_rune(word_t index) const
+disvm::runtime::rune_t vm_string_t::get_rune(word_t index) const
 {
     if (index < 0 || _length <= index)
         throw index_out_of_range_memory{ 0, _length - 1, index };
@@ -401,12 +406,12 @@ runtime::rune_t vm_string_t::get_rune(word_t index) const
 
     // Check if multi-byte or ASCII
     if (_character_size != sizeof(char))
-        return reinterpret_cast<const rune_t *>(source)[index];
+        return reinterpret_cast<const disvm::runtime::rune_t *>(source)[index];
     else
-        return static_cast<const rune_t>(source[index]);
+        return static_cast<const disvm::runtime::rune_t>(source[index]);
 }
 
-void vm_string_t::set_rune(word_t index, rune_t value)
+void vm_string_t::set_rune(word_t index, disvm::runtime::rune_t value)
 {
     // This function does not adhere to the immutable string contract.
     // Therefore, it is unsafe to call this function if there is more

@@ -15,9 +15,38 @@
 #include <vm_version.h>
 #include "exec.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
-using namespace disvm::assembly::sigkind;
+using disvm::vm_t;
+using disvm::vm_config_t;
+using disvm::opcode_t;
+
+using disvm::assembly::sigkind::sig_stream_t;
+using disvm::assembly::sigkind::Tfunction;
+using disvm::assembly::sigkind::Tlist;
+using disvm::assembly::sigkind::Tstring;
+using disvm::assembly::sigkind::Tnone;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::byte_t;
+using disvm::runtime::word_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::runtime_flags_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_list_t;
+using disvm::runtime::vm_frame_base_alloc_t;
+using disvm::runtime::vm_frame_constants;
+using disvm::runtime::vm_exec_op_t;
+using disvm::runtime::address_mode_t;
+using disvm::runtime::address_mode_middle_t;
+using disvm::runtime::import_function_t;
+using disvm::runtime::import_vm_module_t;
+using disvm::runtime::vm_user_exception;
+using disvm::runtime::vm_system_exception;
 
 namespace
 {
@@ -62,7 +91,7 @@ namespace
                 last = new_tail;
             }
 
-            pt_ref(last->value()) = curr_arg->get_allocation();
+            disvm::runtime::pt_ref(last->value()) = curr_arg->get_allocation();
         }
 
         if (command_module_path == nullptr)
@@ -107,7 +136,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::load,
-                    assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
+                    disvm::assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_mp, 0, 0 }, // command module path
                     { address_mode_middle_t::small_immediate, 0 }, // import table index
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
@@ -116,7 +145,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::mframe,
-                    assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
+                    disvm::assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_fp, 20, 0 }, // module reference
                     { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 24, 0 } // module call frame
@@ -125,7 +154,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::movp,
-                    assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::none, address_mode_t::offset_double_indirect_fp),
+                    disvm::assembly::construct_address_code(address_mode_t::offset_indirect_mp, address_mode_middle_t::none, address_mode_t::offset_double_indirect_fp),
                     { address_mode_t::offset_indirect_mp, 4, 0 }, // Argument list
                     { address_mode_middle_t::none },
                     { address_mode_t::offset_double_indirect_fp, 24, first_arg_offset } // module call frame -> argument list offset
@@ -134,7 +163,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::mcall,
-                    assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
+                    disvm::assembly::construct_address_code(address_mode_t::offset_indirect_fp, address_mode_middle_t::small_immediate, address_mode_t::offset_indirect_fp),
                     { address_mode_t::offset_indirect_fp, 24, 0 }, // module call frame
                     { address_mode_middle_t::small_immediate, 0 }, // function index into module
                     { address_mode_t::offset_indirect_fp, 20, 0 } // module reference
@@ -143,7 +172,7 @@ namespace
             { vm_exec_op_t
                 {
                     opcode_t::ret,
-                    assembly::construct_address_code(address_mode_t::none, address_mode_middle_t::none, address_mode_t::none),
+                    disvm::assembly::construct_address_code(address_mode_t::none, address_mode_middle_t::none, address_mode_t::none),
                     { address_mode_t::none },
                     { address_mode_middle_t::none },
                     { address_mode_t::none }
@@ -248,16 +277,16 @@ void print_help()
            "    h - Print help (alternative: '?')\n";
 }
 
-void log_callback(const debug::component_trace_t origin, const debug::log_level_t level, const char *msg_fmt, std::va_list args)
+void log_callback(const component_trace_t origin, const log_level_t level, const char *msg_fmt, std::va_list args)
 {
     std::stringstream ss;
 
     switch (level)
     {
-    case debug::log_level_t::warning:
+    case log_level_t::warning:
         ss << "w: ";
         break;
-    case debug::log_level_t::debug:
+    case log_level_t::debug:
         ss << "d: ";
         break;
     }
@@ -323,26 +352,26 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
 
     case 'l':
         // Set the callback
-        debug::set_logging_callback(log_callback);
+        disvm::debug::set_logging_callback(log_callback);
         for (auto i = std::size_t{ 2 }; i < arg_len; ++i)
         {
             switch (arg[i])
             {
-            case 's': debug::set_component_tracing(debug::component_trace_t::scheduler, true);
+            case 's': disvm::debug::set_component_tracing(component_trace_t::scheduler, true);
                 break;
-            case 'S': debug::set_component_tracing(debug::component_trace_t::stack, true);
+            case 'S': disvm::debug::set_component_tracing(component_trace_t::stack, true);
                 break;
-            case 't': debug::set_component_tracing(debug::component_trace_t::thread, true);
+            case 't': disvm::debug::set_component_tracing(component_trace_t::thread, true);
                 break;
-            case 'T': debug::set_component_tracing(debug::component_trace_t::tool, true);
+            case 'T': disvm::debug::set_component_tracing(component_trace_t::tool, true);
                 break;
-            case 'e': debug::set_component_tracing(debug::component_trace_t::exception, true);
+            case 'e': disvm::debug::set_component_tracing(component_trace_t::exception, true);
                 break;
-            case 'g': debug::set_component_tracing(debug::component_trace_t::garbage_collector, true);
+            case 'g': disvm::debug::set_component_tracing(component_trace_t::garbage_collector, true);
                 break;
-            case 'm': debug::set_component_tracing(debug::component_trace_t::memory, true);
+            case 'm': disvm::debug::set_component_tracing(component_trace_t::memory, true);
                 break;
-            case 'd': debug::set_component_tracing(debug::component_trace_t::duration, true);
+            case 'd': disvm::debug::set_component_tracing(component_trace_t::duration, true);
                 break;
             }
         }
