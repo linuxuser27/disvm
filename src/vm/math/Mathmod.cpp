@@ -598,7 +598,7 @@ Math_realbits32(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_realbits32>();
 
     auto x = static_cast<float>(fp.x);
-    uint32_t t;
+    word_t t;
     std::memcpy(&t, &x, sizeof(x));
 
     *fp.ret = t;
@@ -610,7 +610,7 @@ Math_realbits64(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_realbits64>();
 
     auto x = fp.x;
-    uint64_t t;
+    big_t t;
     std::memcpy(&t, &x, sizeof(x));
     static_assert(sizeof(t) == sizeof(x), "Real should be 64-bits");
 

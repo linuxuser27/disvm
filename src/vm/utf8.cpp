@@ -95,7 +95,7 @@ std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
         curr++;
         state = utf8::decode_step(state, codepoint, c);
         if (state == utf8::decode_state_t::accept)
-            return (curr - begin);
+            return static_cast<std::size_t>(curr - begin);
     }
 
     // Empty string

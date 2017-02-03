@@ -679,7 +679,7 @@ namespace
             break;
         }
 
-        assert(0 <= static_cast<std::size_t>(target_pc) && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
+        assert(0 <= target_pc && static_cast<std::size_t>(target_pc) < r.module_ref->code_section.size());
         r.next_pc = target_pc;
     }
 

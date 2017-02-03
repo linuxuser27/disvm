@@ -84,12 +84,12 @@ word_t disvm::runtime::sys::printf_to_buffer(
             case '*': // Placeholder for word argument
             {
                 const auto w = *reinterpret_cast<word_t *>(msg_args);
-                std::array<char, sizeof("-2147483648")> buffer;
-                const auto len = std::sprintf(buffer.data(), "%d", w);
+                std::array<char, sizeof("-2147483648")> local_buffer;
+                const auto len = std::sprintf(local_buffer.data(), "%d", w);
                 if (len < 0)
                     return -1;
 
-                format.insert(std::end(format), buffer.data(), buffer.data() + len);
+                format.insert(std::end(format), local_buffer.data(), local_buffer.data() + len);
                 msg_args += sizeof(w);
                 continue;
             }
@@ -172,7 +172,7 @@ word_t disvm::runtime::sys::printf_to_buffer(
                     type_alloc = alloc->alloc_type.get();
                 }
 
-                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIuPTR ".%#08" PRIxPTR, rc, reinterpret_cast<std::size_t>(type_alloc));
+                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIuPTR ".%#08" PRIxPTR, static_cast<std::uintptr_t>(rc), reinterpret_cast<std::uintptr_t>(type_alloc));
                 msg_args += sizeof(p);
                 break;
             }
