@@ -1,7 +1,7 @@
 DisVM Project
 ========================
 
-The DisVM project is a re-implementation of the [Dis virtual machine specification](http://www.vitanuova.com/inferno/papers/dis.html) that defined the user space of the [Inferno OS](https://en.wikipedia.org/wiki/Inferno_(operating_system)). The Inferno OS was designed to re-hash the ideas in the [Plan 9 From Bell Labs](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs) operating system but implemented using a platform agnostic language - [Limbo](https://en.wikipedia.org/wiki/Limbo_(programming_language)). The Dis virtual machine was intrinsic to the Inferno OS and ran the byte-code compiled Limbo language. This meant that only the Inferno OS need be ported to a platform and all Limbo compiled applications would 'just-work'. If this sounds familiar, it should, this was in the early 90's and [project Oak](https://en.wikipedia.org/wiki/Oak_(programming_language)) - what would become Java - was being developed by Sun Microsystems. The major difference between the two approaches was that Oak's virtual machine would be ported to various platforms and work with the host OS whereas the Dis virtual machine was tied to Inferno OS which meant there was yet another layer between the host and virtual machine. This decision had advantages, but also had the large disadvantage of requiring and entire separate OS to run Limbo code. 
+The DisVM project is a re-implementation of the [Dis virtual machine specification](http://www.vitanuova.com/inferno/papers/dis.html) that defined the user space of the [Inferno OS](https://en.wikipedia.org/wiki/Inferno_(operating_system)). The Inferno OS was designed to re-hash the ideas in the [Plan 9 from Bell Labs](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs) operating system but implemented using a platform-agnostic language. The Dis virtual machine was intrinsic to the Inferno OS and ran the byte-code compiled [Limbo](https://en.wikipedia.org/wiki/Limbo_(programming_language)) language. This meant that only the Inferno OS need be ported to a platform and all Limbo compiled applications would 'just-work'. If this sounds familiar, it should. Inferno OS was developed in the early 90's and [project Oak](https://en.wikipedia.org/wiki/Oak_(programming_language)) - what would become Java - was being developed by Sun Microsystems. The major difference between the two approaches was that Oak's virtual machine would be ported to various platforms and work with the host OS, whereas the Dis virtual machine was tied to Inferno OS which meant there was yet another layer between the host and the Dis virtual machine. This decision had advantages, but also had the large disadvantage of requiring an entire separate OS to run Limbo code. 
 
 This project's intent is to take the Java approach and provide an implementation of the Dis virtual machine that is separate from any OS, including the Inferno OS. The project is written in C++ - using only the standard library where possible - and is intended to support compilation on any platform that has a conforming [C++ 11](https://en.wikipedia.org/wiki/C%2B%2B11) compiler. At present various modules written in Limbo (even the official Limbo compiler) have been verified to run successfully using this implementation. Some precompiled byte-code modules (`.dis` extension) have been provided in the [Downloads](https://bitbucket.org/linuxuser27/disvm/downloads) section.
 
@@ -17,7 +17,7 @@ Requirements
   * gyp - http://gyp.gsrc.io
   * Python 2.7 - http://www.python.org/download/releases/2.7/
 
-Dis VM build scripts can be generated using gyp (Generate-Your-Project)
+DisVM build scripts can be generated using gyp (Generate-Your-Project)
 
 1. Install Python 2.7
 2. Get current source for gyp
@@ -37,7 +37,7 @@ The source tree is as follows:
      - `asm/` - Library for manipulating byte code
      - `include/` - Global include files
      - `exec/` - Hosting binary for VM (includes debugger)
-     - `vm/` - VM as a static library
+     - `vm/` - DisVM as a static library
 
 
 | Comment prefix | Description |
