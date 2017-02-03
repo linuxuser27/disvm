@@ -1,5 +1,14 @@
-Dis VM Project
+DisVM Project
 ========================
+
+The DisVM project is a re-implementation of the [Dis virtual machine specification](http://www.vitanuova.com/inferno/papers/dis.html) that defined the user space of the [Inferno OS](https://en.wikipedia.org/wiki/Inferno_(operating_system)). The Inferno OS was designed to re-hash the ideas in the [Plan 9 From Bell Labs](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs) operating system but implemented using a platform agnostic language - [Limbo](https://en.wikipedia.org/wiki/Limbo_(programming_language)). The Dis virtual machine was intrinsic to the Inferno OS and ran the byte-code compiled Limbo language. This meant that only the Inferno OS need be ported to a platform and all Limbo compiled applications would 'just-work'. If this sounds familiar, it should, this was in the early 90's and [project Oak](https://en.wikipedia.org/wiki/Oak_(programming_language)) - what would become Java - was being developed by Sun Microsystems. The major difference between the two approaches was that Oak's virtual machine would be ported to various platforms and work with the host OS whereas the Dis virtual machine was tied to Inferno OS which meant there was yet another layer between the host and virtual machine. This decision had advantages, but also had the large disadvantage of requiring and entire separate OS to run Limbo code. 
+
+This project's intent is to take the Java approach and provide an implementation of the Dis virtual machine that is separate from any OS, including the Inferno OS. The project is written in C++ - using only the standard library where possible - and is intended to support compilation on any platform that has a conforming [C++ 11](https://en.wikipedia.org/wiki/C%2B%2B11) compiler. At present various modules written in Limbo (even the official Limbo compiler) have been verified to run successfully using this implementation. Some precompiled byte-code modules (`.dis` extension) have been provided in the [Downloads](https://bitbucket.org/linuxuser27/disvm/downloads) section.
+
+Notes:
+
+  * Only parts of the built-in [`Sys`](http://www.vitanuova.com/inferno/man/2/sys-0intro.html) and [`Math`](http://www.vitanuova.com/inferno/man/2/math-0intro.html) modules have been written
+  * The `disvm-exec` project does not support the original [`Command`](http://www.vitanuova.com/inferno/man/2/command.html) entry module since the official [`Draw`](http://www.vitanuova.com/inferno/man/2/draw-0intro.html) module is not currently supported. Instead the entry point is defined by `limbo/Exec.m`.
 
 # Build instructions
 
@@ -22,7 +31,8 @@ Python and gyp are only needed for build file generation.
 
 The source tree is as follows:
 
- - `limbo/` - Source code written in limbo for testing the VM
+ - `limbo/` - Source code written in Limbo for testing the VM
+     - `compiler/` - Copied and slightly modified source code for the official Limbo compiler
  - `src/`
      - `asm/` - Library for manipulating byte code
      - `include/` - Global include files
@@ -41,11 +51,11 @@ See `readme.md` or `license.txt` in source directories for further details or sp
 
 # References
 
-Dis VM specification: http://www.vitanuova.com/inferno/papers/dis.html
+Dis virtual machine specification: http://www.vitanuova.com/inferno/papers/dis.html
 
 Limbo language addendum: http://www.vitanuova.com/inferno/papers/addendum.pdf
 
-Inferno OS - Original Dis VM implementation: https://bitbucket.org/inferno-os/inferno-os/
+Inferno OS - Original Dis virtual machine implementation: https://bitbucket.org/inferno-os/inferno-os/
 
 # Licenses
 
@@ -86,7 +96,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### Unless otherwise stated in a `license.txt` or above - [MIT License](https://opensource.org/licenses/MIT) ###
 
-Copyright (c) 2017 ARR
+Copyright (c) 2017 arr
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
