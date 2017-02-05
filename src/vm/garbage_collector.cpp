@@ -61,19 +61,6 @@ std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
     return std::make_unique<no_op_gc>();
 }
 
-default_garbage_collector_t::default_garbage_collector_t(vm_t &vm)
-    : _collection_epoch{ 0 }
-    , _vm{ vm }
-{
-}
-
-default_garbage_collector_t::~default_garbage_collector_t()
-{
-    std::lock_guard<std::mutex> lock{ _tracking_allocs_lock };
-    for (auto a : _tracking_allocs)
-        dec_ref_count_and_free(a);
-}
-
 namespace
 {
     enum class gc_colour_t
@@ -105,6 +92,42 @@ namespace
     {
         a->gc_reserved = reinterpret_cast<pointer_t>(c);
     }
+
+    class mark_cxt_t final : public std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>
+    {
+    public:
+        mark_cxt_t()
+            : string_type{ intrinsic_type_desc::type<vm_string_t>().get() } // Using raw pointer since it is a built-in type and has unlimited lifetime
+            , curr_colour{ gc_colour_t::white }
+        { }
+
+        const type_descriptor_t *string_type;
+        gc_colour_t curr_colour;
+
+        vm_alloc_t *pop()
+        {
+            auto a = top();
+            std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>::pop();
+            return a;
+        }
+    };
+}
+
+default_garbage_collector_t::default_garbage_collector_t(vm_t &vm)
+    : _collection_epoch{ 0 }
+    , _mark_cxt{ new mark_cxt_t{} }
+    , _vm{ vm }
+{
+}
+
+default_garbage_collector_t::~default_garbage_collector_t()
+{
+    std::lock_guard<std::mutex> lock{ _tracking_allocs_lock };
+    for (auto a : _tracking_allocs)
+        dec_ref_count_and_free(a);
+
+    auto cxt = static_cast<mark_cxt_t *>(_mark_cxt);
+    delete cxt;
 }
 
 vm_memory_allocator_t default_garbage_collector_t::get_allocator() const
@@ -123,7 +146,7 @@ void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc)
     set_gc_colour(alloc, get_current_colour(_collection_epoch));
 
     std::lock_guard<std::mutex> lock{ _tracking_allocs_lock };
-    _tracking_allocs.push_back(alloc);
+    _tracking_allocs.emplace_front(alloc);
 }
 
 void default_garbage_collector_t::enum_tracked_allocations(vm_alloc_callback_t callback) const
@@ -138,38 +161,20 @@ void default_garbage_collector_t::enum_tracked_allocations(vm_alloc_callback_t c
 
 namespace
 {
-    struct mark_cxt_t final : public std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>
-    {
-        mark_cxt_t(const type_descriptor_t *string_type, const gc_colour_t curr_colour)
-            : std::stack<vm_alloc_t *, std::vector<vm_alloc_t *>>{}
-            , string_type{ string_type }
-            , curr_colour{ curr_colour }
-        { }
-
-        const type_descriptor_t *string_type;
-        const gc_colour_t curr_colour;
-    };
-
     void mark_pointers(pointer_t p, void *cxt)
     {
         auto a = vm_alloc_t::from_allocation(p);
 
         assert(cxt != nullptr);
-        auto c = reinterpret_cast<mark_cxt_t *>(cxt);
+        auto c = static_cast<mark_cxt_t *>(cxt);
 
         // Don't examine vm strings or allocations with the current colour
         if (c->curr_colour != get_gc_colour(a) && a->alloc_type.get() != c->string_type)
             c->push(a);
     }
 
-    void mark(const std::vector<std::shared_ptr<const vm_thread_t>> &threads, const gc_colour_t curr_colour)
+    void mark(std::vector<std::shared_ptr<const vm_thread_t>> threads, mark_cxt_t &mark_cxt)
     {
-        mark_cxt_t mark_cxt
-        {
-            intrinsic_type_desc::type<vm_string_t>().get(), // Using raw pointer since it is a built-in type and has unlimited lifetime
-            curr_colour
-        };
-
         // Get roots from threads
         for (auto &t : threads)
         {
@@ -193,42 +198,32 @@ namespace
             }
         }
 
-        const auto log_enabled = disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>();
-        if (log_enabled)
+        if (disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>())
             disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: roots found: %" PRIuPTR, mark_cxt.size());
 
         // Traverse the graph
         while (!mark_cxt.empty())
         {
-            auto curr = mark_cxt.top();
-            mark_cxt.pop();
-
-            if (log_enabled)
-                disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: mark: alloc: %#" PRIxPTR, curr);
+            auto curr = mark_cxt.pop();
+            set_gc_colour(curr, mark_cxt.curr_colour);
 
             if (curr->alloc_type->map_in_bytes > 0)
                 enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), mark_pointers, &mark_cxt);
-
-            set_gc_colour(curr, curr_colour);
         }
     }
 
-    void sweep(std::deque<vm_alloc_t *> &tracking_allocs, const gc_colour_t sweeper_colour)
+    void sweep(std::forward_list<vm_alloc_t *> &tracking_allocs, const gc_colour_t sweeper_colour)
     {
-        auto allocs_local = std::move(tracking_allocs);
-
-        const auto starting_size = allocs_local.size();
-        for (auto a : allocs_local)
+        // Remove sweeper colour allocations.
+        tracking_allocs.remove_if([sweeper_colour](vm_alloc_t *a)
         {
             const auto colour = get_gc_colour(a);
-            if (colour == sweeper_colour)
+            const auto remove = (colour == sweeper_colour);
+            if (remove)
                 dec_ref_count_and_free(a);
-            else
-                tracking_allocs.push_back(a);
-        }
 
-        if (disvm::debug::is_component_tracing_enabled<component_trace_t::garbage_collector>())
-            disvm::debug::log_msg(component_trace_t::garbage_collector, log_level_t::debug, "gc: sweep: %u", starting_size - tracking_allocs.size());
+            return remove;
+        });
     }
 }
 
@@ -249,8 +244,13 @@ bool default_garbage_collector_t::collect(std::vector<std::shared_ptr<const vm_t
         disvm::debug::log_msg(component_trace_t::duration, log_level_t::debug, "gc: begin: collect");
     }
 
-    const auto curr_colour = get_current_colour(_collection_epoch);
-    mark(threads, curr_colour);
+    auto mark_cxt = static_cast<mark_cxt_t *>(_mark_cxt);
+    assert(mark_cxt != nullptr);
+    mark_cxt->curr_colour = get_current_colour(_collection_epoch);
+
+    assert(mark_cxt->empty() && "Marking context should be empty before mark phase");
+    mark(std::move(threads), *mark_cxt);
+    assert(mark_cxt->empty() && "Marking context should be empty after mark phase");
 
     const auto sweeper_colour = get_sweeper_colour(_collection_epoch);
     sweep(_tracking_allocs, sweeper_colour);
