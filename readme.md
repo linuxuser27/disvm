@@ -5,10 +5,32 @@ The DisVM project is a re-implementation of the [Dis virtual machine specificati
 
 This project's intent is to take the Java approach and provide an implementation of the Dis virtual machine that is separate from any OS, including the Inferno OS. The project is written in C++ - using only the standard library where possible - and is intended to support compilation on any platform that has a conforming [C++ 11](https://en.wikipedia.org/wiki/C%2B%2B11) compiler. At present various modules written in Limbo (even the official Limbo compiler) have been verified to run successfully using this implementation. Some precompiled byte-code modules (`.dis` extension) have been provided in the [Downloads](https://bitbucket.org/linuxuser27/disvm/downloads) section.
 
-Notes:
+Current Implementation Notes:
 
   * Only parts of the built-in [`Sys`](http://www.vitanuova.com/inferno/man/2/sys-0intro.html) and [`Math`](http://www.vitanuova.com/inferno/man/2/math-0intro.html) modules have been written
   * The `disvm-exec` project does not support the original [`Command`](http://www.vitanuova.com/inferno/man/2/command.html) entry module since the official [`Draw`](http://www.vitanuova.com/inferno/man/2/draw-0intro.html) module is not currently supported. Instead the entry point is defined by `limbo/Exec.m`.
+
+# Components
+
+This section contains implementation details on DisVM components.
+
+### Garbage Collection - `src/vm/garbage_collector.cpp`
+
+The Dis virtual machine specification described a hybrid garbage collection mechanism that utilized reference counting and a [concurrent mark-and-sweep algorithm](http://doc.cat-v.org/inferno/concurrent_gc/). The purpose of the hybrid approach was to mitigate cases where reference counting fails (e.g. cyclic references). The algorithm in this project fully implements reference counting, but at present has a naïve synchronous mark-and-sweep implementation.
+
+It has been observed during usage of the Limbo compiler running in DisVM, that the mark-and-sweep implementation has a 20 - 25 % performance impact. This is clearly unacceptable for a modern virtual machine implementation, but was written to satisfy the current needs of the virtual machine as a learning tool. Even though the current mark-and-sweep implementation has poor performance characteristics, the original reason for it was cyclical references, so if data structures are written so these types of references don't or can't exist, reference counting will suffice. The option to disable the mark-and-sweep garbage collector is exposed as a flag on the `disvm-exec` program or if consumed directly - during instantiation of the VM.
+
+This component can also be replaced with a custom implementation if the DisVM is consumed as a library.
+
+### Scheduler - `src/vm/scheduler.cpp`
+
+The DisVM default scheduler supports utilization of 1 to 4 system threads, which is useful if parallelism is desired at runtime. The current default is for the scheduler to use 1 system thread, but this can be altered from the `disvm-exec` command line or programmatically. 
+
+Like the garbage collector, this component can also be replaced with a custom implementation.
+
+### Just-In-Time compilation
+
+There is currently no support for the JIT compilation described in the Dis virtual machine specification.
 
 # Build instructions
 
@@ -31,12 +53,12 @@ Python and gyp are only needed for build file generation.
 
 The source tree is as follows:
 
- - `limbo/` - Source code written in Limbo for testing the VM
+ - `limbo/` - Source code written in Limbo for testing DisVM
      - `compiler/` - Copied and slightly modified source code for the official Limbo compiler
  - `src/`
      - `asm/` - Library for manipulating byte code
      - `include/` - Global include files
-     - `exec/` - Hosting binary for VM (includes debugger)
+     - `exec/` - Hosting binary for DisVM (includes debugger)
      - `vm/` - DisVM as a static library
 
 
