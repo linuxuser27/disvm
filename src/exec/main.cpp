@@ -258,11 +258,13 @@ void print_banner(const exec_options &options)
 void print_help()
 {
     std::cout
-        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|S|t|T|e|g|m]*] [-t <num>] [-q] [-h] <entry module> <args>*\n"
+        << "Usage: disvm-exec [-d[e|m|x]*] [-l[s|S|t|T|e|g|m]*] [-gD] [-t <num>] [-q] [-h] <entry module> <args>*\n"
            "    d - Enable debugger\n"
            "         e - Break on entry\n"
            "         m - Break on module load\n"
            "         x - Break on exception (first chance)\n"
+           "    g - Garbage collector options\n"
+           "         D - Disable\n"
            "    l - Enable logging in a component\n"
            "         s - Scheduler\n"
            "         S - Stack\n"
@@ -274,7 +276,7 @@ void print_help()
            "         m - Memory allocations (noisy)\n"
            "    q - Suppress banner and configuration\n"
            "    t - Specify the number of system threads to use (0 < x <= 4)\n"
-           "    h - Print help (alternative: '?')\n";
+           "    h - Print this help (alternative: '?')\n";
 }
 
 void log_callback(const component_trace_t origin, const log_level_t level, const char *msg_fmt, std::va_list args)
@@ -333,6 +335,13 @@ void process_arg(char* arg, std::function<char *()> next, exec_options &options)
                 break;
             }
         }
+        break;
+
+    case 'g':
+        if (arg_len <= 2 || arg[2] != 'D')
+            throw arg_exception_t{ "Invalid garbage collector option" };
+
+        options.vm_config.create_gc = disvm::runtime::create_no_op_gc;
         break;
 
     case 't':
