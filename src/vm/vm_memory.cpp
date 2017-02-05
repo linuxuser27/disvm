@@ -17,12 +17,35 @@
 #include <debug.h>
 #include <exceptions.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::byte_t;
+using disvm::runtime::short_word_t;
+using disvm::runtime::word_t;
+using disvm::runtime::short_real_t;
+using disvm::runtime::real_t;
+using disvm::runtime::big_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::vm_thread_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_list_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_channel_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_module_ref_t;
+using disvm::runtime::vm_stack_t;
+using disvm::runtime::vm_system_exception;
+using disvm::runtime::vm_alloc_instance_finalizer_t;
 
 // Defined in vm.cpp
-extern thread_local vm_memory_alloc_t vm_memory_alloc;
-extern thread_local vm_memory_free_t vm_memory_free;
+extern thread_local disvm::runtime::vm_memory_alloc_t vm_memory_alloc;
+extern thread_local disvm::runtime::vm_memory_free_t vm_memory_free;
 
 void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
 {
@@ -30,8 +53,8 @@ void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
     if (memory == nullptr)
         throw vm_system_exception{ "Out of memory" };
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "alloc: %#" PRIxPTR " %d", memory, amount_in_bytes);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: %#" PRIxPTR " %d", memory, amount_in_bytes);
 
     return memory;
 }
@@ -40,8 +63,8 @@ void disvm::runtime::free_memory(void *memory)
 {
     vm_memory_free(memory);
 
-    if (memory != nullptr && debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "free: %#" PRIxPTR, memory);
+    if (memory != nullptr && debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free: %#" PRIxPTR, memory);
 }
 
 void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
@@ -109,9 +132,8 @@ void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, voi
 {
     assert(data != nullptr && callback != nullptr);
 
-    auto offset_accum = std::size_t{ 0 };
     auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
+    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
     {
         const auto words8 = type_desc.pointer_map[i];
         assert(sizeof(words8) == 1);
@@ -136,9 +158,8 @@ void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, voi
 {
     assert(data != nullptr && callback != nullptr);
 
-    auto offset_accum = std::size_t{ 0 };
     auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
+    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
     {
         const auto words8 = type_desc.pointer_map[i];
         assert(sizeof(words8) == 1);
@@ -232,8 +253,8 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
     auto mem = alloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
     auto alloc = ::new(mem)vm_alloc_t{ td };
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
 
     return alloc;
 }
@@ -248,7 +269,7 @@ vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
     // Ref count all dynamic allocations
     inc_ref_count_in_memory(*alloc_copy->alloc_type, alloc_copy->get_allocation());
 
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "copy: vm alloc: %#" PRIxPTR " %#"  PRIxPTR, &other, alloc_copy);
+    disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "copy: vm alloc: %#" PRIxPTR " %#"  PRIxPTR, &other, alloc_copy);
     return alloc_copy;
 }
 
@@ -272,7 +293,7 @@ vm_alloc_t::~vm_alloc_t()
 {
 #ifndef NDEBUG
     if (_ref_count != 0)
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::warning,
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::warning,
             "vm alloc being destroy with non-zero reference count. "
             "This could be okay if this is happening due to frame unwinding from an exception");
 #endif
@@ -284,8 +305,8 @@ vm_alloc_t::~vm_alloc_t()
     // Free pointer types
     destroy_memory(*alloc_type, get_allocation());
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm alloc");
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm alloc");
 }
 
 std::size_t vm_alloc_t::add_ref()
@@ -477,8 +498,8 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
             free_memory(const_cast<byte_t *>(td->pointer_map));
             debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-                debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: type descriptor");
+            if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: type descriptor");
 
             free_memory(td);
         }
@@ -513,8 +534,8 @@ type_descriptor_t::type_descriptor_t(
 #endif
 {
     (void)debug_name;
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: type descriptor");
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: type descriptor");
 }
 
 bool type_descriptor_t::is_equal(const type_descriptor_t *other) const

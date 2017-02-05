@@ -9,7 +9,11 @@
 #include "rfc1321/global.h"
 #include "rfc1321/md5.h"
 
-using namespace disvm::assembly::sigkind;
+using disvm::assembly::sigkind::sig_stream_t;
+using disvm::assembly::sigkind::Tadt_pick_tag;
+using disvm::assembly::sigkind::Tfixed;
+using disvm::assembly::sigkind::Tm;
+using disvm::assembly::sigkind::Ttype_ref;
 
 namespace
 {

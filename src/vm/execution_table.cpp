@@ -1286,8 +1286,8 @@ namespace
                 {
                     r.request_mutex.pending_request = false;
 
-                    if (debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
-                        debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "alt: request: non-blocking");
+                    if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::channel>())
+                        disvm::debug::log_msg(debug::component_trace_t::channel, debug::log_level_t::debug, "alt: request: non-blocking");
 
                     // Cancel request in all channels.
                     for (auto i = word_t{ 0 }; i < channel_count; ++i)
@@ -1482,8 +1482,8 @@ namespace
         if (new_frame == nullptr)
             r.current_thread_state = vm_thread_state_t::empty_stack;
 
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
-            debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "exit: function");
+        if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
+            disvm::debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "exit: function");
     }
 
     EXEC_DECL(call)
@@ -1500,7 +1500,7 @@ namespace
 
         r.next_pc = vt_ref<vm_pc_t>(r.dest);
 
-        debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
+        disvm::debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
 
     EXEC_DECL(mcall)
@@ -1529,9 +1529,9 @@ namespace
         top_frame->prev_pc() = r.next_pc;
         top_frame->prev_module_ref() = r.module_ref;
 
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
+        if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
         {
-            debug::log_msg(
+            disvm::debug::log_msg(
                 debug::component_trace_t::stack,
                 debug::log_level_t::debug,
                 "enter: function: inter-module: %d >>%s<< %d %s",
@@ -1660,8 +1660,8 @@ namespace
             // String
             exception_id = static_cast<vm_string_t *>(e);
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
-                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: string: >>%s<<", exception_id->str());
+            if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
+                disvm::debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: string: >>%s<<", exception_id->str());
         }
         else
         {
@@ -1673,8 +1673,8 @@ namespace
             exception_id = at_val<vm_string_t>(content);
             assert(exception_id != nullptr);
 
-            if (debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
-                debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<", exception_id->str());
+            if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::exception>())
+                disvm::debug::log_msg(debug::component_trace_t::exception, debug::log_level_t::debug, "raise: exception: >>%s<<", exception_id->str());
         }
 
         // Check if the tool dispatcher has been supplied
@@ -1682,7 +1682,7 @@ namespace
         if (tool_dispatch != nullptr)
             tool_dispatch->on_exception_raised(r, *exception_id, *e);
 
-        const handler_t *handler;
+        const handler_entry_t *handler;
         vm_frame_t *target_frame;
         vm_pc_t handler_pc;
 
@@ -1783,7 +1783,7 @@ namespace
             }
             catch (const vm_module_exception &e)
             {
-                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<", e.what());
+                disvm::debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "exception: load: >>%s<<", e.what());
                 return;
             }
         }

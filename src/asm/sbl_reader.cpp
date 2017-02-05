@@ -13,8 +13,15 @@
 #include <utils.h>
 #include <buffered_reader.h>
 
-using namespace disvm;
-using namespace disvm::symbol;
+using disvm::runtime::vm_pc_t;
+
+using disvm::symbol::advance_pc_t;
+using disvm::symbol::function_data_t;
+using disvm::symbol::function_name_format_t;
+using disvm::symbol::source_ref_t;
+using disvm::symbol::symbol_data_t;
+using disvm::symbol::symbol_pc_iter_t;
+using disvm::symbol::type_class_t;
 
 namespace
 {
@@ -67,8 +74,8 @@ namespace
 
     struct func_item_t
     {
-        runtime::vm_pc_t entry_pc;
-        runtime::vm_pc_t limit_pc;
+        vm_pc_t entry_pc;
+        vm_pc_t limit_pc;
         std::string name;
         id_table_t args;
         id_table_t locals;
@@ -195,7 +202,7 @@ namespace
 
     // header: <magic> '\n' module '\n'
     // module: <string>
-    header_t read_header(util::buffered_reader_t &r)
+    header_t read_header(disvm::util::buffered_reader_t &r)
     {
         header_t header;
         auto v = r.get_as_string_until('\n');
@@ -213,7 +220,7 @@ namespace
 
     // file-table: <count> '\n' file*
     // file: <string> '\n'
-    file_table_t read_file_table(util::buffered_reader_t &r)
+    file_table_t read_file_table(disvm::util::buffered_reader_t &r)
     {
         auto count_str = r.get_as_string_until('\n');
 
@@ -236,7 +243,7 @@ namespace
     // char: <int>
     source_ref_t read_src_entry(const std::string &src_str, sbl_read_context_t &fc)
     {
-        auto src_parts = util::split(src_str, ",");
+        auto src_parts = disvm::util::split(src_str, ",");
         if (src_parts.size() != 2)
             throw std::runtime_error{ "Invalid source item" };
 
@@ -289,7 +296,7 @@ namespace
     // pc-table: <count> '\n' pc-item*
     // pc-item: src ' ' stmt '\n'
     // stmt: <int>
-    pc_table_t read_pc_table(util::buffered_reader_t &r, sbl_read_context_t &fc)
+    pc_table_t read_pc_table(disvm::util::buffered_reader_t &r, sbl_read_context_t &fc)
     {
         auto count_str = r.get_as_string_until('\n');
 
@@ -303,7 +310,7 @@ namespace
         {
             auto item = r.get_as_string_until('\n');
 
-            auto pc_item_parts = util::split(item);
+            auto pc_item_parts = disvm::util::split(item);
             if (pc_item_parts.size() != 2)
                 throw std::runtime_error{ "Invalid PC item" };
 
@@ -323,13 +330,13 @@ namespace
     }
 
     // Forward declaration
-    type_t read_type(util::buffered_reader_t &, type_table_t &, sbl_read_context_t &);
+    type_t read_type(disvm::util::buffered_reader_t &, type_table_t &, sbl_read_context_t &);
 
     // id-table: <count> '\n' id-item*
     // id-item: id-offset ':' id-name ':' src ' ' type '\n'
     // id-offset: <int>
     // id-name: <string>
-    id_table_t read_id_table(util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
+    id_table_t read_id_table(disvm::util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
     {
         auto count_str = r.get_as_string_until('\n');
         int32_t count = std::stoi(count_str);
@@ -376,7 +383,7 @@ namespace
     // tag-item: tag-name ':' src ' ' size '\n' id-table
     //         | tag-name ':' src '\n'
     // tag-name: <string>
-    name_source_size_t create_name_source_size(std::vector<std::string> &parts, util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
+    name_source_size_t create_name_source_size(std::vector<std::string> &parts, disvm::util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
     {
         assert(parts.size() == 2 || parts.size() == 3);
         name_source_size_t item;
@@ -411,7 +418,7 @@ namespace
     //  'f'                       # Real
     //  's'                       # String
     // type-index: <int>
-    type_t read_type(util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
+    type_t read_type(disvm::util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
     {
         bool success;
         uint8_t tc_byte;
@@ -452,7 +459,7 @@ namespace
         case type_class_t::adt_pick:
         {
             auto adt_line = r.get_as_string_until('\n');
-            auto adt_parts = util::split(adt_line);
+            auto adt_parts = disvm::util::split(adt_line);
             if (adt_parts.size() != 3)
                 throw std::runtime_error{ "Invalid adt item" };
 
@@ -468,7 +475,7 @@ namespace
                 for (auto i = 0; i < count; ++i)
                 {
                     tmp = r.get_as_string_until('\n');
-                    auto tag_parts = util::split(tmp, " :");
+                    auto tag_parts = disvm::util::split(tmp, " :");
                     if (tag_parts.size() != 2 && tag_parts.size() != 3)
                         throw std::runtime_error{ "Invalid tag item" };
 
@@ -530,7 +537,7 @@ namespace
     }
 
     // type-table: <count> '\n' type*
-    type_table_t read_type_table(util::buffered_reader_t &r, sbl_read_context_t &fc)
+    type_table_t read_type_table(disvm::util::buffered_reader_t &r, sbl_read_context_t &fc)
     {
         auto count_str = r.get_as_string_until('\n');
 
@@ -550,7 +557,7 @@ namespace
     // args: id-table
     // locals: id-table
     // return: type
-    func_table_t read_func_table(util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
+    func_table_t read_func_table(disvm::util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
     {
         auto count_str = r.get_as_string_until('\n');
 
@@ -582,7 +589,7 @@ namespace
     }
 
     // data-table: id-table
-    id_table_t read_data_table(util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
+    id_table_t read_data_table(disvm::util::buffered_reader_t &r, type_table_t &tt, sbl_read_context_t &fc)
     {
         return read_id_table(r, tt, fc);
     }
@@ -662,11 +669,11 @@ namespace
     {
         std::stringstream ss;
 
-        const auto inc_name = util::has_flag(fmt, function_name_format_t::name);
+        const auto inc_name = disvm::util::has_flag(fmt, function_name_format_t::name);
         if (inc_name)
             ss << f.name;
 
-        const auto inc_arguments = util::has_flag(fmt, function_name_format_t::arguments);
+        const auto inc_arguments = disvm::util::has_flag(fmt, function_name_format_t::arguments);
         if (inc_arguments)
         {
             ss << '(';
@@ -685,7 +692,7 @@ namespace
         }
 
         // Only add the return value if it is not 'none'
-        if (util::has_flag(fmt, function_name_format_t::return_type)
+        if (disvm::util::has_flag(fmt, function_name_format_t::return_type)
             && f.return_type.type_class != type_class_t::none)
         {
             if (inc_name || inc_arguments)
@@ -714,9 +721,9 @@ namespace
             _current_pc = pc;
         }
 
-        bool try_advance_pc(advance_pc_t adv, disvm::runtime::vm_pc_t *pc_after_advance) override
+        bool try_advance_pc(advance_pc_t adv, vm_pc_t *pc_after_advance) override
         {
-            runtime::vm_pc_t new_pc = _current_pc;
+            vm_pc_t new_pc = _current_pc;
             switch (adv)
             {
             case advance_pc_t::next_debug_statement:
@@ -738,7 +745,7 @@ namespace
             }
 
             case advance_pc_t::next_pc:
-                if (new_pc + 1 >= static_cast<runtime::vm_pc_t>(_file->pc_table.size()))
+                if (new_pc + 1 >= static_cast<vm_pc_t>(_file->pc_table.size()))
                     return false;
                 ++new_pc;
                 break;
@@ -791,7 +798,7 @@ namespace
         }
 
     private:
-        runtime::vm_pc_t _current_pc;
+        vm_pc_t _current_pc;
         std::shared_ptr<const sbl_file_t> _file;
     };
 

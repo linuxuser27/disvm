@@ -18,9 +18,33 @@
 #include <module_reader.h>
 #include "buffered_reader.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
-using namespace disvm::format;
+using disvm::opcode_t;
+
+using disvm::format::operand_t;
+
+using disvm::runtime::addr_code_t;
+using disvm::runtime::address_mode_t;
+using disvm::runtime::address_mode_middle_t;
+using disvm::runtime::big_t;
+using disvm::runtime::byte_t;
+using disvm::runtime::word_t;
+using disvm::runtime::real_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::runtime_flags_t;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::import_function_t;
+using disvm::runtime::export_function_t;
+using disvm::runtime::import_vm_module_t;
+using disvm::runtime::handler_entry_t;
+using disvm::runtime::exception_entry_t;
+using disvm::runtime::vm_instruction_t;
+using disvm::runtime::vm_module_exception;
+using disvm::runtime::module_reader_exception;
 
 namespace
 {
@@ -49,7 +73,7 @@ namespace
     };
 
     // Read the next operand as defined in the Dis VM specification.
-    std::tuple<bool, operand_t> read_next_operand(util::buffered_reader_t &reader)
+    std::tuple<bool, operand_t> read_next_operand(disvm::util::buffered_reader_t &reader)
     {
         operand_t result;
 
@@ -111,7 +135,7 @@ namespace
     }
 
     // Read the next word as defined in the Dis VM specification.
-    std::tuple<bool, word_t> read_next_word(util::buffered_reader_t &reader)
+    std::tuple<bool, word_t> read_next_word(disvm::util::buffered_reader_t &reader)
     {
         auto result = word_t{};
 
@@ -141,7 +165,7 @@ namespace
         return r;
     }
 
-    byte_t *read_8byte_segments(util::buffered_reader_t &reader, datum_type_t type, uint32_t segment_count, byte_t *dest)
+    byte_t *read_8byte_segments(disvm::util::buffered_reader_t &reader, datum_type_t type, uint32_t segment_count, byte_t *dest)
     {
         assert(type == datum_type_t::value_real64 || type == datum_type_t::value_bit64);
 
@@ -190,7 +214,7 @@ namespace
     }
 
     // See header format definition in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_header(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_header(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         auto &header = modobj.header;
@@ -200,7 +224,7 @@ namespace
             throw module_reader_exception{ "Failed to read magic number" };
 
         // If the object file is signed, read in the signature.
-        if (header.magic_number == magic_number_constants::smagic)
+        if (header.magic_number == disvm::format::magic_number_constants::smagic)
         {
             std::tie(success, header.Signature.length) = read_next_operand(reader);
             if (!success) throw module_reader_exception{ "Failed to read signature length" };
@@ -209,7 +233,7 @@ namespace
             const auto bytesRead = reader.get_next_bytes(header.Signature.length, header.Signature.signature.get());
             if (bytesRead != header.Signature.length) throw module_reader_exception{ "Failed to read full signature" };
         }
-        else if (header.magic_number == magic_number_constants::xmagic)
+        else if (header.magic_number == disvm::format::magic_number_constants::xmagic)
         {
             header.Signature.length = word_t{ 0 };
         }
@@ -248,7 +272,7 @@ namespace
     }
 
     // See code section layout in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_code_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_code_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         const auto instruction_count = modobj.header.code_size;
@@ -320,7 +344,7 @@ namespace
     }
 
     // See type section layout in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_type_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_type_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         const auto type_count = modobj.header.type_size;
@@ -356,7 +380,7 @@ namespace
     }
 
     // See data section layout in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_data_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_data_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         if (modobj.header.data_size != 0)
         {
@@ -496,7 +520,7 @@ namespace
     }
 
     // See module name in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_module_name(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_module_name(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto string_buffer = std::vector<uint8_t>{};
         if (!reader.get_bytes_until(0, string_buffer))
@@ -507,7 +531,7 @@ namespace
     }
 
     // See link section in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_link_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_link_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         const auto export_count = modobj.header.export_size;
@@ -543,7 +567,7 @@ namespace
     // See import section in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
     // [SPEC] The specification does not seem to match what is observed in an actual module. 
     //        The function is modeled after the disassembler (dis.b and libinterp/load.c) instead.
-    void read_import_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_import_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         auto module_import_count = operand_t{};
@@ -592,7 +616,7 @@ namespace
     }
 
     // See handler section in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    void read_handler_section(util::buffered_reader_t &reader, vm_module_t &modobj)
+    void read_handler_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {
         auto success = bool{};
         auto handler_count = operand_t{};
@@ -604,7 +628,7 @@ namespace
         for (auto c = operand_t{ 0 }; c < handler_count; ++c)
         {
             // Read in single handler
-            handler_t handler{};
+            handler_entry_t handler{};
 
             std::tie(success, handler.exception_offset) = read_next_operand(reader);
             if (!success) throw module_reader_exception{ "Failed to read exception offset" };
@@ -643,7 +667,7 @@ namespace
             for (auto k = operand_t{ 0 }; k < total_count; ++k)
             {
                 // Read in single exception
-                exception_t except{};
+                exception_entry_t except{};
 
                 auto string_buffer = std::vector<uint8_t>{};
                 if (!reader.get_bytes_until(0, string_buffer))
@@ -658,7 +682,7 @@ namespace
             }
 
             // Read in wildcard exception
-            exception_t wildcard_exception{};
+            exception_entry_t wildcard_exception{};
             std::tie(success, wildcard_exception.pc) = read_next_operand(reader);
             if (!success) throw module_reader_exception{ "Failed to read wildcard exception pc" };
 
@@ -705,19 +729,19 @@ import_vm_module_t::import_vm_module_t(import_vm_module_t &&other)
 {
 }
 
-exception_t::exception_t(exception_t &&other)
+exception_entry_t::exception_entry_t(exception_entry_t &&other)
     : pc{ other.pc }
     , name{ std::move(other.name) }
 {
 }
 
-exception_t::~exception_t()
+exception_entry_t::~exception_entry_t()
 {
     if (name != nullptr)
         name->release();
 }
 
-handler_t::handler_t(handler_t &&other)
+handler_entry_t::handler_entry_t(handler_entry_t &&other)
     : exception_offset{ other.exception_offset }
     , begin_pc{ other.begin_pc }
     , end_pc{ other.end_pc }
@@ -736,15 +760,15 @@ vm_module_t::~vm_module_t()
         original_mp->release();
 }
 
-std::unique_ptr<runtime::vm_module_t> disvm::read_module(std::istream &data)
+std::unique_ptr<vm_module_t> disvm::read_module(std::istream &data)
 {
-    util::buffered_reader_t reader{ data };
+    disvm::util::buffered_reader_t reader{ data };
 
     auto modobj = std::make_unique<vm_module_t>();
 
     read_header(reader, *modobj);
 
-    if (util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_import_deprecated))
+    if (disvm::util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_import_deprecated))
         throw module_reader_exception{ "Obsolete module" };
 
     read_code_section(reader, *modobj);
@@ -753,14 +777,14 @@ std::unique_ptr<runtime::vm_module_t> disvm::read_module(std::istream &data)
     read_module_name(reader, *modobj);
     read_link_section(reader, *modobj);
 
-    if (util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_import))
+    if (disvm::util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_import))
         read_import_section(reader, *modobj);
 
-    if (util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_handler))
+    if (disvm::util::has_flag(modobj->header.runtime_flag, runtime_flags_t::has_handler))
         read_handler_section(reader, *modobj);
 
     // [TODO] Native code generation - runtime_flags_t::must_compile
-    assert(!util::has_flag(modobj->header.runtime_flag, runtime_flags_t::must_compile));
+    assert(!disvm::util::has_flag(modobj->header.runtime_flag, runtime_flags_t::must_compile));
 
     return modobj;
 }

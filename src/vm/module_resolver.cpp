@@ -12,7 +12,12 @@
 #include <exceptions.h>
 #include "module_resolver.h"
 
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::default_resolver_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_module_resolver_t;
 
 // Empty destructor for vm module resolver 'interface'
 vm_module_resolver_t::~vm_module_resolver_t()
@@ -34,9 +39,9 @@ bool default_resolver_t::try_resolve_module(const char *path, std::unique_ptr<vm
 {
     assert(path != nullptr);
 
-    auto log = debug::is_component_tracing_enabled<debug::component_trace_t::module>();
+    auto log = disvm::debug::is_component_tracing_enabled<component_trace_t::module>();
     if (log)
-        debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "resolve: try module path: >>%s<<", path);
+        disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "resolve: try module path: >>%s<<", path);
 
     auto module_file = std::ifstream{ path, std::ifstream::binary };
     if (!module_file.is_open())
@@ -46,13 +51,13 @@ bool default_resolver_t::try_resolve_module(const char *path, std::unique_ptr<vm
         {
             p.append(path);
             if (log)
-                debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "resolve: try module path: >>%s<<", p.c_str());
+                disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "resolve: try module path: >>%s<<", p.c_str());
 
             module_file = std::ifstream{ p, std::ifstream::binary };
             if (module_file.is_open())
             {
                 if (log)
-                    debug::log_msg(debug::component_trace_t::module, debug::log_level_t::debug, "resolve: successful modified module path: >>%s<< >>%s<<", path, p.c_str());
+                    disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "resolve: successful modified module path: >>%s<< >>%s<<", path, p.c_str());
 
                 break;
             }

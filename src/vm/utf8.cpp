@@ -12,7 +12,8 @@
 #include <utf8.h>
 #include <exceptions.h>
 
-using namespace disvm::runtime;
+using disvm::runtime::utf8::decode_state_t;
+using disvm::runtime::utf8::utf8_length_t;
 
 namespace
 {
@@ -40,21 +41,21 @@ namespace
 }
 
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-utf8::decode_state_t disvm::runtime::utf8::decode_step(utf8::decode_state_t &state, rune_t &codepoint, uint8_t byte)
+decode_state_t disvm::runtime::utf8::decode_step(decode_state_t &state, rune_t &codepoint, uint8_t byte)
 {
     auto type = uint32_t{ utf8d[byte] };
 
-    codepoint = (state != utf8::decode_state_t::accept) ?
+    codepoint = (state != decode_state_t::accept) ?
         (byte & 0x3fu) | (codepoint << 6) :
         (0xff >> type) & (byte);
 
-    state = static_cast<utf8::decode_state_t>(utf8d[256 + static_cast<uint32_t>(state) + type]);
+    state = static_cast<decode_state_t>(utf8d[256 + static_cast<uint32_t>(state) + type]);
     return state;
 }
 
 // Adopted from 'countCodePoints(uint8_t* s, size_t* count)'
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-utf8::utf8_length_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std::size_t max_len)
+utf8_length_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, const std::size_t max_len)
 {
     if (str == nullptr)
     {
@@ -64,12 +65,12 @@ utf8::utf8_length_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, c
 
     auto single_character = rune_t{};
     auto points = std::size_t{ 0 };
-    auto state = utf8::decode_state_t::accept;
+    auto state = decode_state_t::accept;
 
     auto last = str;
     for (auto curr = last; curr < (str + max_len); ++curr)
     {
-        if (utf8::decode_state_t::accept == utf8::decode_step(state, single_character, *curr))
+        if (decode_state_t::accept == decode_step(state, single_character, *curr))
         {
             last = curr;
             points++;
@@ -84,7 +85,7 @@ utf8::utf8_length_t disvm::runtime::utf8::count_codepoints(const uint8_t *str, c
 std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
 {
     assert(str != nullptr);
-    auto state = utf8::decode_state_t::accept;
+    auto state = decode_state_t::accept;
 
     codepoint = 0;
     auto begin = str;
@@ -93,8 +94,8 @@ std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
     while (0 != (c = *curr))
     {
         curr++;
-        state = utf8::decode_step(state, codepoint, c);
-        if (state == utf8::decode_state_t::accept)
+        state = decode_step(state, codepoint, c);
+        if (state == decode_state_t::accept)
             return static_cast<std::size_t>(curr - begin);
     }
 
@@ -108,34 +109,34 @@ std::size_t disvm::runtime::utf8::decode(const uint8_t *str, rune_t &codepoint)
 uint8_t *disvm::runtime::utf8::encode(const rune_t rune, uint8_t *str)
 {
     assert(str != nullptr);
-    if (rune <= utf8::constants::max_codepoint_ascii)
+    if (rune <= constants::max_codepoint_ascii)
     {
         // Layout: 0xxxxxxx
         str[0] = static_cast<uint8_t>(rune);
         return (str + 1);
     }
-    else if (rune <= utf8::constants::max_codepoint_2_byte)
+    else if (rune <= constants::max_codepoint_2_byte)
     {
         // Layout: 110xxxxx 10xxxxxx
         str[0] = static_cast<uint8_t>(0xc0 + (rune >> 6));
-        str[1] = static_cast<uint8_t>(0x80 + (rune & utf8::constants::multi_byte_value_mask));
+        str[1] = static_cast<uint8_t>(0x80 + (rune & constants::multi_byte_value_mask));
         return (str + 2);
     }
-    else if (rune <= utf8::constants::max_codepoint_3_byte)
+    else if (rune <= constants::max_codepoint_3_byte)
     {
         // Layout: 1110xxxx 10xxxxxx 10xxxxxx
         str[0] = static_cast<uint8_t>(0xe0 + (rune >> 12));
-        str[1] = static_cast<uint8_t>(0x80 + ((rune >> 6) & utf8::constants::multi_byte_value_mask));
-        str[2] = static_cast<uint8_t>(0x80 + (rune & utf8::constants::multi_byte_value_mask));
+        str[1] = static_cast<uint8_t>(0x80 + ((rune >> 6) & constants::multi_byte_value_mask));
+        str[2] = static_cast<uint8_t>(0x80 + (rune & constants::multi_byte_value_mask));
         return (str + 3);
     }
-    else if (rune <= utf8::constants::max_codepoint_4_byte)
+    else if (rune <= constants::max_codepoint_4_byte)
     {
         // Layout: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
         str[0] = static_cast<uint8_t>(0xf0 + (rune >> 18));
-        str[1] = static_cast<uint8_t>(0x80 + ((rune >> 12) & utf8::constants::multi_byte_value_mask));
-        str[2] = static_cast<uint8_t>(0x80 + ((rune >> 6) & utf8::constants::multi_byte_value_mask));
-        str[3] = static_cast<uint8_t>(0x80 + (rune & utf8::constants::multi_byte_value_mask));
+        str[1] = static_cast<uint8_t>(0x80 + ((rune >> 12) & constants::multi_byte_value_mask));
+        str[2] = static_cast<uint8_t>(0x80 + ((rune >> 6) & constants::multi_byte_value_mask));
+        str[3] = static_cast<uint8_t>(0x80 + (rune & constants::multi_byte_value_mask));
         return (str + 4);
     }
 

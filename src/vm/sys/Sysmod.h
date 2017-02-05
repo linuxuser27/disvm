@@ -11,8 +11,15 @@
 #include <disvm.h>
 #include <builtin_module.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+
+using disvm::runtime::byte_t;
+using disvm::runtime::word_t;
+using disvm::runtime::big_t;
+using disvm::runtime::real_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::vm_registers_t;
+using disvm::runtime::vm_frame_base_alloc_t;
 
 struct Sys_Qid
 {

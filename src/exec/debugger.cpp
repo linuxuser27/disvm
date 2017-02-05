@@ -18,8 +18,36 @@
 #include <exceptions.h>
 #include "exec.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+using disvm::loaded_vm_module_t;
+using disvm::opcode_t;
+
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::word_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::module_id_t;
+using disvm::runtime::runtime_flags_t;
+using disvm::runtime::cookie_t;
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_registers_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_module_ref_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_list_t;
+using disvm::runtime::vm_channel_t;
+using disvm::runtime::vm_thread_state_t;
+using disvm::runtime::vm_trap_flags_t;
+using disvm::runtime::vm_term_request;
+using disvm::runtime::vm_tool_controller_t;
+using disvm::runtime::vm_event_t;
+using disvm::runtime::vm_event_context_t;
+
+using disvm::symbol::function_name_format_t;
+using disvm::symbol::advance_pc_t;
+using disvm::symbol::symbol_data_t;
 
 namespace
 {
@@ -146,7 +174,7 @@ namespace
         auto msg = std::stringstream{};
         walk_stack(r, [&msg, &dbg](const pointer_t, const vm_pc_t pc, const vm_module_ref_t &module_ref)
         {
-            auto func_maybe = dbg.resolve_to_function_source_line(module_ref.module->vm_id, pc, pc, symbol::function_name_format_t::name);
+            auto func_maybe = dbg.resolve_to_function_source_line(module_ref.module->vm_id, pc, pc, function_name_format_t::name);
             if (!func_maybe.empty())
             {
                 assert(func_maybe.size() == 1);
@@ -507,7 +535,7 @@ namespace
         {
             throw debug_cmd_error_t{ "Invalid module ID" };
         }
-        else if (util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
+        else if (disvm::util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         {
             throw debug_cmd_error_t{ "Unable to set breakpoint in built-in module" };
         }
@@ -569,7 +597,7 @@ namespace
                 << std::setw(16) << details.module->module_name->str()
                 << std::setw(0);
 
-            auto func_maybe = cxt.dbg.resolve_to_function_source_line(details.module->vm_id, details.pc, details.pc, symbol::function_name_format_t::name);
+            auto func_maybe = cxt.dbg.resolve_to_function_source_line(details.module->vm_id, details.pc, details.pc, function_name_format_t::name);
             if (!func_maybe.empty())
             {
                 assert(func_maybe.size() == 1);
@@ -720,7 +748,7 @@ namespace
             end_pc = std::min(end_maybe, static_cast<int32_t>(code_section.size() - 1));
         }
 
-        auto resolved_pc = dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, symbol::function_name_format_t::name);
+        auto resolved_pc = dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, function_name_format_t::name);
         assert(resolved_pc.empty() || resolved_pc.size() == (end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
 
         auto msg = std::stringstream{};
@@ -817,7 +845,7 @@ namespace
         auto value_is_pointer = bool{ false };
         const auto pointer_offset1 = byte_offset1 / pointer_size;
         auto value_to_examine = reinterpret_cast<pointer_t>(base_pointer[pointer_offset1]);
-        if (runtime::is_offset_pointer(*base_type, pointer_offset1))
+        if (disvm::runtime::is_offset_pointer(*base_type, pointer_offset1))
         {
             value_is_pointer = true;
             auto alloc_to_examine = vm_alloc_t::from_allocation(value_to_examine);
@@ -835,7 +863,7 @@ namespace
 
                 const auto pointer_offset2 = byte_offset2 / pointer_size;
                 value_to_examine = reinterpret_cast<pointer_t>(base_pointer[pointer_offset2]);
-                value_is_pointer = runtime::is_offset_pointer(*base_type, pointer_offset2);
+                value_is_pointer = disvm::runtime::is_offset_pointer(*base_type, pointer_offset2);
             }
         }
 
@@ -1022,7 +1050,7 @@ namespace
 
     void execute_single_command(dbg_cmd_cxt_t &cxt, std::string cmd)
     {
-        const auto cmd_tokens = util::split(cmd);
+        const auto cmd_tokens = disvm::util::split(cmd);
         if (cmd_tokens.empty())
             return;
 
@@ -1081,9 +1109,9 @@ namespace
 
 std::ostream& operator<<(std::ostream &ss, const debugger_options o)
 {
-    ss << "Break on enter: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_enter) << "\n"
-       << "Break on module load: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_module_load) << "\n"
-       << "Break on exception: " << std::boolalpha << util::has_flag(o, debugger_options::break_on_exception) << "\n";
+    ss << "Break on enter: " << std::boolalpha << disvm::util::has_flag(o, debugger_options::break_on_enter) << "\n"
+       << "Break on module load: " << std::boolalpha << disvm::util::has_flag(o, debugger_options::break_on_module_load) << "\n"
+       << "Break on exception: " << std::boolalpha << disvm::util::has_flag(o, debugger_options::break_on_exception) << "\n";
 
     return ss;
 }
@@ -1096,10 +1124,10 @@ debugger::debugger(const debugger_options opt)
 { }
 
 std::vector<std::string> debugger::resolve_to_function_source_line(
-    disvm::runtime::module_id_t vm_id,
+    module_id_t vm_id,
     vm_pc_t begin_pc,
     vm_pc_t end_pc,
-    symbol::function_name_format_t fmt) const
+    function_name_format_t fmt) const
 {
     auto iter = _vm_id_to_symbol_info.find(vm_id);
     if (iter == std::cend(_vm_id_to_symbol_info))
@@ -1129,18 +1157,18 @@ std::vector<std::string> debugger::resolve_to_function_source_line(
 
         resolved_functions_by_pc[next_pc - begin_pc] = std::move(ss.str());
 
-    } while (d.try_advance_pc(symbol::advance_pc_t::next_debug_statement, &next_pc));
+    } while (d.try_advance_pc(advance_pc_t::next_debug_statement, &next_pc));
 
     return resolved_functions_by_pc;
 }
 
-std::vector<std::string> debugger::get_module_functions(disvm::runtime::module_id_t vm_id, const char *match) const
+std::vector<std::string> debugger::get_module_functions(module_id_t vm_id, const char *match) const
 {
     std::vector<std::string> funcs;
     auto iter = _vm_id_to_symbol_info.find(vm_id);
     if (iter != std::cend(_vm_id_to_symbol_info))
     {
-        auto f_infos = iter->second.data->get_functions(symbol::function_name_format_t::declaration);
+        auto f_infos = iter->second.data->get_functions(function_name_format_t::declaration);
         for (auto &fi : f_infos)
         {
             // Only return functions that match the supplied string
@@ -1163,7 +1191,7 @@ std::vector<std::string> debugger::get_module_functions(disvm::runtime::module_i
     return funcs;
 }
 
-bool debugger::symbols_exist(disvm::runtime::module_id_t vm_id) const
+bool debugger::symbols_exist(module_id_t vm_id) const
 {
     return _vm_id_to_symbol_info.find(vm_id) != std::cend(_vm_id_to_symbol_info);
 }
@@ -1220,7 +1248,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
         debug_print_info(ss.str());
 
-        if (util::has_flag(_options, debugger_options::break_on_exception))
+        if (disvm::util::has_flag(_options, debugger_options::break_on_exception))
             prompt(*this, *cxt.value1.registers);
     }));
 
@@ -1250,14 +1278,14 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
             << m->module_name->str()
             << " loaded";
 
-        if (util::has_flag(m->header.runtime_flag, runtime_flags_t::builtin))
+        if (disvm::util::has_flag(m->header.runtime_flag, runtime_flags_t::builtin))
             ss << " (built-in)";
 
         debug_print_info(ss.str());
 
         // If the break on enter flag was set, it will be true
         // and the first module load will be the user entry module.
-        if (util::has_flag(_options, debugger_options::break_on_enter))
+        if (disvm::util::has_flag(_options, debugger_options::break_on_enter))
         {
             // Reset the break on enter flag and set a breakpoint
             // on the entry PC for the module - 'break on enter'
@@ -1265,7 +1293,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
             breakpoint_cookies.emplace(controller->set_breakpoint(m, m->header.entry_pc));
         }
 
-        if (util::has_flag(_options, debugger_options::break_on_module_load))
+        if (disvm::util::has_flag(_options, debugger_options::break_on_module_load))
             prompt(*this, *cxt.value1.registers);
     }));
 
@@ -1334,10 +1362,10 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
     if (!sbl_file.is_open())
         return;
 
-    std::unique_ptr<symbol::symbol_data_t> symbol_data;
+    std::unique_ptr<symbol_data_t> symbol_data;
     try
     {
-        symbol_data = symbol::read(sbl_file);
+        symbol_data = disvm::symbol::read(sbl_file);
     }
     catch (const std::runtime_error &e)
     {

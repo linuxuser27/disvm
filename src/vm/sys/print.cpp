@@ -9,8 +9,10 @@
 #include <utf8.h>
 #include "sys_utils.h"
 
-using namespace disvm::runtime;
-using namespace disvm::runtime::utf8;
+using disvm::runtime::byte_t;
+using disvm::runtime::pointer_t;
+using disvm::runtime::vm_array_t;
+using disvm::runtime::word_t;
 
 namespace
 {

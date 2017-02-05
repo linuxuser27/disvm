@@ -9,7 +9,7 @@
 
 #include <cstdint>
 #include <mutex>
-#include <deque>
+#include <forward_list>
 #include <vector>
 #include <disvm.h>
 
@@ -37,9 +37,10 @@ namespace disvm
         private:
             vm_t &_vm;
 
+            void *_mark_cxt;
             std::size_t _collection_epoch;
             mutable std::mutex _tracking_allocs_lock;
-            std::deque<vm_alloc_t *> _tracking_allocs;
+            std::forward_list<vm_alloc_t *> _tracking_allocs;
         };
     }
 }

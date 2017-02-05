@@ -14,8 +14,27 @@
 #include <utils.h>
 #include "tool_dispatch.h"
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::vm_t;
+using disvm::opcode_t;
+using disvm::loaded_vm_module_t;
+
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::cookie_t;
+using disvm::runtime::vm_pc_t;
+using disvm::runtime::vm_module_t;
+using disvm::runtime::vm_thread_t;
+using disvm::runtime::vm_registers_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_tool_t;
+using disvm::runtime::vm_tool_dispatch_t;
+using disvm::runtime::vm_trap_flags_t;
+using disvm::runtime::vm_event_t;
+using disvm::runtime::vm_event_context_t;
+using disvm::runtime::vm_event_callback_t;
+using disvm::runtime::breakpoint_details_t;
 
 // Empty destructor for vm tool 'interface'
 vm_tool_t::~vm_tool_t()
@@ -38,7 +57,7 @@ vm_tool_dispatch_t::~vm_tool_dispatch_t()
         t.second->on_unload();
 }
 
-std::size_t vm_tool_dispatch_t::load_tool(std::shared_ptr<runtime::vm_tool_t> tool)
+std::size_t vm_tool_dispatch_t::load_tool(std::shared_ptr<vm_tool_t> tool)
 {
     static std::size_t _tool_id_counter{ 1 };
 
@@ -58,16 +77,16 @@ std::size_t vm_tool_dispatch_t::load_tool(std::shared_ptr<runtime::vm_tool_t> to
     }
     catch (...)
     {
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-            debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::warning, "load: tool: failure");
+        if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+            disvm::debug::log_msg(component_trace_t::tool, log_level_t::warning, "load: tool: failure");
 
         // The ID is tainted and will not be re-used
         _tools.erase(current_id);
         throw;
     }
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "load: tool: %d", current_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+        disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "load: tool: %d", current_id);
 
     return current_id;
 }
@@ -83,8 +102,8 @@ std::size_t vm_tool_dispatch_t::unload_tool(std::size_t tool_id)
     auto tool = iter->second;
     _tools.erase(iter);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "unload: tool: %d", tool_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+        disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "unload: tool: %d", tool_id);
 
     assert(tool != nullptr);
     tool->on_unload();
@@ -222,8 +241,8 @@ cookie_t vm_tool_dispatch_t::subscribe_event(vm_event_t evt, vm_event_callback_t
     // Store the cookie with the associate event
     _events.cookie_to_event[cookie_id] = evt;
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "subscribe: event: %d %d", evt, cookie_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+        disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "subscribe: event: %d %d", evt, cookie_id);
 
     return cookie_id;
 }
@@ -242,8 +261,8 @@ void vm_tool_dispatch_t::unsubscribe_event(cookie_t cookie_id)
     event_callbacks.erase(cookie_id);
     _events.cookie_to_event.erase(iter);
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "unsubscribe: event: %d %d", evt, cookie_id);
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+        disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "unsubscribe: event: %d %d", evt, cookie_id);
 }
 
 cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc)
@@ -280,8 +299,8 @@ cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module,
         // Replace the current opcode with breakpoint
         code_section[pc].op.opcode = opcode_t::brkpt;
 
-        if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-            debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "breakpoint: set: %d %d >>%s<<", cookie_id, pc, module->module_name->str());
+        if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+            disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "breakpoint: set: %d %d >>%s<<", cookie_id, pc, module->module_name->str());
 
         return cookie_id;
     }
@@ -324,8 +343,8 @@ void vm_tool_dispatch_t::clear_breakpoint(cookie_t cookie_id)
     assert(code_section[target_pc].op.opcode == opcode_t::brkpt);
     code_section[target_pc].op.opcode = original_opcode;
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::tool>())
-        debug::log_msg(debug::component_trace_t::tool, debug::log_level_t::debug, "breakpoint: unset: %d %d >>%s<<", cookie_id, target_pc, details.module->module_name->str());
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::tool>())
+        disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "breakpoint: unset: %d %d >>%s<<", cookie_id, target_pc, details.module->module_name->str());
 
     // Clean-up the PC mapping to opcode
     pc_map.erase(iter_pc);

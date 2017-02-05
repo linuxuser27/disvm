@@ -10,8 +10,6 @@
 #include <utils.h>
 #include "sys_utils.h"
 
-using namespace disvm::runtime;
-
 namespace
 {
     std::mutex _create_file_stream_mutex;

@@ -9,8 +9,15 @@
 #include <vm_memory.h>
 #include <debug.h>
 
-using namespace disvm;
-using namespace disvm::runtime;
+using disvm::debug::component_trace_t;
+using disvm::debug::log_level_t;
+
+using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::pointer_t;
+using disvm::runtime::type_descriptor_t;
+using disvm::runtime::vm_alloc_t;
+using disvm::runtime::vm_list_t;
+using disvm::runtime::word_t;
 
 std::shared_ptr<const type_descriptor_t> vm_list_t::type_desc()
 {
@@ -32,8 +39,8 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
     if (_is_alloc)
         _mem.alloc = static_cast<pointer_t>(alloc_memory(_element_type->size_in_bytes));
 
-    if (debug::is_component_tracing_enabled<debug::component_trace_t::memory>())
-        debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "init: vm list");
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm list");
 }
 
 vm_list_t::~vm_list_t()
@@ -54,7 +61,7 @@ vm_list_t::~vm_list_t()
     }
 
     debug::assign_debug_pointer(&_mem.alloc);
-    debug::log_msg(debug::component_trace_t::memory, debug::log_level_t::debug, "destroy: vm list");
+    disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm list");
 }
 
 std::shared_ptr<const type_descriptor_t> vm_list_t::get_element_type() const
