@@ -290,7 +290,28 @@ void
 Math_export_int(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_export_int>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+
+    auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+    const auto values_len = values->get_length();
+
+    if (buffer->get_length() != (sizeof(word_t) * values_len))
+        throw vm_user_exception{ "Invalid buffer size based on conversion" };
+
+    // Insert as big endian
+    for (int i = 0; i < values_len; ++i)
+    {
+        auto x = values->at<word_t>(i);
+
+        auto base = reinterpret_cast<byte_t *>(buffer->at(i * sizeof(x)));
+        base[0] = static_cast<byte_t>(x >> 24);
+        base[1] = static_cast<byte_t>(x >> 16);
+        base[2] = static_cast<byte_t>(x >> 8);
+        base[3] = static_cast<byte_t>(x);
+    }
 }
 
 void
@@ -305,7 +326,7 @@ Math_export_real(vm_registers_t &r, vm_t &vm)
     assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
     const auto values_len = values->get_length();
 
-    if (buffer->get_length() != (8 * values_len))
+    if (buffer->get_length() != (sizeof(real_t) * values_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Insert as big endian
@@ -332,7 +353,32 @@ void
 Math_export_real32(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real32>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+
+    auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    const auto values_len = values->get_length();
+
+    if (buffer->get_length() != (sizeof(float) * values_len))
+        throw vm_user_exception{ "Invalid buffer size based on conversion" };
+
+    // Insert as big endian
+    for (int i = 0; i < values_len; ++i)
+    {
+        auto x_r = values->at<real_t>(i);
+        auto x = static_cast<float>(x_r);
+        uint32_t t;
+        std::memcpy(&t, &x, sizeof(x));
+        static_assert(sizeof(t) == sizeof(x), "Short-real should be 32-bits");
+
+        auto base = reinterpret_cast<byte_t *>(buffer->at(i * sizeof(x)));
+        base[0] = static_cast<byte_t>(t >> 24);
+        base[1] = static_cast<byte_t>(t >> 16);
+        base[2] = static_cast<byte_t>(t >> 8);
+        base[3] = static_cast<byte_t>(t);
+    }
 }
 
 void
@@ -416,7 +462,34 @@ void
 Math_iamax(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_iamax>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    // [SPEC] According to the Inferno implementation (libmath/blas.c), 0 is returned
+    // if the array is empty. This means there is no indication the supplied array was
+    // empty or the first index was max. The spec does not describe this condition,
+    // therefore this implementation will indicate with -1.
+    *fp.ret = -1;
+
+    auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    if (result->get_length() <= 0)
+        return;
+
+    auto r_raw = reinterpret_cast<real_t *>(result->at(0));
+
+    auto max_idx = 0;
+    auto r_len = result->get_length();
+    auto curr_max = std::fabs(r_raw[max_idx]);
+    for (auto i = word_t{ 1 }; i < r_len; ++i)
+    {
+        auto t = std::fabs(r_raw[i]);
+        if (curr_max < t)
+        {
+            max_idx = i;
+            curr_max = t;
+        }
+    }
+
+    *fp.ret = max_idx;
 }
 
 void
@@ -430,7 +503,27 @@ void
 Math_import_int(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_import_int>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+
+    auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+    const auto result_len = result->get_length();
+
+    if (buffer->get_length() != (sizeof(word_t) * result_len))
+        throw vm_user_exception{ "Invalid buffer size based on conversion" };
+
+    // Process as big endian
+    for (int i = 0; i < result_len; ++i)
+    {
+        uint32_t t = buffer->at<byte_t>(0);
+        for (int j = 1; j < sizeof(word_t); ++j)
+            t = (t << 8) | buffer->at<byte_t>(j);
+
+        auto x = static_cast<word_t>(t);
+        result->at<word_t>(i) = x;
+    }
 }
 
 void
@@ -445,14 +538,14 @@ Math_import_real(vm_registers_t &r, vm_t &vm)
     assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
     const auto result_len = result->get_length();
 
-    if (buffer->get_length() != (8 * result_len))
+    if (buffer->get_length() != (sizeof(real_t) * result_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Process as big endian
     for (int i = 0; i < result_len; ++i)
     {
         uint64_t t = buffer->at<byte_t>(0);
-        for (int j = 1; j < 8; ++j)
+        for (int j = 1; j < sizeof(real_t); ++j)
             t = (t << 8) | buffer->at<byte_t>(j);
 
         real_t x;
@@ -467,7 +560,31 @@ void
 Math_import_real32(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_import_real32>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+
+    auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    const auto result_len = result->get_length();
+
+    if (buffer->get_length() != (sizeof(float) * result_len))
+        throw vm_user_exception{ "Invalid buffer size based on conversion" };
+
+    // Process as big endian
+    for (int i = 0; i < result_len; ++i)
+    {
+        uint32_t t = buffer->at<byte_t>(0);
+        for (int j = 1; j < sizeof(float); ++j)
+            t = (t << 8) | buffer->at<byte_t>(j);
+
+        float x_f;
+        std::memcpy(&x_f, &t, sizeof(t));
+        static_assert(sizeof(t) == sizeof(x_f), "Short-real should be 32-bits");
+
+        auto x = real_t{ x_f };
+        result->at<real_t>(i) = x;
+    }
 }
 
 void
@@ -481,6 +598,8 @@ void
 Math_j0(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_j0>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -488,6 +607,8 @@ void
 Math_j1(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_j1>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -495,6 +616,8 @@ void
 Math_jn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_jn>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -530,7 +653,13 @@ void
 Math_modf(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_modf>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    real_t integral_out;
+    const auto fractional_part = std::modf(fp.x, &integral_out);
+    const auto integral_part = static_cast<word_t>(integral_out);
+
+    fp.ret->t0 = integral_part;
+    fp.ret->t1 = fractional_part;
 }
 
 void
@@ -600,7 +729,7 @@ void
 Math_pow10(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_pow10>();
-    throw vm_system_exception{ "Function not implemented" };
+    *fp.ret = std::pow(10., static_cast<real_t>(fp.p));
 }
 
 void
@@ -646,7 +775,7 @@ void
 Math_scalbn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_scalbn>();
-    throw vm_system_exception{ "Function not implemented" };
+    *fp.ret = std::scalbln(fp.x, fp.n);
 }
 
 void
@@ -723,6 +852,8 @@ void
 Math_y0(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_y0>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -730,6 +861,8 @@ void
 Math_y1(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_y1>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -737,5 +870,7 @@ void
 Math_yn(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_yn>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
