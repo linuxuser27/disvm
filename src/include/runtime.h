@@ -865,7 +865,7 @@ namespace disvm
             virtual vm_scheduler_control_t &get_controller() const = 0;
 
             // Schedule the supplied thread for execution
-            virtual const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) = 0;
+            virtual void schedule_thread(std::unique_ptr<vm_thread_t> thread) = 0;
 
             // Set tool dispatch on all threads.
             // This is a blocking function and will not return until all current threads have been updated.

@@ -89,14 +89,16 @@ namespace disvm
         // All fields on the output structure will be set.
         vm_version_t get_version() const;
 
-        // Begin execution of the module at the supplied path
-        const runtime::vm_thread_t& exec(const char *path);
+        // Begin execution of the module at the supplied path and return the ID of
+        // the executing thread.
+        uint32_t exec(const char *path);
 
-        // Begin execution of the supplied module
-        const runtime::vm_thread_t& exec(std::unique_ptr<runtime::vm_module_t> entry_module);
+        // Begin execution of the supplied module and return the ID of the executing thread.
+        uint32_t exec(std::unique_ptr<runtime::vm_module_t> entry_module);
 
-        // Begin execution of a child thread in the supplied module at the indicated program counter
-        const runtime::vm_thread_t& fork(
+        // Begin execution of a child thread in the supplied module at the indicated
+        // program counter and return the ID of the executing thread.
+        uint32_t fork(
             const uint32_t parent_tid,
             runtime::vm_module_ref_t &module_ref,
             const runtime::vm_frame_t &initial_frame,
@@ -128,7 +130,7 @@ namespace disvm
         void unload_tool(std::size_t tool_id);
 
     private:
-        const runtime::vm_thread_t &schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread);
+        void schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread);
 
         using loaded_modules_t = std::forward_list<loaded_vm_module_t>;
         mutable std::mutex _modules_lock;

@@ -38,7 +38,7 @@ namespace disvm
 
             vm_scheduler_control_t &get_controller() const override;
 
-            const vm_thread_t& schedule_thread(std::unique_ptr<vm_thread_t> thread) override;
+            void schedule_thread(std::unique_ptr<vm_thread_t> thread) override;
 
             void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) override;
 

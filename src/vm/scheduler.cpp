@@ -139,7 +139,7 @@ vm_scheduler_control_t &default_scheduler_t::get_controller() const
     return const_cast<default_scheduler_t&>(*this);
 }
 
-const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
+void default_scheduler_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
 {
     assert(thread != nullptr);
     if (thread->get_registers().current_thread_state != vm_thread_state_t::ready)
@@ -160,18 +160,14 @@ const vm_thread_t& default_scheduler_t::schedule_thread(std::unique_ptr<vm_threa
     const auto new_thread_id = thread->get_thread_id();
     assert(_all_vm_threads.find(new_thread_id) == _all_vm_threads.cend());
 
-    auto new_thread = std::make_shared<thread_instance_t>(std::move(thread));
-
     // Allocate a new container and set the thread entry
-    _all_vm_threads[new_thread_id] = new_thread;
+    _all_vm_threads[new_thread_id] = std::make_shared<thread_instance_t>(std::move(thread));
 
     _runnable_vm_thread_ids.push_back(new_thread_id);
 
     // Notify the worker a thread has been enqueued.
     lock.unlock();
     _worker_event.notify_one();
-
-    return *(new_thread->vm_thread);
 }
 
 void default_scheduler_t::set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch)
