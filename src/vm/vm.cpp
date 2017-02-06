@@ -226,26 +226,32 @@ namespace
     }
 }
 
-const vm_thread_t& vm_t::exec(const char *path)
+uint32_t vm_t::exec(const char *path)
 {
     assert(path != nullptr);
     auto entry_module = load_module(path);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(entry_module);
     auto thread = _create_thread_safe(std::move(entry_module_ref));
-    return schedule_thread(std::move(thread));
+
+    const auto thread_id = thread->get_thread_id();
+    schedule_thread(std::move(thread));
+    return thread_id;
 }
 
-const vm_thread_t& vm_t::exec(std::unique_ptr<vm_module_t> entry_module)
+uint32_t vm_t::exec(std::unique_ptr<vm_module_t> entry_module)
 {
     assert(entry_module != nullptr);
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(std::move(entry_module));
     auto thread = _create_thread_safe(std::move(entry_module_ref));
-    return schedule_thread(std::move(thread));
+
+    const auto thread_id = thread->get_thread_id();
+    schedule_thread(std::move(thread));
+    return thread_id;
 }
 
-const vm_thread_t& vm_t::fork(
+uint32_t vm_t::fork(
     const uint32_t parent_tid,
     vm_module_ref_t &module_ref,
     const vm_frame_t &initial_frame,
@@ -255,7 +261,10 @@ const vm_thread_t& vm_t::fork(
         throw vm_user_exception{ "Invalid entry program counter" };
 
     auto thread = std::make_unique<vm_thread_t>(module_ref, parent_tid, initial_frame, initial_pc);
-    return schedule_thread(std::move(thread));
+
+    const auto thread_id = thread->get_thread_id();
+    schedule_thread(std::move(thread));
+    return thread_id;
 }
 
 namespace
@@ -445,7 +454,7 @@ void vm_t::unload_tool(std::size_t tool_id)
     }
 }
 
-const vm_thread_t &vm_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
+void vm_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
 {
     assert(thread != nullptr);
 
@@ -459,5 +468,5 @@ const vm_thread_t &vm_t::schedule_thread(std::unique_ptr<vm_thread_t> thread)
         }
     }
 
-    return _scheduler->schedule_thread(std::move(thread));
+    _scheduler->schedule_thread(std::move(thread));
 }
