@@ -339,14 +339,16 @@ namespace
         {
             ss << alloc->alloc_type << " - alloc" << dbg_alloc;
 
-            enum_pointer_fields_with_offset(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth](pointer_t p, std::size_t o)
+            const auto base_address = reinterpret_cast<std::uintptr_t>(alloc->get_allocation());
+            enum_pointer_fields(*alloc->alloc_type, alloc->get_allocation(), [&ss, recurse_depth, base_address](pointer_t *p)
             {
                 ss << "\n";
                 std::fill_n(std::ostream_iterator<std::ostream::char_type>{ ss }, 4 * recurse_depth, ' ');
-                ss << "[" << o << "]  ";
+                const auto p_address = reinterpret_cast<std::uintptr_t>(p);
+                ss << "[" << std::size_t{ p_address - base_address } << "]  ";
 
                 if (recurse_depth < 2)
-                    safe_alloc_print(ss, vm_alloc_t::from_allocation(p), recurse_depth + 1);
+                    safe_alloc_print(ss, vm_alloc_t::from_allocation(*p), recurse_depth + 1);
                 else
                     ss << "...";
             });

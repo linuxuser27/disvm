@@ -98,7 +98,14 @@ namespace disvm
 
             static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td);
             static vm_alloc_t *copy(const vm_alloc_t &other);
-            static vm_alloc_t *from_allocation(pointer_t allocation);
+
+            static vm_alloc_t *from_allocation(pointer_t allocation)
+            {
+                if (allocation == nullptr)
+                    return nullptr;
+
+                return reinterpret_cast<vm_alloc_t *>(reinterpret_cast<uint8_t *>(allocation) - sizeof(vm_alloc_t));
+            }
 
             template <typename T>
             static T *from_allocation(pointer_t allocation)
@@ -125,7 +132,12 @@ namespace disvm
             pointer_t gc_reserved;
 
         public:
-            pointer_t get_allocation() const;
+            pointer_t get_allocation() const
+            {
+                // Remove const on the this pointer so the offset can be computed.
+                auto non_const_this = const_cast<vm_alloc_t *>(this);
+                return reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(non_const_this) + sizeof(vm_alloc_t));
+            }
 
             template <typename T>
             T *get_allocation() const
@@ -638,7 +650,7 @@ namespace disvm
         class vm_frame_t final
         {
         public:
-            vm_frame_t(std::shared_ptr<const type_descriptor_t> &frame_type);
+            vm_frame_t(std::shared_ptr<const type_descriptor_t> frame_type);
             ~vm_frame_t();
 
             std::shared_ptr<const type_descriptor_t> frame_type;

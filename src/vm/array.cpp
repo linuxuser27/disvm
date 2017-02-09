@@ -28,7 +28,7 @@ std::shared_ptr<const type_descriptor_t> vm_array_t::type_desc()
 vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
-    , _element_type{ td }
+    , _element_type{ std::move(td) }
     , _length{ length }
     , _original{ nullptr }
 {

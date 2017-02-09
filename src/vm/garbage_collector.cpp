@@ -28,6 +28,7 @@ using disvm::runtime::vm_memory_allocator_t;
 using disvm::runtime::vm_string_t;
 using disvm::runtime::vm_thread_t;
 using disvm::runtime::vm_tool_controller_t;
+using disvm::runtime::word_t;
 
 // Empty destructors for vm garbage collector 'interfaces'
 vm_garbage_collector_t::~vm_garbage_collector_t()
@@ -97,11 +98,9 @@ namespace
     {
     public:
         mark_cxt_t()
-            : string_type{ intrinsic_type_desc::type<vm_string_t>().get() } // Using raw pointer since it is a built-in type and has unlimited lifetime
-            , curr_colour{ gc_colour_t::white }
+            : curr_colour{ gc_colour_t::white }
         { }
 
-        const type_descriptor_t *string_type;
         gc_colour_t curr_colour;
 
         vm_alloc_t *pop()
@@ -161,16 +160,39 @@ void default_garbage_collector_t::enum_tracked_allocations(vm_alloc_callback_t c
 
 namespace
 {
-    void mark_pointers(pointer_t p, void *cxt)
+    void mark_pointer_maybe(pointer_t p, mark_cxt_t &c)
     {
         auto a = vm_alloc_t::from_allocation(p);
 
-        assert(cxt != nullptr);
-        auto c = static_cast<mark_cxt_t *>(cxt);
+        // Don't examine allocations with the current colour
+        if (a != nullptr && c.curr_colour != get_gc_colour(a))
+            c.push(a);
+    }
 
-        // Don't examine vm strings or allocations with the current colour
-        if (c->curr_colour != get_gc_colour(a) && a->alloc_type.get() != c->string_type)
-            c->push(a);
+    void mark_pointer_fields(const type_descriptor_t &type_desc, void *data, mark_cxt_t &cxt)
+    {
+        assert(data != nullptr);
+
+        auto memory = reinterpret_cast<pointer_t *>(data);
+        for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
+        {
+            const auto words8 = type_desc.pointer_map[i];
+            assert(sizeof(words8) == 1);
+            if (words8 == 0)
+                continue;
+
+            const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
+
+            // Enumerating the flags in reverse order so memory access is sequential.
+            if (flags[7]) mark_pointer_maybe(memory[0], cxt);
+            if (flags[6]) mark_pointer_maybe(memory[1], cxt);
+            if (flags[5]) mark_pointer_maybe(memory[2], cxt);
+            if (flags[4]) mark_pointer_maybe(memory[3], cxt);
+            if (flags[3]) mark_pointer_maybe(memory[4], cxt);
+            if (flags[2]) mark_pointer_maybe(memory[5], cxt);
+            if (flags[1]) mark_pointer_maybe(memory[6], cxt);
+            if (flags[0]) mark_pointer_maybe(memory[7], cxt);
+        }
     }
 
     void mark(std::vector<std::shared_ptr<const vm_thread_t>> threads, mark_cxt_t &mark_cxt)
@@ -194,7 +216,7 @@ namespace
                 }
 
                 if (frame->frame_type->map_in_bytes > 0)
-                    enum_pointer_fields(*frame->frame_type, frame->base(), mark_pointers, &mark_cxt);
+                    mark_pointer_fields(*frame->frame_type, frame->base(), mark_cxt);
             }
         }
 
@@ -208,7 +230,7 @@ namespace
             set_gc_colour(curr, mark_cxt.curr_colour);
 
             if (curr->alloc_type->map_in_bytes > 0)
-                enum_pointer_fields(*curr->alloc_type, curr->get_allocation(), mark_pointers, &mark_cxt);
+                mark_pointer_fields(*curr->alloc_type, curr->get_allocation(), mark_cxt);
         }
     }
 

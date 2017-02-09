@@ -26,11 +26,11 @@ std::shared_ptr<const type_descriptor_t> vm_list_t::type_desc()
 
 vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tail)
     : vm_alloc_t(vm_list_t::type_desc())
-    , _element_type{ td }
     , _is_alloc{ sizeof(_mem) < td->size_in_bytes }
     , _mem{}
     , _tail{ nullptr }
 {
+    _element_type = std::move(td);
     assert(_element_type != nullptr);
     set_tail(tail);
 

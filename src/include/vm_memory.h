@@ -49,23 +49,37 @@ namespace disvm
         // Decrement the ref count and if 0 free the allocation
         void dec_ref_count_and_free(vm_alloc_t *alloc);
 
-        // Callback for a pointer field supplying the pointer
-        using pointer_field_callback_t = void(*)(pointer_t);
+        // Function to enumerate pointer fields in an object. The function is defined
+        // as a template to permit raw function pointers or lambdas. The signature
+        // of the callback must be 'void(pointer_t *)' and is supplied a pointer to the
+        // non-null pointer field. The offset of the field is relative to the supplied
+        // 'data' pointer.
+        template<typename CB>
+        void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, CB callback)
+        {
+            assert(data != nullptr && callback != nullptr);
 
-        // The callback will be called on all non-null pointer fields.
-        void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback);
+            auto memory = reinterpret_cast<word_t *>(data);
+            for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
+            {
+                const auto words8 = type_desc.pointer_map[i];
+                assert(sizeof(words8) == 1);
+                if (words8 == 0)
+                    continue;
 
-        // Callback for a pointer field supplying the pointer and a calling context
-        using pointer_field_callback_ext_t = void(*)(pointer_t, void *cxt);
+                const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
 
-        // The callback will be called on all non-null pointer fields.
-        void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_ext_t callback, void *cxt);
-
-        // Callback for a pointer field supplying the pointer and byte offset
-        using pointer_field_offset_callback_t = std::function<void(pointer_t, std::size_t)>;
-
-        // The callback will be called on all non-null pointer fields.
-        void enum_pointer_fields_with_offset(const type_descriptor_t &type_desc, void *data, pointer_field_offset_callback_t callback);
+                // Enumerating the flags in reverse order so memory access is sequential.
+                if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory));
+                if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 1);
+                if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 2);
+                if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 3);
+                if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 4);
+                if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 5);
+                if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 6);
+                if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t *>(memory) + 7);
+            }
+        }
 
         // Check if a specific pointer-sized offset in a type represents a pointer
         bool is_offset_pointer(const type_descriptor_t &type_desc, std::size_t offset);

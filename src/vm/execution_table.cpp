@@ -509,16 +509,14 @@ namespace
     {
         auto alloc_prev = at_val<vm_alloc_t>(dest);
         auto alloc = at_val<vm_alloc_t>(src);
+        pointer_t to_move = nullptr;
         if (alloc != nullptr)
         {
             alloc->add_ref();
-            pt_ref(dest) = alloc->get_allocation();
-        }
-        else
-        {
-            pt_ref(dest) = nullptr;
+            to_move = alloc->get_allocation();
         }
 
+        pt_ref(dest) = to_move;
         dec_ref_count_and_free(alloc_prev);
     }
 
@@ -531,7 +529,6 @@ namespace
     EXEC_DECL(movm)
     {
         assert(r.src != nullptr && r.dest != nullptr);
-
         std::memmove(r.dest, r.src, vt_ref<word_t>(r.mid));
     }
 
@@ -1087,9 +1084,11 @@ namespace
             }
 
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
-            auto new_channel = new vm_channel_t{ type_desc, transfer, buffer_len };
 
-            if (type_desc->map_in_bytes > 0)
+            const auto track_object = type_desc->map_in_bytes > 0;
+            auto new_channel = new vm_channel_t{ std::move(type_desc), transfer, buffer_len };
+
+            if (track_object)
                 vm.get_garbage_collector().track_allocation(new_channel);
 
             pt_ref(r.dest) = new_channel->get_allocation();
@@ -1107,7 +1106,7 @@ namespace
         auto memory_size = vt_ref<word_t>(r.src); 
         auto channel_data_type = type_descriptor_t::create(memory_size); 
 
-        _newc_(r, vm, channel_data_type, _channel_movm);
+        _newc_(r, vm, std::move(channel_data_type), _channel_movm);
     }
 
     EXEC_DECL(newcmp)
@@ -1117,7 +1116,7 @@ namespace
         assert(0 <= type_id && type_id < static_cast<word_t>(types.size()));
         auto type = types[type_id];
 
-        _newc_(r, vm, type, _channel_movmp);
+        _newc_(r, vm, std::move(type), _channel_movmp);
     }
 
     EXEC_DECL(send)
@@ -1440,7 +1439,7 @@ namespace
         assert(0 <= frame_type_id && frame_type_id < static_cast<word_t>(types.size()));
         const auto frame_type = types[frame_type_id];
 
-        pt_ref(r.dest) = r.stack.alloc_frame(frame_type)->base();
+        pt_ref(r.dest) = r.stack.alloc_frame(std::move(frame_type))->base();
     }
 
     EXEC_DECL(mframe)
@@ -1500,7 +1499,8 @@ namespace
 
         r.next_pc = vt_ref<vm_pc_t>(r.dest);
 
-        disvm::debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
+        if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
+            disvm::debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
 
     EXEC_DECL(mcall)

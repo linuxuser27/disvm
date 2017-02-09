@@ -83,16 +83,16 @@ void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
 
 namespace
 {
-    void dec_ref_and_free_pointer_field(pointer_t pointer_field)
+    void dec_ref_and_free_pointer_field(pointer_t *pointer_field)
     {
-        assert(pointer_field != nullptr);
-        dec_ref_count_and_free(vm_alloc_t::from_allocation(pointer_field));
+        assert(pointer_field != nullptr && *pointer_field != nullptr);
+        dec_ref_count_and_free(vm_alloc_t::from_allocation(*pointer_field));
     }
 
-    void add_ref_pointer_field(pointer_t pointer_field)
+    void add_ref_pointer_field(pointer_t *pointer_field)
     {
-        assert(pointer_field != nullptr);
-        vm_alloc_t::from_allocation(pointer_field)->add_ref();
+        assert(pointer_field != nullptr && *pointer_field != nullptr);
+        vm_alloc_t::from_allocation(*pointer_field)->add_ref();
     }
 }
 
@@ -126,87 +126,6 @@ void disvm::runtime::dec_ref_count_and_free(vm_alloc_t *alloc)
     auto current_ref = alloc->release();
     if (current_ref == 0)
         delete alloc;
-}
-
-void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_t callback)
-{
-    assert(data != nullptr && callback != nullptr);
-
-    auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
-    {
-        const auto words8 = type_desc.pointer_map[i];
-        assert(sizeof(words8) == 1);
-        if (words8 == 0)
-            continue;
-
-        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
-
-        // Enumerating the flags in reverse order so memory access is sequential.
-        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]));
-        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]));
-        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]));
-        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]));
-        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]));
-        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]));
-        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]));
-        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]));
-    }
-}
-
-void disvm::runtime::enum_pointer_fields(const type_descriptor_t &type_desc, void *data, pointer_field_callback_ext_t callback, void *cxt)
-{
-    assert(data != nullptr && callback != nullptr);
-
-    auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
-    {
-        const auto words8 = type_desc.pointer_map[i];
-        assert(sizeof(words8) == 1);
-        if (words8 == 0)
-            continue;
-
-        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
-
-        // Enumerating the flags in reverse order so memory access is sequential.
-        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), cxt);
-        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), cxt);
-        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), cxt);
-        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), cxt);
-        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), cxt);
-        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), cxt);
-        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), cxt);
-        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), cxt);
-    }
-}
-
-void disvm::runtime::enum_pointer_fields_with_offset(const type_descriptor_t &type_desc, void *data, pointer_field_offset_callback_t callback)
-{
-    assert(data != nullptr && callback != nullptr);
-    if (type_desc.size_in_bytes == 0)
-        return;
-
-    auto offset_accum = std::size_t{ 0 };
-    auto memory = reinterpret_cast<word_t *>(data);
-    for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8, offset_accum += (8 * sizeof(pointer_t)))
-    {
-        const auto words8 = type_desc.pointer_map[i];
-        assert(sizeof(words8) == 1);
-        if (words8 == 0)
-            continue;
-
-        const auto flags = std::bitset<sizeof(words8) * 8>{ words8 };
-
-        // Enumerating the flags in reverse order so memory access is sequential.
-        if (flags[7] && (memory[0] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[0]), offset_accum);
-        if (flags[6] && (memory[1] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[1]), offset_accum + (1 * sizeof(pointer_t)));
-        if (flags[5] && (memory[2] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[2]), offset_accum + (2 * sizeof(pointer_t)));
-        if (flags[4] && (memory[3] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[3]), offset_accum + (3 * sizeof(pointer_t)));
-        if (flags[3] && (memory[4] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[4]), offset_accum + (4 * sizeof(pointer_t)));
-        if (flags[2] && (memory[5] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[5]), offset_accum + (5 * sizeof(pointer_t)));
-        if (flags[1] && (memory[6] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[6]), offset_accum + (6 * sizeof(pointer_t)));
-        if (flags[0] && (memory[7] != runtime_constants::nil)) callback(reinterpret_cast<pointer_t>(memory[7]), offset_accum + (7 * sizeof(pointer_t)));
-    }
 }
 
 bool disvm::runtime::is_offset_pointer(const type_descriptor_t &type_desc, std::size_t offset)
@@ -247,14 +166,15 @@ void vm_alloc_t::operator delete(void *ptr)
 vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
 {
     assert(td != nullptr);
-    if (td->size_in_bytes <= 0)
+    const auto type_size_in_bytes = td->size_in_bytes;
+    if (type_size_in_bytes <= 0)
         throw vm_system_exception{ "Invalid dynamic memory allocation size" };
 
-    auto mem = alloc_memory(sizeof(vm_alloc_t) + td->size_in_bytes);
-    auto alloc = ::new(mem)vm_alloc_t{ td };
+    auto mem = alloc_memory(sizeof(vm_alloc_t) + type_size_in_bytes);
+    auto alloc = ::new(mem)vm_alloc_t{ std::move(td) };
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
-        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm alloc: %d", td->size_in_bytes);
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm alloc: %d", type_size_in_bytes);
 
     return alloc;
 }
@@ -273,16 +193,8 @@ vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
     return alloc_copy;
 }
 
-vm_alloc_t *vm_alloc_t::from_allocation(pointer_t allocation)
-{
-    if (allocation == nullptr)
-        return nullptr;
-
-    return reinterpret_cast<vm_alloc_t *>(reinterpret_cast<uint8_t *>(allocation) - sizeof(vm_alloc_t));
-}
-
 vm_alloc_t::vm_alloc_t(std::shared_ptr<const type_descriptor_t> td)
-    : alloc_type{ td }
+    : alloc_type{ std::move(td) }
     , gc_reserved{ nullptr }
     , _ref_count{ 1 }
 {
@@ -328,13 +240,6 @@ std::size_t vm_alloc_t::release()
 std::size_t vm_alloc_t::get_ref_count() const
 {
     return _ref_count;
-}
-
-pointer_t vm_alloc_t::get_allocation() const
-{
-    // Remove const on the this pointer so the offset can be computed.
-    auto non_const_this = const_cast<vm_alloc_t *>(this);
-    return reinterpret_cast<pointer_t>(reinterpret_cast<uint8_t *>(non_const_this)+sizeof(vm_alloc_t));
 }
 
 namespace
