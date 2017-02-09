@@ -45,13 +45,13 @@ vm_channel_t::vm_channel_t(
     , _data_buffer_head{ 0 }
     , _data_buffer_count{ 0 }
     , _data_transfer{ transfer }
-    , _data_type{ td }
+    , _data_type{ std::move(td) }
 {
     if (buffer_len < 0)
         throw out_of_range_memory{};
 
     if (buffer_len > 0)
-        _data_buffer = new vm_array_t{ td, buffer_len };
+        _data_buffer = new vm_array_t{ _data_type, buffer_len };
 
     disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm channel");
 }

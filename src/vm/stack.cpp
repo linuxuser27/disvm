@@ -106,7 +106,7 @@ namespace
     };
 }
 
-vm_frame_t::vm_frame_t(std::shared_ptr<const type_descriptor_t> &td)
+vm_frame_t::vm_frame_t(std::shared_ptr<const type_descriptor_t> td)
     : frame_type{ std::move(td) }
 {
     assert(frame_type != nullptr);
@@ -222,7 +222,7 @@ vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> fra
     if (page_top_frame == nullptr)
     {
         auto new_frame_addr = layout->top_page->stack_data();
-        new_frame = ::new(new_frame_addr)vm_frame_t{ frame_type };
+        new_frame = ::new(new_frame_addr)vm_frame_t{ std::move(frame_type) };
     }
     else
     {
@@ -233,7 +233,7 @@ vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> fra
         if ((new_frame_addr_maybe + new_frame_size) >= layout->top_page->page_limit_addr)
             new_frame_addr_maybe = reinterpret_cast<std::uintptr_t>(layout->new_page());
 
-        new_frame = ::new(reinterpret_cast<void *>(new_frame_addr_maybe))vm_frame_t{ frame_type };
+        new_frame = ::new(reinterpret_cast<void *>(new_frame_addr_maybe))vm_frame_t{ std::move(frame_type) };
     }
 
     // Record the top frame on the page
