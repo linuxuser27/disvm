@@ -540,13 +540,13 @@ const real_t Math_NaN = NAN;
 static_assert(sizeof(real_t) == 8, "Recalculate EPS if size of real_t is changing");
 const real_t Math_MachEps = 2.220446049250313e-16; // 64-bit double
 const real_t Math_Pi = 3.141592653589793;
-const real_t Math_Degree = .017453292519943295;
+const real_t Math_Degree = 0.0174532925199433;
 const word_t Math_INVAL = 0x1;
 const word_t Math_ZDIV = 0x2;
 const word_t Math_OVFL = 0x4;
 const word_t Math_UNFL = 0x8;
 const word_t Math_INEX = 0x10;
-const word_t Math_RND_NR = 0x0;
+const word_t Math_RND_NR = 0;
 const word_t Math_RND_NINF = 0x100;
 const word_t Math_RND_PINF = 0x200;
 const word_t Math_RND_Z = 0x300;
