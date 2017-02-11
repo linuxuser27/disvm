@@ -327,6 +327,9 @@ void
 Sys_aprint(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_aprint>();
+
+    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    //*fp.ret = nullptr;
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -494,6 +497,9 @@ void
 Sys_fauth(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fauth>();
+
+    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    //*fp.ret = nullptr;
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -501,6 +507,9 @@ void
 Sys_fd2path(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fd2path>();
+
+    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    //*fp.ret = nullptr;
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -524,6 +533,9 @@ void
 Sys_file2chan(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_file2chan>();
+
+    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    //*fp.ret = nullptr;
     throw vm_system_exception{ "Function not implemented" };
 }
 

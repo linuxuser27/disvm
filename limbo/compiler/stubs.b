@@ -86,10 +86,19 @@ modcode(globals: ref Decl)
 		print("#include \"%s.h\"\n", buf);
 	}
 	else{
-		print("#include <lib9.h>\n");
-		print("#include <isa.h>\n");
-		print("#include <interp.h>\n");
+		print("#include <memory.h>\n");
+		print("#include <disvm.h>\n");
+		print("#include <builtin_module.h>\n");
 		print("#include \"%smod.h\"\n", emitcode);
+		print("using disvm::vm_t;\n");
+		print("using disvm::runtime::type_descriptor_t;\n");
+		print("using disvm::runtime::vm_registers_t;\n");
+		print("using disvm::runtime::vm_frame_base_alloc_t;\n");
+		print("using disvm::runtime::byte_t;\n");
+		print("using disvm::runtime::word_t;\n");
+		print("using disvm::runtime::big_t;\n");
+		print("using disvm::runtime::real_t;\n");
+		print("using disvm::runtime::pointer_t;\n");
 	}
 	print("\n");
 
@@ -106,7 +115,7 @@ modcode(globals: ref Decl)
 	for(id := d.ty.ids; id != nil; id = id.next){
 		if(id.store == Dtype && id.ty.kind == Tadt){
 			id.ty = usetype(id.ty);
-			print("Type*\tT_%s;\n", id.sym.name);
+			print("std::shared_ptr<const type_descriptor_t> T_%s;\n", id.sym.name);
 		}
 	}
 
@@ -116,7 +125,7 @@ modcode(globals: ref Decl)
 	if(emitdyn){
 		for(id = d.ty.ids; id != nil; id = id.next)
 			if(id.store == Dtype && id.ty.kind == Tadt)
-				print("uchar %s_map[] = %s_%s_map;\n",
+				print("byte_t %s_map[] = %s_%s_map;\n",
 					id.sym.name, emitcode, id.sym.name);
 	}
 
@@ -126,8 +135,10 @@ modcode(globals: ref Decl)
 	if(emitdyn){
 		for(id = d.ty.ids; id != nil; id = id.next)
 			if(id.store == Dtype && id.ty.kind == Tadt){
-				print("\n%s_%s*\n%salloc%s(void)\n{\n\tHeap *h;\n\n\th = heap(T_%s);\n\treturn H2D(%s_%s*, h);\n}\n", emitcode, id.sym.name, emitcode, id.sym.name, id.sym.name, emitcode, id.sym.name);
-				print("\nvoid\n%sfree%s(Heap *h, int swept)\n{\n\t%s_%s *d;\n\n\td = H2D(%s_%s*, h);\n\tfreeheap(h, swept);\n}\n", emitcode, id.sym.name, emitcode, id.sym.name, emitcode, id.sym.name);
+				print("\n%s_%s*\n%salloc%s(void)\n{\n vm_alloc_t *a = vm_alloc_t::allocate(T_%s);\n return ::new(a->get_allocation())%s_%s{};\n}\n",
+					emitcode, id.sym.name, emitcode, id.sym.name, id.sym.name, emitcode, id.sym.name);
+				print("\nvoid\n%sfree%s(vm_alloc_t *a)\n{\n // Customized deallocation\n //%s_%s *t = a->get_allocation<%s_%s>();\n //t->~%s_%s();\n\n // Default deallocation\n disvm::runtime::dec_ref_count_and_free(a);\n}\n",
+					emitcode, id.sym.name, emitcode, id.sym.name, emitcode, id.sym.name, emitcode, id.sym.name);
 			}
 	}
 
@@ -138,16 +149,16 @@ modcode(globals: ref Decl)
 		print("\nvoid\n%sinit(void)\n{\n", emitcode);
 	else{
 		print("\nvoid\n%smodinit(void)\n{\n", emitcode);
-		print("\tbuiltinmod(\"$%s\", %smodtab, %smodlen);\n", emitcode, emitcode, emitcode);
+		print(" disvm::runtime::builtin::register_module_exports(%s_PATH, %smodtab, %smodlen);\n", emitcode, emitcode, emitcode);
 	}
 	for(id = d.ty.ids; id != nil; id = id.next)
 		if(id.store == Dtype && id.ty.kind == Tadt){
 			if(emitdyn)
-				print("\tT_%s = dtype(%sfree%s, %s_%s_size, %s_map, sizeof(%s_map));\n",
-					id.sym.name, emitcode, id.sym.name, emitcode, id.sym.name, id.sym.name, id.sym.name);
+				print(" T_%s = type_descriptor_t::create(%s_%s_size, sizeof(%s_map), %s_map);\n",
+					id.sym.name, emitcode, id.sym.name, emitcode, id.sym.name);
 			else
-				print("\tT_%s = dtype(freeheap, sizeof(%s), %smap, sizeof(%smap));\n",
-					id.sym.name, id.sym.name, id.sym.name, id.sym.name);
+				print(" T_%s = type_descriptor_t::create(sizeof(%s_%s), sizeof(%s_%s_map), %s_%s_map);\n",
+					id.sym.name, id.dot.sym.name, id.sym.name, id.dot.sym.name, id.sym.name, id.dot.sym.name, id.sym.name);
 		}
 	print("}\n");
 
@@ -155,24 +166,20 @@ modcode(globals: ref Decl)
 	# end function
 	#
 	if(emitdyn){
-		print("\nvoid\n%send(void)\n{\n", emitcode);
-		for(id = d.ty.ids; id != nil; id = id.next)
-			if(id.store == Dtype && id.ty.kind == Tadt)
-				print("\tfreetype(T_%s);\n", id.sym.name);
-		print("}\n");
+		print("\nvoid\n%send(void)\n{\n}\n", emitcode);
 	}
 
 	#
 	# stub functions
 	#
 	for(id = d.ty.tof.ids; id != nil; id = id.next){
-		print("\nvoid\n%s_%s(void *fp)\n{\n\tF_%s_%s *f = fp;\n",
+		print("\nvoid\n%s_%s(vm_registers_t &r, vm_t &vm)\n{\n auto &fp = r.stack.peek_frame()->base<F_%s_%s>();\n",
 			id.dot.sym.name, id.sym.name,
 			id.dot.sym.name, id.sym.name);
 		if(id.ty.tof != tnone && tattr[id.ty.tof.kind].isptr){
-			print("\tvoid *r;\n");
-			print("\n\tr = *f->ret;\n\t*f->ret = H;\n\tdestroy(r);\n");
+			print("\n //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));\n //*fp.ret = nullptr;\n");
 		}
+		print(" throw vm_system_exception{ \"Function not implemented\" };\n");
 		print("}\n");
 	}
 
@@ -182,14 +189,13 @@ modcode(globals: ref Decl)
 
 modtab(globals: ref Decl)
 {
-	print("typedef struct{char *name; long sig; void (*fn)(void*); int size; int np; uchar map[16];} Runtab;\n");
 	for(d := globals; d != nil; d = d.next){
 		if(d.store == Dtype && d.ty.kind == Tmodule && d.sym.name == emittab){
 			n := 0;
-			print("Runtab %smodtab[]={\n", d.sym.name);
+			print("disvm::runtime::builtin::vm_runtab_t %smodtab[]={\n", d.sym.name);
 			for(id := d.ty.tof.ids; id != nil; id = id.next){
 				n++;
-				print("\t\"");
+				print(" \"");
 				if(id.dot != d)
 					print("%s.", id.dot.sym.name);
 				print("%s\",0x%ux,%s_%s,", id.sym.name, sign(id),
@@ -202,8 +208,8 @@ modtab(globals: ref Decl)
 				}
 				print("\n");
 			}
-			print("\t0\n};\n");
-			print("#define %smodlen	%d\n", d.sym.name, n);
+			print(" 0\n};\n\n");
+			print("const %smodlen = %d\n", d.sym.name, n);
 		}
 	}
 }
@@ -221,14 +227,13 @@ modstub(globals: ref Decl)
 			s := id.dot.sym.name + "_" + id.sym.name;
 			if(emitdyn && id.dot.dot != nil)
 				s = id.dot.dot.sym.name + "_" + s;
-			print("void %s(void*);\ntypedef struct F_%s F_%s;\nstruct F_%s\n{\n",
-				s, s, s, s);
-			print("	WORD	regs[NREG-1];\n");
+			print("void %s(vm_registers_t &, vm_t &);\nstruct F_%s : public vm_frame_base_alloc_t\n{\n",
+				s, s);
 			if(id.ty.tof != tnone)
-				print("	%s*	ret;\n", ctypeconv(id.ty.tof));
+				print(" %s* ret;\n", ctypeconv(id.ty.tof));
 			else
-				print("	WORD	noret;\n");
-			print("	uchar	temps[%d];\n", MaxTemp-NREG*IBY2WD);
+				print(" word_t noret;\n");
+			print(" byte_t temps[%d];\n", MaxTemp-NREG*IBY2WD);
 			offset := MaxTemp;
 			for(m := id.ty.ids; m != nil; m = m.next){
 				p := "";
@@ -245,13 +250,13 @@ modstub(globals: ref Decl)
 				if(offset != m.offset)
 					yyerror("module stub must not contain data objects");
 					# fatal("modstub bad offset");
-				print("	%s	%s;\n", ctypeconv(t), p);
+				print(" %s %s;\n", ctypeconv(t), p);
 				arg++;
 				offset += t.size;
 #ZZZ need to align?
 			}
 			if(id.ty.varargs != byte 0)
-				print("	WORD	vargs;\n");
+				print(" byte_t vargs;\n");
 			print("};\n");
 		}
 		for(id = d.ty.ids; id != nil; id = id.next)
@@ -262,10 +267,9 @@ modstub(globals: ref Decl)
 
 chanstub(in: string, id: ref Decl)
 {
-	print("typedef %s %s_%s;\n", ctypeconv(id.ty.tof), in, id.sym.name);
+	print("using %s_%s = %s;\n", in, id.sym.name, ctypeconv(id.ty.tof));
 	desc := mktdesc(id.ty.tof);
-	print("#define %s_%s_size %d\n", in, id.sym.name, desc.size);
-	print("#define %s_%s_map %s\n", in, id.sym.name, mapconv(desc));
+	print("const byte_t %s_%s_map = %s;\n", in, id.sym.name, mapconv(desc));
 }
 
 #
@@ -287,13 +291,13 @@ adtstub(globals: ref Decl)
 			s := dotprint(d.ty.decl, '_');
 			case d.ty.kind{
 			Tadt =>
-				print("typedef struct %s %s;\n", s, s);
+				;
 			Tint or
 			Tbyte or
 			Treal or
 			Tbig or
 			Tfix =>
-				print("typedef %s %s;\n", ctypeconv(t), s);
+				print("using %s = %s;\n", ctypeconv(t), s);
 			}
 		}
 	}
@@ -319,12 +323,12 @@ adtstub(globals: ref Decl)
 						(offset, nil) = stubalign(offset, tt.align, nil);
 						if(offset != id.offset)
 							fatal("adtstub bad offset");
-						print("	%s	%s;\n", ctypeconv(tt), id.sym.name);
+						print(" %s %s;\n", ctypeconv(tt), id.sym.name);
 						offset += tt.size;
 					}
 				}
 				if(t.ids == nil){
-					print("	char	dummy[1];\n");
+					print(" char dummy[1];\n");
 					offset = 1;
 				}
 				(offset, nil)= stubalign(offset, t.align, nil);
@@ -345,8 +349,7 @@ adtstub(globals: ref Decl)
 				desc := mktdesc(t);
 				if(offset != desc.size && t.ids != nil)
 					fatal("adtstub: bad desc size");
-				print("#define %s_size %d\n", s, offset);
-				print("#define %s_map %s\n", s, mapconv(desc));
+				print("const byte_t %s_map[] = %s;\n", s, mapconv(desc));
 #ZZZ
 if(0)
 				print("struct %s_check {int s[2*(sizeof(%s)==%s_size)-1];};\n", s, s, s);
@@ -367,9 +370,9 @@ stubalign(offset: int, a: int, s: string): (int, string)
 		return (offset, s);
 	x = a - x;
 	if(s != nil)
-		s += sprint("uchar\t_pad%d[%d]; ", offset, x);
+		s += sprint("byte_t _pad%d[%d]; ", offset, x);
 	else
-		print("\tuchar\t_pad%d[%d];\n", offset, x);
+		print(" byte_t _pad%d[%d];\n", offset, x);
 	offset += x;
 	if((offset & (a-1)) || x >= a)
 		fatal("compiler stub misalign");
@@ -381,16 +384,16 @@ constub(id: ref Decl)
 	s := id.dot.sym.name + "_" + id.sym.name;
 	case id.ty.kind{
 	Tbyte =>
-		print("#define %s %d\n", s, int id.init.c.val & 16rff);
+		print("const byte_t %s = %d;\n", s, int id.init.c.val & 16rff);
 	Tint or
 	Tfix =>
-		print("#define %s %d\n", s, int id.init.c.val);
+		print("const word_t %s = %#x;\n", s, int id.init.c.val);
 	Tbig =>
-		print("#define %s %bd\n", s, id.init.c.val);
+		print("const big_t %s %bd;\n", s, id.init.c.val);
 	Treal =>
-		print("#define %s %g\n", s, id.init.c.rval);
+		print("const real_t %s = %.16g;\n", s, id.init.c.rval);
 	Tstring =>
-		print("#define %s \"%s\"\n", s, id.init.decl.sym.name);
+		print("const char *%s = \"%s\";\n", s, id.init.decl.sym.name);
 	}
 }
 
@@ -422,20 +425,20 @@ ckindname := array[Tend] of
 	Tnone =>	"void",
 	Tadt =>		"struct",
 	Tadtpick =>	"?adtpick?",
-	Tarray =>	"Array*",
-	Tbig =>		"LONG",
-	Tbyte =>	"BYTE",
-	Tchan =>	"Channel*",
-	Treal =>	"REAL",
+	Tarray =>	"vm_array_t",
+	Tbig =>		"big_t",
+	Tbyte =>	"byte_t",
+	Tchan =>	"vm_channel_t",
+	Treal =>	"real_t",
 	Tfn =>		"?fn?",
-	Tint =>		"WORD",
-	Tlist =>	"List*",
-	Tmodule =>	"Modlink*",
+	Tint =>		"word_t",
+	Tlist =>	"vm_list_t",
+	Tmodule =>	"vm_module_ref_t",
 	Tref =>		"?ref?",
-	Tstring =>	"String*",
+	Tstring =>	"vm_string_t",
 	Ttuple =>	"?tuple?",
 	Texception => "?exception",
-	Tfix => "WORD",
+	Tfix => "word_t",
 	Tpoly => "void*",
 
 	Tainit =>	"?ainit?",
@@ -463,29 +466,29 @@ ctypeconv(t: ref Type): string
 	Terror =>
 		return "type error";
 	Tref =>
-		s = ctypeconv(t.tof);
-		s += "*";
-	Tarray or
-	Tlist or
+		return "/* " + ctypeconv(t.tof) + " */ pointer_t";
 	Tint or
 	Tbig or
-	Tstring or
 	Treal or
 	Tbyte or
 	Tnone or
 	Tany or
-	Tchan or
-	Tmodule or
 	Tfix or
 	Tpoly =>
 		return ckindname[t.kind];
+	Tarray or
+	Tlist or
+	Tstring or
+	Tchan or
+	Tmodule =>
+		return "/* " + ckindname[t.kind] + " */ pointer_t";
 	Tadtpick =>
 		return ctypeconv(t.decl.dot.ty);
 	Tadt or
 	Ttuple =>
 		if(t.decl.sym != anontupsym)
 			return dotprint(t.decl, '_');
-		s += "struct{ ";
+		s += "struct { ";
 		offset := 0;
 		for(id := t.ids; id != nil; id = id.next){
 			tt := id.ty;
