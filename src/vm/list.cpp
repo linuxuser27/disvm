@@ -45,10 +45,6 @@ vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tai
 
 vm_list_t::~vm_list_t()
 {
-    // Remove tail
-    dec_ref_count_and_free(_tail);
-    debug::assign_debug_pointer(&_tail);
-
     // Destroy and free the list element, if default element size was surpassed.
     if (_is_alloc)
     {
@@ -61,7 +57,13 @@ vm_list_t::~vm_list_t()
     }
 
     debug::assign_debug_pointer(&_mem.alloc);
-    disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm list");
+
+    // Remove tail
+    dec_ref_count_and_free(_tail);
+    debug::assign_debug_pointer(&_tail);
+
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm list");
 }
 
 std::shared_ptr<const type_descriptor_t> vm_list_t::get_element_type() const

@@ -537,7 +537,7 @@ namespace
         auto type_id = vt_ref<word_t>(r.mid);
         const auto &types = r.module_ref->type_section;
         assert(0 <= type_id && type_id < static_cast<word_t>(types.size()));
-        auto type = types[type_id];
+        const auto &type = types[type_id];
 
         disvm::runtime::inc_ref_count_in_memory(*type, r.src);
         destroy_memory(*type, r.dest);
@@ -971,14 +971,15 @@ namespace
         auto tail_maybe = at_val<vm_list_t>(r.dest);
 
         // Create a new list
-        auto new_list = new vm_list_t{ type, tail_maybe };
+        const auto type_size_in_bytes = type->size_in_bytes;
+        auto new_list = new vm_list_t{ std::move(type), tail_maybe };
         if (tail_maybe != nullptr)
             tail_maybe->release();
 
         auto destination = new_list->value();
-        std::memmove(destination, r.src, type->size_in_bytes);
+        std::memmove(destination, r.src, type_size_in_bytes);
 
-        if (type->map_in_bytes > 0)
+        if (type_size_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_list);
 
         // Return the list
@@ -1329,9 +1330,10 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             auto type_desc = types[type_id];
-            auto new_alloc = vm_alloc_t::allocate(type_desc);
+            const auto track_object = type_desc->map_in_bytes > 0;
+            auto new_alloc = vm_alloc_t::allocate(std::move(type_desc));
 
-            if (type_desc->map_in_bytes > 0)
+            if (track_object)
                 vm.get_garbage_collector().track_allocation(new_alloc);
 
             pt_ref(r.dest) = new_alloc->get_allocation();
@@ -1363,9 +1365,10 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto type_desc = types[type_id];
-        auto new_alloc = vm_alloc_t::allocate(type_desc);
+        const auto track_object = type_desc->map_in_bytes > 0;
+        auto new_alloc = vm_alloc_t::allocate(std::move(type_desc));
 
-        if (type_desc->map_in_bytes > 0)
+        if (track_object)
             vm.get_garbage_collector().track_allocation(new_alloc);
 
         pt_ref(r.dest) = new_alloc->get_allocation();
@@ -1385,9 +1388,10 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             const auto array_size = vt_ref<word_t>(r.src);
-            auto new_array = new vm_array_t(type_desc, array_size);
+            const auto track_object = type_desc->map_in_bytes > 0;
+            auto new_array = new vm_array_t(std::move(type_desc), array_size);
 
-            if (type_desc->map_in_bytes > 0)
+            if (track_object)
                 vm.get_garbage_collector().track_allocation(new_array);
 
             pt_ref(r.dest) = new_array->get_allocation();
@@ -1437,7 +1441,7 @@ namespace
 
         const auto frame_type_id = vt_ref<word_t>(r.src);
         assert(0 <= frame_type_id && frame_type_id < static_cast<word_t>(types.size()));
-        const auto frame_type = types[frame_type_id];
+        auto frame_type = types[frame_type_id];
 
         pt_ref(r.dest) = r.stack.alloc_frame(std::move(frame_type))->base();
     }
@@ -1456,9 +1460,9 @@ namespace
 
         const auto frame_type_id = function_ref.frame_type;
         assert(0 <= frame_type_id && frame_type_id < static_cast<word_t>(types.size()));
-        const auto frame_type = types[frame_type_id];
+        auto frame_type = types[frame_type_id];
 
-        pt_ref(r.dest) = r.stack.alloc_frame(frame_type)->base();
+        pt_ref(r.dest) = r.stack.alloc_frame(std::move(frame_type))->base();
     }
 
     EXEC_DECL(ret)
