@@ -414,6 +414,8 @@ Sys_dirread(vm_registers_t &r, vm_t &vm)
 
 namespace
 {
+    // [SPEC] In the Inferno OS, this error is represented by
+    // Ebadfd - 'fd out of range or not open' (emu/port/error.c).
     auto invalid_fd_error = "Invalid FD value";
 }
 
@@ -425,7 +427,7 @@ Sys_dup(vm_registers_t &r, vm_t &vm)
     const auto old_fd = fp.old;
     auto fd_maybe = disvm::runtime::sys::fetch_fd_record(old_fd);
     if (fd_maybe == nullptr)
-        throw vm_user_exception{ invalid_fd_error };
+        throw marshallable_user_exception{ invalid_fd_error };
 
     auto new_fd_maybe = fp.new_;
     if (new_fd_maybe == disvm::runtime::sys::vm_invalid_fd)
@@ -434,7 +436,7 @@ Sys_dup(vm_registers_t &r, vm_t &vm)
     }
     else if (!disvm::runtime::sys::try_update_fd_record(new_fd_maybe, fd_maybe))
     {
-        throw vm_user_exception{ invalid_fd_error };
+        throw marshallable_user_exception{ invalid_fd_error };
     }
 
     *fp.ret = new_fd_maybe;
