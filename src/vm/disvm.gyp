@@ -26,8 +26,8 @@
         'math/Mathmod.cpp',
         'sys/print.cpp',
         'sys/Sysmod.cpp',
-        'sys/file_system.cpp',
         'sys/fd_manager.cpp',
+        'sys/fd_types.cpp',
       ],
       'include_dirs': [
         '../include'

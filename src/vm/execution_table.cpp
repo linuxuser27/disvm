@@ -164,7 +164,7 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto str = at_val<vm_string_t>(r.src);
-        auto new_array = new vm_array_t(str);
+        auto new_array = new vm_array_t{ str };
         pt_ref(r.dest) = new_array->get_allocation();
     }
 
@@ -853,7 +853,7 @@ namespace
             throw out_of_range_memory{};
         }
 
-        auto new_array = new vm_array_t(*arr, begin_index, length);
+        auto new_array = new vm_array_t{ *arr, begin_index, length };
 
         if (arr->alloc_type->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_array);
@@ -1389,7 +1389,7 @@ namespace
 
             const auto array_size = vt_ref<word_t>(r.src);
             const auto track_object = type_desc->map_in_bytes > 0;
-            auto new_array = new vm_array_t(std::move(type_desc), array_size);
+            auto new_array = new vm_array_t{ std::move(type_desc), array_size };
 
             if (track_object)
                 vm.get_garbage_collector().track_allocation(new_array);

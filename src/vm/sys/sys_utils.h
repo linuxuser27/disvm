@@ -12,6 +12,7 @@
 #include <memory>
 #include <disvm.h>
 #include <utils.h>
+#include "fd_types.h"
 
 namespace disvm
 {
@@ -38,25 +39,22 @@ namespace disvm
                 pointer_t base,
                 std::vector<char> &buffer);
 
-            enum class cfs_flags_t
-            {
-                none = 0,
-                atomic = 1 << 0,
-                ensure_create = 1 << 1,
-            };
-
-            DEFINE_ENUM_FLAG_OPERATORS(cfs_flags_t);
-
-            std::unique_ptr<std::fstream> create_file_stream(const char *path, std::ios::openmode mode, cfs_flags_t flags = sys::cfs_flags_t::none);
-
             const word_t vm_invalid_fd = -1;
 
-            // The first three FD records are optimized for lock-less access.
-            word_t create_fd_record(vm_alloc_t *fd_alloc);
+            // No reference count updates are performed on supplied vm_fd_t instance.
+            word_t create_fd_record(vm_fd_t *vm_fd);
+
+            // Returns 'false' if the supplied file descriptor is invalid, otherwise 'true'.
+            // No reference count updates are performed on supplied vm_fd_t instance.
+            bool try_update_fd_record(word_t fd, vm_fd_t *vm_fd);
 
             // Returns null if the record does not exist.
-            vm_alloc_t * fetch_fd_record(word_t fd);
+            // If the record does exist, the reference count is incremented prior
+            // to the instance being returned.
+            vm_fd_t * fetch_fd_record(word_t fd);
 
+            // The associated vm_fd_t instance reference count is decremented
+            // and will be deleted once all references are released.
             void drop_fd_record(word_t fd);
         }
     }
