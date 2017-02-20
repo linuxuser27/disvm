@@ -694,9 +694,7 @@ Math_norm1(vm_registers_t &r, vm_t &vm)
 void
 Math_norm2(vm_registers_t &r, vm_t &vm)
 {
-    // [SPEC] This function is defined as: norm2(x) = sqrt(dot(x, x))
-    // The Inferno implementation (libmath/blas.c) doesn't appear to take
-    // the square root of the resulting dot product.
+    // Defined as: norm2(x) = sqrt(dot(x, x))
     auto &fp = r.stack.peek_frame()->base<F_Math_norm2>();
 
     auto xs = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
