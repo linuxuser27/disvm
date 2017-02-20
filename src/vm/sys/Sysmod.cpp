@@ -118,22 +118,27 @@ namespace
             }
         }
 
-        static vm_alloc_t * create(vm_fd_t *f)
+        // The ref count of the supplied vm_fd_t instance is updated.
+        static vm_alloc_t * create_new(vm_fd_t *vm_fd)
         {
+            assert(vm_fd != nullptr);
+            assert(vm_fd->get_ref_count() == 1 && "Should be a new FD");
+
             auto alloc = vm_alloc_t::allocate(T_FD);
             auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
 
-            fd_impl->fd = disvm::runtime::sys::create_fd_record(f);
-            fd_impl->impl = f;
+            fd_impl->fd = disvm::runtime::sys::create_fd_record(vm_fd);
+            fd_impl->impl = vm_fd;
+            vm_fd->add_ref();
 
             return alloc;
         }
 
-        static vm_alloc_t * try_create(word_t fd)
+        // The ref count of the supplied vm_fd_t instance is _not_ altered.
+        static vm_alloc_t * create_existing(word_t fd, vm_fd_t *vm_fd)
         {
-            auto vm_fd = disvm::runtime::sys::fetch_fd_record(fd);
-            if (vm_fd == nullptr)
-                return nullptr;
+            assert(vm_fd != nullptr);
+            assert(fd >= 0);
 
             auto alloc = vm_alloc_t::allocate(T_FD);
             auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
@@ -148,6 +153,7 @@ namespace
         ~Sys_FD_Impl()
         {
             disvm::runtime::sys::drop_fd_record(fd);
+            disvm::runtime::dec_ref_count_and_free(impl);
             disvm::debug::assign_debug_pointer(&impl);
         }
 
@@ -381,7 +387,7 @@ Sys_create(vm_registers_t &r, vm_t &vm)
     if (vm_fd == nullptr)
         return;
 
-    auto fd_alloc = Sys_FD_Impl::create(vm_fd);
+    auto fd_alloc = Sys_FD_Impl::create_new(vm_fd);
     *fp.ret = fd_alloc->get_allocation();
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
@@ -480,9 +486,12 @@ Sys_fildes(vm_registers_t &r, vm_t &vm)
     dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
     *fp.ret = nullptr;
 
-    auto fd_alloc = Sys_FD_Impl::try_create(fp.fd);
-    if (fd_alloc != nullptr)
+    auto vm_fd = disvm::runtime::sys::fetch_fd_record(fp.fd);
+    if (vm_fd != nullptr)
+    {
+        auto fd_alloc = Sys_FD_Impl::create_existing(fp.fd, vm_fd);
         *fp.ret = fd_alloc->get_allocation();
+    }
 }
 
 void
@@ -580,7 +589,7 @@ Sys_open(vm_registers_t &r, vm_t &vm)
     if (vm_fd == nullptr)
         return;
 
-    auto fd_alloc = Sys_FD_Impl::create(vm_fd);
+    auto fd_alloc = Sys_FD_Impl::create_new(vm_fd);
     *fp.ret = fd_alloc->get_allocation();
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
@@ -631,6 +640,7 @@ Sys_print(vm_registers_t &r, vm_t &vm)
         throw vm_system_exception{ "stdout not available" };
 
     *fp.ret = printf_to_fd(vm, *std_output, *str, &fp.vargs, fp_base);
+    disvm::runtime::dec_ref_count_and_free(std_output);
 }
 
 void
