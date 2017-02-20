@@ -76,12 +76,12 @@ namespace disvm
 
 // Adopted from 'winnt.h' in the Windows SDK
 #define DEFINE_ENUM_FLAG_OPERATORS(TYPE) \
-inline TYPE operator | (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) | static_cast<std::underlying_type_t<TYPE>>(b)); } \
+constexpr TYPE operator | (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) | static_cast<std::underlying_type_t<TYPE>>(b)); } \
 inline TYPE &operator |= (TYPE &a, TYPE b) { a = a | b; return a; } \
-inline TYPE operator & (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) & static_cast<std::underlying_type_t<TYPE>>(b)); } \
+constexpr TYPE operator & (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) & static_cast<std::underlying_type_t<TYPE>>(b)); } \
 inline TYPE &operator &= (TYPE &a, TYPE b) { a = a & b; return a; } \
-inline TYPE operator ^ (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) ^ static_cast<std::underlying_type_t<TYPE>>(b)); } \
+constexpr TYPE operator ^ (TYPE a, TYPE b) { return static_cast<TYPE>(static_cast<std::underlying_type_t<TYPE>>(a) ^ static_cast<std::underlying_type_t<TYPE>>(b)); } \
 inline TYPE &operator ^= (TYPE &a, TYPE b) { a = a ^ b; return a; } \
-inline TYPE operator ~ (TYPE a) { return static_cast<TYPE>(~static_cast<std::underlying_type_t<TYPE>>(a)); }
+constexpr TYPE operator ~ (TYPE a) { return static_cast<TYPE>(~static_cast<std::underlying_type_t<TYPE>>(a)); }
 
 #endif // _DISVM_SRC_INCLUDE_UTILS_H_

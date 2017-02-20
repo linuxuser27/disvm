@@ -124,6 +124,15 @@ namespace disvm
             const word_t invalid_value;
         };
 
+        // [TODO] Allow non-string exceptions to be marshalled.
+        class marshallable_user_exception final : public vm_user_exception
+        {
+        public:
+            explicit marshallable_user_exception(const char *message)
+                : vm_user_exception(message)
+            { }
+        };
+
         class unhandled_user_exception final : public vm_user_exception
         {
         public:
