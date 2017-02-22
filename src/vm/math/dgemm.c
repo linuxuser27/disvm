@@ -12,10 +12,11 @@ typedef double doublereal;
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
 
+// Returns '1' based index of invalid argument, otherwise '0'
 /* Subroutine */ int dgemm_(char *transa, char *transb, integer *m, integer *
 	n, integer *k, doublereal *alpha, doublereal *a, integer *lda, 
 	doublereal *b, integer *ldb, doublereal *beta, doublereal *c, integer 
-	*ldc)
+	*ldc, int a_len, int b_len, int c_len)
 {
 
 
@@ -27,7 +28,7 @@ typedef double doublereal;
     integer info;
     logical nota, notb;
     doublereal temp;
-    integer i, j, l, ncola;
+    integer i, j, l, ncola, ncolb;
     extern logical lsame_(char *, char *);
     integer nrowa, nrowb;
     //extern /* Subroutine */ int xerbla_(char *, integer *);
@@ -210,8 +211,10 @@ typedef double doublereal;
     }
     if (notb) {
 	nrowb = *k;
+    ncolb = *n;
     } else {
 	nrowb = *n;
+    ncolb = *k;
     }
 
 /*     Test the input parameters. */
@@ -228,16 +231,23 @@ typedef double doublereal;
 	info = 4;
     } else if (*k < 0) {
 	info = 5;
+    } else if (((*lda) * (ncola - 1)) > a_len) {
+    info = 7; // A matrix
     } else if (*lda < max(1,nrowa)) {
 	info = 8;
+    } else if (((*ldb) * (ncolb - 1)) > b_len) {
+    info = 9; // B matrix
     } else if (*ldb < max(1,nrowb)) {
 	info = 10;
+    } else if (((*ldc) * (*n - 1)) > c_len) {
+    info = 12; // C matrix
     } else if (*ldc < max(1,*m)) {
 	info = 13;
     }
+
     if (info != 0) {
 	//xerbla_("DGEMM ", &info);
-	return 0;
+	return info;
     }
 
 /*     Quick return if possible. */
