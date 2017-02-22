@@ -3,7 +3,10 @@
 	-lf2c -lm   (in that order)
 */
 
-#include "f2c.h"
+//#include "f2c.h"
+
+typedef int integer;
+typedef int logical;
 
 logical lsame_(char *ca, char *cb)
 {
@@ -13,7 +16,7 @@ logical lsame_(char *ca, char *cb)
     logical ret_val;
 
     /* Local variables */
-    static integer inta, intb, zcode;
+    integer inta, intb, zcode;
 
 
 /*  -- LAPACK auxiliary routine (version 2.0) --   

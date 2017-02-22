@@ -4,7 +4,13 @@
 	-lf2c -lm   (in that order)
 */
 
-#include "f2c.h"
+//#include "f2c.h"
+
+typedef int integer;
+typedef int logical;
+typedef double doublereal;
+
+#define max(a,b) ((a) > (b) ? (a) : (b))
 
 /* Subroutine */ int dgemm_(char *transa, char *transb, integer *m, integer *
 	n, integer *k, doublereal *alpha, doublereal *a, integer *lda, 
@@ -14,17 +20,17 @@
 
 
     /* System generated locals */
-    integer a_dim1, a_offset, b_dim1, b_offset, c_dim1, c_offset, i__1, i__2, 
+    integer /*a_dim1, a_offset, b_dim1, b_offset, c_dim1, c_offset, */ i__1, i__2, 
 	    i__3;
 
     /* Local variables */
-    static integer info;
-    static logical nota, notb;
-    static doublereal temp;
-    static integer i, j, l, ncola;
+    integer info;
+    logical nota, notb;
+    doublereal temp;
+    integer i, j, l, ncola;
     extern logical lsame_(char *, char *);
-    static integer nrowa, nrowb;
-    extern /* Subroutine */ int xerbla_(char *, integer *);
+    integer nrowa, nrowb;
+    //extern /* Subroutine */ int xerbla_(char *, integer *);
 
 
 /*  Purpose   
@@ -230,7 +236,7 @@
 	info = 13;
     }
     if (info != 0) {
-	xerbla_("DGEMM ", &info);
+	//xerbla_("DGEMM ", &info);
 	return 0;
     }
 
