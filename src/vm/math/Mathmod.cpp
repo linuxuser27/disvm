@@ -14,6 +14,7 @@ using disvm::debug::log_level_t;
 
 using disvm::runtime::dereference_nil;
 using disvm::runtime::intrinsic_type_desc;
+using disvm::runtime::out_of_range_memory;
 using disvm::runtime::real_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
@@ -119,6 +120,8 @@ void
 Math_FPstatus(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPstatus>();
+
+    // [PAL] Properly implement floating point control
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -430,17 +433,79 @@ Math_fmod(vm_registers_t &r, vm_t &vm)
     *fp.ret = std::fmod(fp.x, fp.y);
 }
 
+// Forward declaration
+extern "C" int dgemm_(
+    char *transa, char *transb,
+    int *m, int *n, int *k,
+    double *alpha,
+    double *a, int *lda,
+    double *b, int *ldb,
+    double *beta,
+    double *c, int *ldc,
+    int a_len, int b_len, int c_len);
+
 void
 Math_gemm(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_gemm>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    char t_a[2] = {};
+    t_a[0] = static_cast<char>(fp.transa);
+
+    char t_b[2] = {};
+    t_b[0] = static_cast<char>(fp.transb);
+
+    auto m = fp.m;
+    auto n = fp.n;
+    auto k = fp.k;
+
+    auto alpha = fp.alpha;
+    auto beta = fp.beta;
+
+    auto lda = fp.lda;
+    auto a_v = vm_alloc_t::from_allocation<vm_array_t>(fp.a);
+    if (a_v == nullptr)
+        throw dereference_nil{ "gemm - a" };
+
+    auto ldb = fp.ldb;
+    auto b_v = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
+    if (b_v == nullptr)
+        throw dereference_nil{ "gemm - b" };
+
+    auto ldc = fp.ldc;
+    auto c_v = vm_alloc_t::from_allocation<vm_array_t>(fp.c);
+    if (c_v == nullptr)
+        throw dereference_nil{ "gemm - c" };
+
+    assert(a_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(b_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(c_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+
+    const auto a_len = a_v->get_length();
+    const auto b_len = b_v->get_length();
+    const auto c_len = c_v->get_length();
+
+    // Call BLAS version of function
+    const auto result = dgemm_(
+        t_a, t_b,
+        &m, &n, &k,
+        &alpha,
+        reinterpret_cast<double *>(a_v->at(0)), &lda,
+        reinterpret_cast<double *>(b_v->at(0)), &ldb,
+        &beta,
+        reinterpret_cast<double *>(c_v->at(0)), &ldc,
+        a_len, b_len, c_len);
+
+    if (result != 0)
+        throw vm_user_exception{ "gemm invalid argument" };
 }
 
 void
 Math_getFPcontrol(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPcontrol>();
+
+    // [PAL] Properly implement floating point control
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -448,6 +513,8 @@ void
 Math_getFPstatus(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPstatus>();
+
+    // [PAL] Properly implement floating point control
     throw vm_system_exception{ "Function not implemented" };
 }
 

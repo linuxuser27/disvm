@@ -24,6 +24,8 @@
         'vm_memory.cpp',
         'vm_exception_handler.cpp',
         'math/Mathmod.cpp',
+        'math/dgemm.c',
+        'math/lsame.c',
         'sys/print.cpp',
         'sys/Sysmod.cpp',
         'sys/file_system.cpp',
