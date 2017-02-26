@@ -24,9 +24,11 @@ using disvm::vm_t;
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::byte_t;
 using disvm::runtime::dereference_nil;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::out_of_range_memory;
+using disvm::runtime::pointer_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
@@ -171,9 +173,9 @@ namespace
     word_t printf_to_fd(
         disvm::vm_t &vm,
         vm_fd_t &fd,
-        const disvm::runtime::vm_string_t &msg_fmt,
-        disvm::runtime::byte_t *msg_args,
-        disvm::runtime::pointer_t base)
+        const vm_string_t &msg_fmt,
+        byte_t *msg_args,
+        pointer_t base)
     {
         auto static_buffer = std::array<char, 1024>{};
         auto written = disvm::runtime::sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
@@ -265,17 +267,28 @@ void
 Sys_announce(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_announce>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_aprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_aprint>();
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to array" };
 
-    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
-    //*fp.ret = nullptr;
-    throw vm_system_exception{ "Function not implemented" };
+    auto buffer = std::vector<char>(128);
+    auto msg_args = &fp.vargs;
+    auto written = disvm::runtime::sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, buffer);
+    auto new_array = new vm_array_t{ intrinsic_type_desc::type<byte_t>(), written };
+    std::memcpy(new_array->at(0), buffer.data(), written);
+
+    disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = new_array->get_allocation();
 }
 
 void
@@ -366,6 +379,8 @@ void
 Sys_chdir(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_chdir>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -408,6 +423,8 @@ void
 Sys_dial(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dial>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -415,6 +432,8 @@ void
 Sys_dirread(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dirread>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -523,6 +542,8 @@ void
 Sys_fstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -537,6 +558,8 @@ void
 Sys_fwstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fwstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -551,6 +574,8 @@ void
 Sys_listen(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_listen>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -609,6 +634,8 @@ void
 Sys_pctl(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pctl>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -616,6 +643,8 @@ void
 Sys_pipe(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pipe>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -753,6 +782,7 @@ Sys_sprint(vm_registers_t &r, vm_t &vm)
         new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
     }
 
+    disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
     *fp.ret = new_string->get_allocation();
 }
 
@@ -760,6 +790,8 @@ void
 Sys_stat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -767,7 +799,36 @@ void
 Sys_stream(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stream>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto alloc_s = vm_alloc_t::from_allocation(fp.src);
+    if (alloc_s == nullptr)
+        throw dereference_nil{ "Source in stream" };
+
+    auto alloc_d = vm_alloc_t::from_allocation(fp.dst);
+    if (alloc_d == nullptr)
+        throw dereference_nil{ "Destination in stream" };
+
+    assert(alloc_s->alloc_type->is_equal(T_FD.get()) && alloc_d->alloc_type->is_equal(T_FD.get()));
+    auto src = alloc_s->get_allocation<Sys_FD_Impl>()->impl;
+    auto dst = alloc_d->get_allocation<Sys_FD_Impl>()->impl;
+
+    const auto buffer_size = fp.bufsiz;
+    if (buffer_size <= 0)
+        throw out_of_range_memory{};
+
+    std::unique_ptr<void, decltype(&disvm::runtime::free_memory)> buffer{ disvm::runtime::alloc_memory(buffer_size), disvm::runtime::free_memory };
+    auto written = word_t{};
+    for (;;)
+    {
+        auto bytes_read = src->read(vm, buffer_size, buffer.get());
+        if (bytes_read == 0)
+            break;
+
+        dst->write(vm, bytes_read, buffer.get());
+        written += bytes_read;
+    }
+
+    *fp.ret = written;
 }
 
 namespace
@@ -971,5 +1032,7 @@ void
 Sys_wstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_wstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }

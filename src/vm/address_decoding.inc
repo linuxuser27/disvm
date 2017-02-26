@@ -32,7 +32,10 @@ void dec_src<address_mode_t::offset_double_indirect_fp>(const vm_exec_op_t &inst
 {
     assert(inst.source.mode == address_mode_t::offset_double_indirect_fp);
     const auto frame_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.source.register1);
-    reg.src = reinterpret_cast<pointer_t>(frame_offset + inst.source.register2);
+    if (frame_offset != disvm::runtime::runtime_constants::nil)
+        reg.src = reinterpret_cast<pointer_t>(frame_offset + inst.source.register2);
+    else
+        reg.src = reinterpret_cast<pointer_t>(disvm::runtime::runtime_constants::nil);
 }
 
 template<>
@@ -40,7 +43,10 @@ void dec_src<address_mode_t::offset_double_indirect_mp>(const vm_exec_op_t &inst
 {
     assert(inst.source.mode == address_mode_t::offset_double_indirect_mp);
     const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.source.register1);
-    reg.src = reinterpret_cast<pointer_t>(mp_offset + inst.source.register2);
+    if (mp_offset != disvm::runtime::runtime_constants::nil)
+        reg.src = reinterpret_cast<pointer_t>(mp_offset + inst.source.register2);
+    else
+        reg.src = reinterpret_cast<pointer_t>(disvm::runtime::runtime_constants::nil);
 }
 
 template<>
@@ -85,7 +91,10 @@ void dec_dest<address_mode_t::offset_double_indirect_fp>(const vm_exec_op_t &ins
 {
     assert(inst.destination.mode == address_mode_t::offset_double_indirect_fp);
     const auto frame_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.stack.peek_frame()->base()) + inst.destination.register1);
-    reg.dest = reinterpret_cast<pointer_t>(frame_offset + inst.destination.register2);
+    if (frame_offset != disvm::runtime::runtime_constants::nil)
+        reg.dest = reinterpret_cast<pointer_t>(frame_offset + inst.destination.register2);
+    else
+        reg.dest = reinterpret_cast<pointer_t>(disvm::runtime::runtime_constants::nil);
 }
 
 template<>
@@ -93,7 +102,10 @@ void dec_dest<address_mode_t::offset_double_indirect_mp>(const vm_exec_op_t &ins
 {
     assert(inst.destination.mode == address_mode_t::offset_double_indirect_mp);
     const auto mp_offset = *reinterpret_cast<std::size_t *>(reinterpret_cast<uint8_t *>(reg.mp_base->get_allocation()) + inst.destination.register1);
-    reg.dest = reinterpret_cast<pointer_t>(mp_offset + inst.destination.register2);
+    if (mp_offset != disvm::runtime::runtime_constants::nil)
+        reg.dest = reinterpret_cast<pointer_t>(mp_offset + inst.destination.register2);
+    else
+        reg.dest = reinterpret_cast<pointer_t>(disvm::runtime::runtime_constants::nil);
 }
 
 template<>
