@@ -4,6 +4,9 @@ include "sys.m";
 include "Exec.m";
 include "external_module.m";
 
+include "math.m";
+
+m : Math;
 sys : Sys;
 
 TEST_FAILED : exception;
@@ -12,6 +15,8 @@ init(args: list of string)
 {
     a := "foobar!";
     sys = load Sys Sys->PATH;
+    m = load Math Math->PATH;
+
     big_val := big 16r12345;
     sys->print("Hello, %s %o %d %x %bd %f\n%s%%%% %H\n\n", "world!", 8, 10, 16, big_val, 0.1, "------------------\n", a);
 
@@ -22,6 +27,7 @@ init(args: list of string)
       args = tl args;
     }
 
+    test_floating_point();
     test_poly();
     test_function_refs();
     test_alt();
@@ -38,6 +44,50 @@ init(args: list of string)
     test_list();
     test_branch();
     test_for_loop_function_call();
+}
+
+test_floating_point()
+{
+    sys->print("test_floating_point()\n");
+
+    all_flags : con (Math->INVAL | Math->ZDIV | Math->OVFL | Math->UNFL | Math->INEX) | Math->RND_MASK;
+
+    R : real;
+    m->FPcontrol(Math->RND_NR, all_flags);
+    R = m->rint(12.1);
+    if (R >= 12.1) raise TEST_FAILED();
+
+    m->FPcontrol(Math->RND_NINF, all_flags);
+    R = m->rint(13.1);
+    if (R >= 13.1) raise TEST_FAILED();
+
+    R = m->rint(13.9);
+    if (R >= 13.9) raise TEST_FAILED();
+
+    m->FPcontrol(Math->RND_PINF, all_flags);
+    R = m->rint(14.1);
+    if (R <= 14.1) raise TEST_FAILED();
+
+    R = m->rint(14.9);
+    if (R <= 14.9) raise TEST_FAILED();
+
+    m->FPcontrol(Math->RND_Z, all_flags);
+    R = m->rint(-14.1);
+    if (R <= -14.1) raise TEST_FAILED();
+
+    R = m->rint(-14.9);
+    if (R <= -14.9) raise TEST_FAILED();
+
+    # Reset exception flags
+    m->FPstatus(0, all_flags);
+    status := m->getFPstatus();
+    if (status & Math->ZDIV) raise TEST_FAILED();
+    if (status != 0) raise TEST_FAILED();
+
+    R = 12. / real status;
+
+    status = m->getFPstatus();
+    if (!(status & Math->ZDIV)) raise TEST_FAILED();
 }
 
 reverse[T](l: list of T): list of T
@@ -829,9 +879,9 @@ test_string()
         w_val := int s_w;
         if (w_val != 12345) raise TEST_FAILED();
 
-        s_r := "3.14";
+        s_r := "3.00";
         r_val := real s_r;
-        if (r_val != 3.14) raise TEST_FAILED();
+        if (int m->rint(r_val * 100.) != int m->rint(3.00 * 100.)) raise TEST_FAILED();
 
         s_b := "987532";
         b_val := big s_b;

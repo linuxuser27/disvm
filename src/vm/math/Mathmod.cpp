@@ -4,6 +4,16 @@
 // Author: arr
 //
 
+#ifdef _MSC_VER
+// Pragma for floating point support - https://msdn.microsoft.com/en-us/library/bfwa91s0.aspx
+#pragma fenv_access (on)
+#else
+// Pragma for floating point support - http://en.cppreference.com/w/cpp/numeric/fenv
+#pragma STDC FENV_ACCESS ON
+#endif
+
+#include <cfenv>
+
 #include <debug.h>
 #include "Mathmod.h"
 
@@ -97,32 +107,160 @@ namespace
     };
 
     const word_t Mathmodlen = 68;
+
+    // Convert from std floating point round to limbo
+    word_t convert_to_limbo_fp_round(int r)
+    {
+        switch (r & FE_ROUND_MASK)
+        {
+        default:
+            assert(false && "Invalid floating point rounding flag");
+        case FE_TONEAREST:
+            return Math_RND_NR;
+        case FE_DOWNWARD:
+            return Math_RND_NINF;
+        case FE_UPWARD:
+            return Math_RND_PINF;
+        case FE_TOWARDZERO:
+            return Math_RND_Z;
+        }
+    }
+
+    // Convert from std floating point exception to limbo
+    word_t convert_to_limbo_fp_exception(std::fexcept_t e)
+    {
+        word_t e_flags{};
+        if (e & FE_INEXACT)   e_flags |= Math_INEX;
+        if (e & FE_UNDERFLOW) e_flags |= Math_UNFL;
+        if (e & FE_OVERFLOW)  e_flags |= Math_OVFL;
+        if (e & FE_DIVBYZERO) e_flags |= Math_ZDIV;
+        if (e & FE_INVALID)   e_flags |= Math_INVAL;
+
+        return e_flags;
+    }
+
+    // Convert from limbo floating point round to std
+    int convert_to_std_fp_round(word_t r)
+    {
+        switch (r & Math_RND_MASK)
+        {
+        default:
+            assert(false && "Invalid floating point rounding flag");
+        case Math_RND_NR:
+            return FE_TONEAREST;
+        case Math_RND_NINF:
+            return FE_DOWNWARD;
+        case Math_RND_PINF:
+            return FE_UPWARD;
+        case Math_RND_Z:
+            return FE_TOWARDZERO;
+        }
+    }
+
+    // Convert from limbo floating point exception to std
+    std::fexcept_t convert_to_std_fp_exception(word_t e)
+    {
+        std::fexcept_t e_flags{};
+        if (e & Math_INEX)  e_flags |= FE_INEXACT;
+        if (e & Math_UNFL)  e_flags |= FE_UNDERFLOW;
+        if (e & Math_OVFL)  e_flags |= FE_OVERFLOW;
+        if (e & Math_ZDIV)  e_flags |= FE_DIVBYZERO;
+        if (e & Math_INVAL) e_flags |= FE_INVALID;
+
+        return e_flags;
+    }
+
+    // Get floating point exception flags
+    word_t get_fp_exception_flags()
+    {
+        std::fexcept_t e_flags;
+        int ec = std::fegetexceptflag(&e_flags, FE_ALL_EXCEPT);
+        if (ec != 0)
+        {
+            assert(false && "Failed to get except flag");
+            return 0;
+        }
+
+        return convert_to_limbo_fp_exception(e_flags);
+    }
+
+    // Get all floating point flags
+    word_t get_all_fp_flags()
+    {
+        const auto rnd_flag = std::fegetround();
+        const auto e_flags = get_fp_exception_flags();
+        return (convert_to_limbo_fp_round(rnd_flag) | e_flags);
+    }
+
+    // Set floating point control flags
+    void set_fp_control_flags(std::fexcept_t e_flags, std::fexcept_t e_mask, int rnd_flag, int rnd_mask)
+    {
+        int ec;
+
+        // [SPEC] No current mechanism to set floating point exception control flags
+
+        if (rnd_mask != 0)
+        {
+            ec = std::fesetround(rnd_flag & rnd_mask);
+            assert(ec == 0);
+            (void)ec;
+        }
+    }
 }
 
 void
 Mathmodinit(void)
 {
     disvm::runtime::builtin::register_module_exports(Math_PATH, Mathmodlen, Mathmodtab);
+
+    // Inferno floating point flags (http://www.vitanuova.com/inferno/man/2/math-fp.html)
+    set_fp_control_flags(
+        FE_INEXACT,  // Inexact is fatal
+        FE_ALL_EXCEPT,
+        FE_TONEAREST,  // Round to nearest even
+        FE_ROUND_MASK);
 }
 
 void
-Math_FPcontrol(vm_registers_t &r, vm_t &vm)
+Math_FPcontrol(vm_registers_t &r, vm_t &)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPcontrol>();
 
-    // [PAL] Properly implement floating point control
-    disvm::debug::log_msg(component_trace_t::builtin, log_level_t::warning, "FPControl is not properly implemented");
+    const auto prev_fp_flags = get_all_fp_flags();
 
-    *fp.ret = fp.mask;
+    const auto e_flags = convert_to_std_fp_exception(fp.r & fp.mask);
+    const auto rnd_flag = convert_to_std_fp_round(fp.r & fp.mask);
+
+    set_fp_control_flags(
+        e_flags,
+        fp.mask & FE_ALL_EXCEPT,
+        rnd_flag,
+        fp.mask & FE_ROUND_MASK);
+
+    *fp.ret = (prev_fp_flags & fp.mask);
 }
 
 void
-Math_FPstatus(vm_registers_t &r, vm_t &vm)
+Math_FPstatus(vm_registers_t &r, vm_t &)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_FPstatus>();
 
-    // [PAL] Properly implement floating point control
-    throw vm_system_exception{ "Function not implemented" };
+    const auto prev_e_flags = get_fp_exception_flags();
+
+    // Clear all exceptions
+    int ec = std::feclearexcept(FE_ALL_EXCEPT);
+    assert(ec == 0);
+    (void)ec;
+
+    const auto e_flags = convert_to_std_fp_exception(fp.r);
+    const auto e_mask = convert_to_std_fp_exception(fp.mask);
+
+    // Set exception flags
+    ec = std::fesetexceptflag(&e_flags, static_cast<const int>(e_mask));
+    assert(ec == 0);
+    (void)ec;
+
+    *fp.ret = (prev_e_flags & e_mask);
 }
 
 void
@@ -501,21 +639,17 @@ Math_gemm(vm_registers_t &r, vm_t &vm)
 }
 
 void
-Math_getFPcontrol(vm_registers_t &r, vm_t &vm)
+Math_getFPcontrol(vm_registers_t &r, vm_t &)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPcontrol>();
-
-    // [PAL] Properly implement floating point control
-    throw vm_system_exception{ "Function not implemented" };
+    *fp.ret = get_all_fp_flags();
 }
 
 void
-Math_getFPstatus(vm_registers_t &r, vm_t &vm)
+Math_getFPstatus(vm_registers_t &r, vm_t &)
 {
     auto &fp = r.stack.peek_frame()->base<F_Math_getFPstatus>();
-
-    // [PAL] Properly implement floating point control
-    throw vm_system_exception{ "Function not implemented" };
+    *fp.ret = get_fp_exception_flags();
 }
 
 void
