@@ -57,7 +57,7 @@ namespace disvm
         template<typename CB>
         void enum_pointer_fields(const type_descriptor_t &type_desc, void *data, CB callback)
         {
-            assert(data != nullptr && callback != nullptr);
+            assert(data != nullptr);
 
             auto memory = reinterpret_cast<word_t *>(data);
             for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
