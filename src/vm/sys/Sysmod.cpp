@@ -17,15 +17,18 @@
 #include <vm_memory.h>
 #include "Sysmod.h"
 #include "sys_utils.h"
+#include "fd_types.h"
 
 using disvm::vm_t;
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::byte_t;
 using disvm::runtime::dereference_nil;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::out_of_range_memory;
+using disvm::runtime::pointer_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
@@ -34,7 +37,12 @@ using disvm::runtime::vm_string_t;
 using disvm::runtime::vm_syscall_exception;
 using disvm::runtime::vm_system_exception;
 using disvm::runtime::vm_user_exception;
+using disvm::runtime::marshallable_user_exception;
 using disvm::runtime::word_t;
+
+using disvm::runtime::sys::open_mode_t;
+using disvm::runtime::sys::seek_start_t;
+using disvm::runtime::sys::vm_fd_t;
 
 namespace
 {
@@ -93,12 +101,14 @@ namespace
     std::shared_ptr<const type_descriptor_t> T_Connection;
     std::shared_ptr<const type_descriptor_t> T_FileIO;
 
-    class vm_fd_t final : public Sys_FD
+    class Sys_FD_Impl final : public Sys_FD
     {
     public: // static
         static void finalizer(vm_alloc_t *fileHandle)
         {
-            auto fd = fileHandle->get_allocation<vm_fd_t>();
+            auto fd = fileHandle->get_allocation<Sys_FD_Impl>();
+
+            fd->~Sys_FD_Impl();
 
             if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
             {
@@ -108,128 +118,64 @@ namespace
                     "sys: fd: finalize: %d",
                     fd->fd);
             }
-
-            disvm::runtime::sys::drop_fd_record(fd->fd);
-            fd->~vm_fd_t();
         }
 
-        static std::tuple<word_t, vm_alloc_t *> create(std::unique_ptr<std::iostream> s, word_t fd_mode, vm_string_t *fd_path)
+        // The ref count of the supplied vm_fd_t instance is updated.
+        static vm_alloc_t * create_new(vm_fd_t *vm_fd)
         {
-            assert(s != nullptr);
+            assert(vm_fd != nullptr);
+            assert(vm_fd->get_ref_count() == 1 && "Should be a new FD");
+
             auto alloc = vm_alloc_t::allocate(T_FD);
-            const auto fd = disvm::runtime::sys::create_fd_record(alloc);
-            auto vm_fd = ::new(alloc->get_allocation())vm_fd_t{ fd, std::move(s), fd_mode, fd_path };
+            auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
 
-            return std::make_tuple(vm_fd->fd, alloc);
+            fd_impl->fd = disvm::runtime::sys::create_fd_record(vm_fd);
+            fd_impl->impl = vm_fd;
+            vm_fd->add_ref();
+
+            return alloc;
         }
 
-    private:
-        vm_fd_t(const word_t fd, std::unique_ptr<std::iostream> s, const word_t fd_mode, vm_string_t *fd_path)
-            : Sys_FD{ fd }
-            , _fd_mode{ fd_mode }
-            , _fd_path{ fd_path }
-            , _istream{ s.get() }
-            , _ostream{ s.get() }
+        // The ref count of the supplied vm_fd_t instance is _not_ altered.
+        static vm_alloc_t * create_existing(word_t fd, vm_fd_t *vm_fd)
         {
-            _stream = std::move(s);
+            assert(vm_fd != nullptr);
+            assert(fd >= 0);
 
-            if (_fd_path != nullptr)
-                _fd_path->add_ref();
+            auto alloc = vm_alloc_t::allocate(T_FD);
+            auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
+
+            fd_impl->fd = fd;
+            fd_impl->impl = vm_fd;
+
+            return alloc;
         }
 
     public:
-        vm_fd_t(const word_t fd, std::istream &is)
-            : Sys_FD{ fd }
-            , _fd_mode{}
-            , _fd_path{ nullptr }
-            , _istream{ &is }
-            , _ostream{ nullptr }
+        ~Sys_FD_Impl()
         {
+            disvm::runtime::sys::drop_fd_record(fd);
+            disvm::runtime::dec_ref_count_and_free(impl);
+            disvm::debug::assign_debug_pointer(&impl);
         }
 
-        vm_fd_t(const word_t fd, std::ostream &os)
-            : Sys_FD{ fd }
-            , _fd_mode{}
-            , _fd_path{ nullptr }
-            , _istream{ nullptr }
-            , _ostream{ &os }
-        {
-        }
-
-        ~vm_fd_t()
-        {
-            disvm::debug::assign_debug_pointer(&_istream);
-            disvm::debug::assign_debug_pointer(&_ostream);
-            if (_stream != nullptr)
-                _stream.reset();
-
-            // Honor the close flag
-            if ((_fd_mode & Sys_ORCLOSE) && _fd_path != nullptr)
-                std::remove(_fd_path->str());
-
-            dec_ref_count_and_free(_fd_path);
-            disvm::debug::assign_debug_pointer(&_fd_path);
-        }
-
-        word_t get_original_mode() const
-        {
-            return _fd_mode;
-        }
-
-        vm_string_t *get_original_path() const
-        {
-            return _fd_path;
-        }
-
-        word_t read(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
-        {
-            if (_istream == nullptr)
-                throw vm_system_exception{ "File descriptor not open for read operation" };
-
-            _istream->read(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
-            if (_istream->bad())
-                throw vm_syscall_exception{ vm, "Read operation error" };
-
-            return static_cast<word_t>(_istream->gcount());
-        }
-
-        void write(disvm::vm_t &vm, const word_t buffer_size_in_bytes, void *buffer)
-        {
-            if (_ostream == nullptr)
-                throw vm_system_exception{ "File descriptor not open for write operation" };
-
-            _ostream->write(static_cast<char *>(buffer), static_cast<const std::streamsize>(buffer_size_in_bytes));
-            if (_ostream->bad())
-                throw vm_syscall_exception{ vm, "Write operation error" };
-        }
-
-        big_t seek(const std::ios::seekdir start, const big_t offset)
-        {
-            if (_stream == nullptr)
-                throw vm_user_exception{ "Unable to seek on a fifo file descriptor (e.g. stdin, stdout, stderr)" };
-
-            auto new_offset = _stream->rdbuf()->pubseekoff(static_cast<std::streamoff>(offset), start, _fd_mode);
-            return static_cast<big_t>(new_offset);
-        }
+        vm_fd_t *impl;
 
     private:
-        const word_t _fd_mode;
-        vm_string_t *_fd_path;
-        std::istream *_istream;
-        std::ostream *_ostream;
-        std::unique_ptr<std::ios> _stream;
+        Sys_FD_Impl() = default;
     };
 
-    vm_fd_t *fd_stdin = nullptr;
-    vm_fd_t *fd_stdout = nullptr;
-    vm_fd_t *fd_stderr = nullptr;
+    // File descriptors for std streams.
+    word_t fd_stdin = disvm::runtime::sys::vm_invalid_fd;
+    word_t fd_stdout = disvm::runtime::sys::vm_invalid_fd;
+    word_t fd_stderr = disvm::runtime::sys::vm_invalid_fd;
 
     word_t printf_to_fd(
         disvm::vm_t &vm,
         vm_fd_t &fd,
-        const disvm::runtime::vm_string_t &msg_fmt,
-        disvm::runtime::byte_t *msg_args,
-        disvm::runtime::pointer_t base)
+        const vm_string_t &msg_fmt,
+        byte_t *msg_args,
+        pointer_t base)
     {
         auto static_buffer = std::array<char, 1024>{};
         auto written = disvm::runtime::sys::printf_to_buffer(vm, msg_fmt, msg_args, base, static_buffer.size(), static_buffer.data());
@@ -247,35 +193,41 @@ namespace
         return written;
     }
 
-    std::ios::openmode convert_to_openmode(const word_t mode)
+    open_mode_t convert_to_openmode(const word_t mode)
     {
-        auto om = std::ios::openmode{};
+        auto om = open_mode_t{};
 
         // Lowest bit is for read/write.
         if (mode & Sys_OWRITE)
-            om |= std::ios::out;
+            om |= open_mode_t::write;
         else
-            om |= std::ios::in; // Sys_OREAD
+            om |= open_mode_t::read; // Sys_OREAD
 
         if (mode & Sys_ORDWR)
-            om |= (std::ios::in | std::ios::out);
+            om |= (open_mode_t::write | open_mode_t::read);
 
         if (mode & Sys_OTRUNC)
-            om |= std::ios::trunc;
+            om |= open_mode_t::truncate;
+
+        if (mode & Sys_OEXCL)
+            om |= open_mode_t::atomic;
+
+        if (mode & Sys_ORCLOSE)
+            om |= open_mode_t::delete_on_close;
 
         return om;
     }
 
-    std::ios::seekdir convert_to_seekdir(const word_t start)
+    seek_start_t convert_to_seekdir(const word_t start)
     {
         switch (start)
         {
         case Sys_SEEKSTART:
-            return std::ios::beg;
+            return seek_start_t::start;
         case Sys_SEEKRELA:
-            return std::ios::cur;
+            return seek_start_t::relative;
         case Sys_SEEKEND:
-            return std::ios::end;
+            return seek_start_t::end;
         default:
             throw vm_user_exception{ "Invalid seek mode" };
         }
@@ -288,49 +240,55 @@ Sysmodinit(void)
     disvm::runtime::builtin::register_module_exports(Sys_PATH, Sysmodlen, Sysmodtab);
     T_Qid = type_descriptor_t::create(sizeof(Sys_Qid), sizeof(Sys_Qid_map), Sys_Qid_map);
     T_Dir = type_descriptor_t::create(sizeof(Sys_Dir), sizeof(Sys_Dir_map), Sys_Dir_map);
-    T_FD = type_descriptor_t::create(sizeof(vm_fd_t), sizeof(Sys_FD_map), Sys_FD_map, vm_fd_t::finalizer);
+    T_FD = type_descriptor_t::create(sizeof(Sys_FD_Impl), sizeof(Sys_FD_map), Sys_FD_map, Sys_FD_Impl::finalizer);
     T_Connection = type_descriptor_t::create(sizeof(Sys_Connection), sizeof(Sys_Connection_map), Sys_Connection_map);
     T_FileIO = type_descriptor_t::create(sizeof(Sys_FileIO), sizeof(Sys_FileIO_map), Sys_FileIO_map);
 
     // Initialize default file descriptors
+    auto std_streams = disvm::runtime::sys::get_std_streams();
 
-    {
-        auto vm_stdin = vm_alloc_t::allocate(T_FD);
-        const auto fd = disvm::runtime::sys::create_fd_record(vm_stdin);
-        fd_stdin = ::new(vm_stdin->get_allocation())vm_fd_t{ fd, std::cin };
-        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdin: %d", fd);
-    }
+    // Initialize in this order to assign POSIX defined values for the 'standard' streams.
+    // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 
-    {
-        auto vm_stdout = vm_alloc_t::allocate(T_FD);
-        const auto fd = disvm::runtime::sys::create_fd_record(vm_stdout);
-        fd_stdout = ::new(vm_stdout->get_allocation())vm_fd_t{ fd, std::cout };
-        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdout: %d", fd);
-    }
+    fd_stdin = disvm::runtime::sys::create_fd_record(std_streams.input);
+    assert(fd_stdin == 0);
+    disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdin: %d", fd_stdin);
 
-    {
-        auto vm_stderr = vm_alloc_t::allocate(T_FD);
-        const auto fd = disvm::runtime::sys::create_fd_record(vm_stderr);
-        fd_stderr = ::new(vm_stderr->get_allocation())vm_fd_t{ fd, std::cerr };
-        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stderr: %d", fd);
-    }
+    fd_stdout = disvm::runtime::sys::create_fd_record(std_streams.output);
+    assert(fd_stdout == 1);
+    disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stdout: %d", fd_stdout);
+
+    fd_stderr = disvm::runtime::sys::create_fd_record(std_streams.error);
+    assert(fd_stderr == 2);
+    disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stderr: %d", fd_stderr);
 }
 
 void
 Sys_announce(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_announce>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
 void
 Sys_aprint(vm_registers_t &r, vm_t &vm)
 {
+    auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_aprint>();
+    auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
+    if (str == nullptr)
+        throw dereference_nil{ "Print string to array" };
 
-    //disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
-    //*fp.ret = nullptr;
-    throw vm_system_exception{ "Function not implemented" };
+    auto buffer = std::vector<char>(128);
+    auto msg_args = &fp.vargs;
+    auto written = disvm::runtime::sys::printf_to_dynamic_buffer(vm, *str, msg_args, fp_base, buffer);
+    auto new_array = new vm_array_t{ intrinsic_type_desc::type<byte_t>(), written };
+    std::memcpy(new_array->at(0), buffer.data(), written);
+
+    disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = new_array->get_allocation();
 }
 
 void
@@ -421,6 +379,8 @@ void
 Sys_chdir(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_chdir>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -429,46 +389,42 @@ Sys_create(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_create>();
 
+    dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = nullptr;
+
     auto path = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
     const auto open_mode = convert_to_openmode(fp.mode);
 
-    auto cfs_flag = disvm::runtime::sys::cfs_flags_t::none;
-    if (fp.mode & Sys_OEXCL)
-        cfs_flag = (disvm::runtime::sys::cfs_flags_t::atomic | disvm::runtime::sys::cfs_flags_t::ensure_create);
+    // [TODO] Apply the requested permissions to the file - fp.perm
+    auto vm_fd = disvm::runtime::sys::create_from_file_path(path, open_mode);
 
-    // [TODO] Apply the requested permissions to the file.
-    auto file_stream = disvm::runtime::sys::create_file_stream(path->str(), (open_mode | std::ios::binary), cfs_flag);
-
-    // Return null if file stream is not open.
-    if (file_stream == nullptr)
-    {
-        *fp.ret = nullptr;
+    // Return null if file is not open.
+    if (vm_fd == nullptr)
         return;
-    }
 
-    vm_alloc_t *fd_alloc;
-    auto fd = word_t{};
-    std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
+    auto fd_alloc = Sys_FD_Impl::create_new(vm_fd);
+    *fp.ret = fd_alloc->get_allocation();
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
     {
+        auto fd_impl = fd_alloc->get_allocation<Sys_FD_Impl>();
         disvm::debug::log_msg(
             component_trace_t::builtin,
             log_level_t::debug,
             "sys: create: %d >>%s<< %#x %#x",
-            fd,
+            fd_impl->fd,
             path->str(),
             fp.mode,
             fp.perm);
     }
-
-    *fp.ret = fd_alloc->get_allocation();
 }
 
 void
 Sys_dial(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dial>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -476,14 +432,42 @@ void
 Sys_dirread(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dirread>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
+}
+
+namespace
+{
+    // [SPEC] In the Inferno OS, this error is represented by
+    // Ebadfd - 'fd out of range or not open' (emu/port/error.c).
+    auto invalid_fd_error = "Invalid FD value";
 }
 
 void
 Sys_dup(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_dup>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    const auto old_fd = fp.old;
+    auto fd_maybe = disvm::runtime::sys::fetch_fd_record(old_fd);
+    if (fd_maybe == nullptr)
+        throw marshallable_user_exception{ invalid_fd_error };
+
+    auto new_fd_maybe = fp.new_;
+    if (new_fd_maybe == disvm::runtime::sys::vm_invalid_fd)
+    {
+        new_fd_maybe = disvm::runtime::sys::create_fd_record(fd_maybe);
+    }
+    else if (!disvm::runtime::sys::try_update_fd_record(new_fd_maybe, fd_maybe))
+    {
+        throw marshallable_user_exception{ invalid_fd_error };
+    }
+
+    *fp.ret = new_fd_maybe;
+
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
+        disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: fd: dup %d %d", old_fd, new_fd_maybe);
 }
 
 void
@@ -521,11 +505,11 @@ Sys_fildes(vm_registers_t &r, vm_t &vm)
     dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
     *fp.ret = nullptr;
 
-    auto fd = disvm::runtime::sys::fetch_fd_record(fp.fd);
-    if (fd != nullptr)
+    auto vm_fd = disvm::runtime::sys::fetch_fd_record(fp.fd);
+    if (vm_fd != nullptr)
     {
-        fd->add_ref();
-        *fp.ret = fd->get_allocation();
+        auto fd_alloc = Sys_FD_Impl::create_existing(fp.fd, vm_fd);
+        *fp.ret = fd_alloc->get_allocation();
     }
 }
 
@@ -546,18 +530,20 @@ Sys_fprint(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Sys_fprint>();
     auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
     assert(fd_alloc->alloc_type == T_FD);
-    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
     auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
     if (str == nullptr)
         throw dereference_nil{ "Print string to FD" };
 
-    *fp.ret = printf_to_fd(vm, *fd, *str, &fp.vargs, fp_base);
+    *fp.ret = printf_to_fd(vm, *fd->impl, *str, &fp.vargs, fp_base);
 }
 
 void
 Sys_fstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -572,6 +558,8 @@ void
 Sys_fwstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_fwstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -586,6 +574,8 @@ void
 Sys_listen(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_listen>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -611,41 +601,41 @@ Sys_open(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_open>();
 
+    dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
+    *fp.ret = nullptr;
+
     auto path = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
     const auto open_mode = convert_to_openmode(fp.mode);
 
     // [TODO] Handle opening devices - not just files (i.e. /dev/random, /dev/source, /proc/1234)
-    auto file_stream = disvm::runtime::sys::create_file_stream(path->str(), (open_mode | std::ios::binary));
+    auto vm_fd = disvm::runtime::sys::create_from_file_path(path, open_mode | open_mode_t::ensure_exists);
 
-    // Return null if file stream is not open.
-    if (file_stream == nullptr)
-    {
-        *fp.ret = nullptr;
+    // Return null if file is not open.
+    if (vm_fd == nullptr)
         return;
-    }
 
-    vm_alloc_t *fd_alloc;
-    auto fd = word_t{};
-    std::tie(fd, fd_alloc) = vm_fd_t::create(std::move(file_stream), fp.mode, path);
+    auto fd_alloc = Sys_FD_Impl::create_new(vm_fd);
+    *fp.ret = fd_alloc->get_allocation();
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::builtin>())
     {
+        auto fd_impl = fd_alloc->get_allocation<Sys_FD_Impl>();
         disvm::debug::log_msg(
             component_trace_t::builtin,
             log_level_t::debug,
             "sys: open: %d >>%s<< %#x",
-            fd,
+            fd_impl->fd,
             path->str(),
             fp.mode);
     }
-
-    *fp.ret = fd_alloc->get_allocation();
 }
 
 void
 Sys_pctl(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pctl>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -653,6 +643,8 @@ void
 Sys_pipe(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_pipe>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -672,7 +664,12 @@ Sys_print(vm_registers_t &r, vm_t &vm)
     if (str == nullptr)
         throw dereference_nil{ "Print string" };
 
-    *fp.ret = printf_to_fd(vm, *fd_stdout, *str, &fp.vargs, fp_base);
+    auto std_output = disvm::runtime::sys::fetch_fd_record(fd_stdout);
+    if (std_output == nullptr)
+        throw vm_system_exception{ "stdout not available" };
+
+    *fp.ret = printf_to_fd(vm, *std_output, *str, &fp.vargs, fp_base);
+    disvm::runtime::dec_ref_count_and_free(std_output);
 }
 
 void
@@ -708,8 +705,8 @@ Sys_read(vm_registers_t &r, vm_t &vm)
 
     assert(fd_alloc->alloc_type == T_FD);
 
-    auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    *fp.ret = fd->read(vm, n, buffer->at(0));
+    auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
+    *fp.ret = fd->impl->read(vm, n, buffer->at(0));
 }
 
 void
@@ -742,10 +739,10 @@ Sys_seek(vm_registers_t &r, vm_t &vm)
         throw dereference_nil{ "Seek in file descriptor" };
 
     assert(fd_alloc->alloc_type == T_FD);
-    auto fd = fd_alloc->get_allocation<vm_fd_t>();
+    auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
 
     const auto start = convert_to_seekdir(fp.start);
-    *fp.ret = fd->seek(start, fp.off);
+    *fp.ret = fd->impl->seek(vm, start, fp.off);
 }
 
 void
@@ -785,6 +782,7 @@ Sys_sprint(vm_registers_t &r, vm_t &vm)
         new_string = new vm_string_t{ static_cast<std::size_t>(written), reinterpret_cast<uint8_t *>(dynamic_buffer.data()) };
     }
 
+    disvm::runtime::dec_ref_count_and_free(vm_alloc_t::from_allocation(*fp.ret));
     *fp.ret = new_string->get_allocation();
 }
 
@@ -792,6 +790,8 @@ void
 Sys_stat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }
 
@@ -799,7 +799,36 @@ void
 Sys_stream(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_stream>();
-    throw vm_system_exception{ "Function not implemented" };
+
+    auto alloc_s = vm_alloc_t::from_allocation(fp.src);
+    if (alloc_s == nullptr)
+        throw dereference_nil{ "Source in stream" };
+
+    auto alloc_d = vm_alloc_t::from_allocation(fp.dst);
+    if (alloc_d == nullptr)
+        throw dereference_nil{ "Destination in stream" };
+
+    assert(alloc_s->alloc_type->is_equal(T_FD.get()) && alloc_d->alloc_type->is_equal(T_FD.get()));
+    auto src = alloc_s->get_allocation<Sys_FD_Impl>()->impl;
+    auto dst = alloc_d->get_allocation<Sys_FD_Impl>()->impl;
+
+    const auto buffer_size = fp.bufsiz;
+    if (buffer_size <= 0)
+        throw out_of_range_memory{};
+
+    std::unique_ptr<void, decltype(&disvm::runtime::free_memory)> buffer{ disvm::runtime::alloc_memory(buffer_size), disvm::runtime::free_memory };
+    auto written = word_t{};
+    for (;;)
+    {
+        auto bytes_read = src->read(vm, buffer_size, buffer.get());
+        if (bytes_read == 0)
+            break;
+
+        dst->write(vm, bytes_read, buffer.get());
+        written += bytes_read;
+    }
+
+    *fp.ret = written;
 }
 
 namespace
@@ -993,8 +1022,8 @@ Sys_write(vm_registers_t &r, vm_t &vm)
 
     assert(fd_alloc->alloc_type == T_FD);
 
-    auto fd = fd_alloc->get_allocation<vm_fd_t>();
-    fd->write(vm, n, buffer->at(0));
+    auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
+    fd->impl->write(vm, n, buffer->at(0));
 
     *fp.ret = n;
 }
@@ -1003,5 +1032,7 @@ void
 Sys_wstat(vm_registers_t &r, vm_t &vm)
 {
     auto &fp = r.stack.peek_frame()->base<F_Sys_wstat>();
+
+    // [PAL] Consume platform API
     throw vm_system_exception{ "Function not implemented" };
 }

@@ -164,7 +164,7 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto str = at_val<vm_string_t>(r.src);
-        auto new_array = new vm_array_t(str);
+        auto new_array = new vm_array_t{ str };
         pt_ref(r.dest) = new_array->get_allocation();
     }
 
@@ -537,7 +537,7 @@ namespace
         auto type_id = vt_ref<word_t>(r.mid);
         const auto &types = r.module_ref->type_section;
         assert(0 <= type_id && type_id < static_cast<word_t>(types.size()));
-        auto type = types[type_id];
+        const auto &type = types[type_id];
 
         disvm::runtime::inc_ref_count_in_memory(*type, r.src);
         destroy_memory(*type, r.dest);
@@ -853,7 +853,7 @@ namespace
             throw out_of_range_memory{};
         }
 
-        auto new_array = new vm_array_t(*arr, begin_index, length);
+        auto new_array = new vm_array_t{ *arr, begin_index, length };
 
         if (arr->alloc_type->map_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_array);
@@ -971,14 +971,15 @@ namespace
         auto tail_maybe = at_val<vm_list_t>(r.dest);
 
         // Create a new list
-        auto new_list = new vm_list_t{ type, tail_maybe };
+        const auto type_size_in_bytes = type->size_in_bytes;
+        auto new_list = new vm_list_t{ std::move(type), tail_maybe };
         if (tail_maybe != nullptr)
             tail_maybe->release();
 
         auto destination = new_list->value();
-        std::memmove(destination, r.src, type->size_in_bytes);
+        std::memmove(destination, r.src, type_size_in_bytes);
 
-        if (type->map_in_bytes > 0)
+        if (type_size_in_bytes > 0)
             vm.get_garbage_collector().track_allocation(new_list);
 
         // Return the list
@@ -1329,9 +1330,10 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             auto type_desc = types[type_id];
-            auto new_alloc = vm_alloc_t::allocate(type_desc);
+            const auto track_object = type_desc->map_in_bytes > 0;
+            auto new_alloc = vm_alloc_t::allocate(std::move(type_desc));
 
-            if (type_desc->map_in_bytes > 0)
+            if (track_object)
                 vm.get_garbage_collector().track_allocation(new_alloc);
 
             pt_ref(r.dest) = new_alloc->get_allocation();
@@ -1363,9 +1365,10 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
         auto type_desc = types[type_id];
-        auto new_alloc = vm_alloc_t::allocate(type_desc);
+        const auto track_object = type_desc->map_in_bytes > 0;
+        auto new_alloc = vm_alloc_t::allocate(std::move(type_desc));
 
-        if (type_desc->map_in_bytes > 0)
+        if (track_object)
             vm.get_garbage_collector().track_allocation(new_alloc);
 
         pt_ref(r.dest) = new_alloc->get_allocation();
@@ -1385,9 +1388,10 @@ namespace
             dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
 
             const auto array_size = vt_ref<word_t>(r.src);
-            auto new_array = new vm_array_t(type_desc, array_size);
+            const auto track_object = type_desc->map_in_bytes > 0;
+            auto new_array = new vm_array_t{ std::move(type_desc), array_size };
 
-            if (type_desc->map_in_bytes > 0)
+            if (track_object)
                 vm.get_garbage_collector().track_allocation(new_array);
 
             pt_ref(r.dest) = new_array->get_allocation();
@@ -1437,7 +1441,7 @@ namespace
 
         const auto frame_type_id = vt_ref<word_t>(r.src);
         assert(0 <= frame_type_id && frame_type_id < static_cast<word_t>(types.size()));
-        const auto frame_type = types[frame_type_id];
+        auto frame_type = types[frame_type_id];
 
         pt_ref(r.dest) = r.stack.alloc_frame(std::move(frame_type))->base();
     }
@@ -1456,9 +1460,9 @@ namespace
 
         const auto frame_type_id = function_ref.frame_type;
         assert(0 <= frame_type_id && frame_type_id < static_cast<word_t>(types.size()));
-        const auto frame_type = types[frame_type_id];
+        auto frame_type = types[frame_type_id];
 
-        pt_ref(r.dest) = r.stack.alloc_frame(frame_type)->base();
+        pt_ref(r.dest) = r.stack.alloc_frame(std::move(frame_type))->base();
     }
 
     EXEC_DECL(ret)
@@ -1502,6 +1506,9 @@ namespace
         if (disvm::debug::is_component_tracing_enabled<debug::component_trace_t::stack>())
             disvm::debug::log_msg(debug::component_trace_t::stack, debug::log_level_t::debug, "enter: function");
     }
+
+    // Forward declaration
+    EXEC_DECL(raise);
 
     EXEC_DECL(mcall)
     {
@@ -1547,22 +1554,52 @@ namespace
         r.mp_base = r.module_ref->mp_base;
         r.next_pc = function_pc;
 
-        if (r.module_ref->is_builtin_module())
-        {
-            const auto &inst = r.module_ref->code_section[function_pc];
-            assert(r.mp_base == nullptr && "Built-in modules shouldn't have module data (MP register)");
-
-            r.current_thread_state = vm_thread_state_t::release;
-            inst.native(r, vm);
-            ret(r, vm);
-
-            // Only reset the thread if it is in the state set prior to native call.
-            if (r.current_thread_state == vm_thread_state_t::release)
-                r.current_thread_state = vm_thread_state_t::running;
-        }
-        else
+        // Non-built-in modules ref count and return
+        if (!r.module_ref->is_builtin_module())
         {
             r.mp_base->add_ref();
+            return;
+        }
+
+        // Calling into a built-in module is a bit complicated since control leaves the VM and thus
+        // the callee clean-up semantics of DisVM are difficult to enforced. The solution here is
+        // to release VM control of the thread and clean-up the stack on behalf of the callee when
+        // control returns to the VM.
+        // Built-in modules are also permitted to throw marshallable exceptions which requires
+        // raising the exception manually.
+
+        const auto &inst = r.module_ref->code_section[function_pc];
+        assert(r.mp_base == nullptr && "Built-in modules shouldn't have module data (MP register)");
+
+        vm_alloc_t *marshallable_err{};
+        r.current_thread_state = vm_thread_state_t::release;
+
+        try
+        {
+            inst.native(r, vm);
+
+            // Handle callee clean-up semantics
+            ret(r, vm);
+        }
+        catch (const marshallable_user_exception &e)
+        {
+            auto msg = e.what();
+            marshallable_err = new vm_string_t{ std::strlen(msg), reinterpret_cast<const uint8_t*>(msg) };
+        }
+
+        // Only reset the thread if it is in the state set prior to native call.
+        if (r.current_thread_state == vm_thread_state_t::release)
+            r.current_thread_state = vm_thread_state_t::running;
+
+        // Raise marshallable exception
+        if (marshallable_err != nullptr)
+        {
+            assert(r.current_thread_state == vm_thread_state_t::running && "Throwing a marshallable error should not result in an altered VM thread state");
+            auto err = marshallable_err->get_allocation();
+            r.src = reinterpret_cast<pointer_t>(&err);
+            raise(r, vm);
+
+            disvm::runtime::dec_ref_count_and_free(marshallable_err);
         }
     }
 
@@ -1706,10 +1743,23 @@ namespace
 
         if (target_frame != r.stack.peek_frame())
         {
-            while (target_frame != r.stack.pop_frame())
+            // Unwind stack to find target frame
+            do
             {
-                // Remove frames from the stack until the target frame is found.
+                auto curr_frame = r.stack.peek_frame();
+
+                // Update the module reference register during the stack unwind
+                if (curr_frame->prev_module_ref() != nullptr)
+                {
+                    dec_ref_count_and_free(r.module_ref);
+                    r.module_ref = curr_frame->prev_module_ref();
+                    curr_frame->prev_module_ref() = nullptr;
+
+                    dec_ref_count_and_free(r.mp_base);
+                    r.mp_base = r.module_ref->mp_base;
+                }
             }
+            while (target_frame != r.stack.pop_frame());
         }
 
         // Re-initialize the current frame
