@@ -292,7 +292,7 @@ bool vm_channel_t::try_receive_from_buffer(vm_channel_request_t &receive_request
     _data_buffer_head++;
 
     const auto buffer_length = _data_buffer->get_length();
-    if (_data_buffer_head == buffer_length)
+    if (_data_buffer_head == static_cast<uint32_t>(buffer_length))
         _data_buffer_head = 0;
 
     _data_buffer_count--;

@@ -1,7 +1,7 @@
 DisVM Project
 ========================
 
-The DisVM project is a re-implementation of the [Dis virtual machine specification](http://www.vitanuova.com/inferno/papers/dis.html) that defined the user space of the [Inferno OS](https://en.wikipedia.org/wiki/Inferno_(operating_system)). The Inferno OS was designed to re-hash the ideas in the [Plan 9 from Bell Labs](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs) operating system but implemented using a platform-agnostic language. The Dis virtual machine was intrinsic to the Inferno OS and ran the byte-code compiled [Limbo](https://en.wikipedia.org/wiki/Limbo_(programming_language)) language. This meant that only the Inferno OS need be ported to a platform and all Limbo compiled applications would 'just-work'. If this sounds familiar, it should. Inferno OS was developed in the early 90's and [project Oak](https://en.wikipedia.org/wiki/Oak_(programming_language)) - what would become Java - was being developed by Sun Microsystems. The major difference between the two approaches was that Oak's virtual machine would be ported to various platforms and work with the host OS, whereas the Dis virtual machine was tied to Inferno OS which meant there was yet another layer between the host and the Dis virtual machine. This decision had advantages, but also had the large disadvantage of requiring an entire separate OS to run Limbo code. 
+The DisVM project is a re-implementation of the [Dis virtual machine specification](http://www.vitanuova.com/inferno/papers/dis.html) that defined the user space of the [Inferno OS](https://en.wikipedia.org/wiki/Inferno_(operating_system)). The Inferno OS was designed to re-hash the ideas in the [Plan 9 from Bell Labs](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs) operating system but implemented using a platform-agnostic language. The Dis virtual machine was intrinsic to the Inferno OS and ran the byte-code compiled [Limbo](https://en.wikipedia.org/wiki/Limbo_(programming_language)) language. This meant that only the Inferno OS need be ported to a platform and all Limbo compiled applications would 'just-work'. If this sounds familiar, it should. Inferno OS was developed in the early 90's and [project Oak](https://en.wikipedia.org/wiki/Oak_(programming_language)) - what would become Java - was being developed by Sun Microsystems. The major difference between the two approaches was that Oak's virtual machine would be ported to various platforms and work with the host OS, whereas the Dis virtual machine was tied to Inferno OS which meant there was yet another layer between the host and the Dis virtual machine. This decision had advantages, but also had the large disadvantage of requiring an entire separate OS to run Limbo code.
 
 This project's intent is to take the Java approach and provide an implementation of the Dis virtual machine that is separate from any OS, including the Inferno OS. The project is written in C++ - using only the standard library where possible - and is intended to support compilation on any platform that has a conforming [C++ 11](https://en.wikipedia.org/wiki/C%2B%2B11) compiler. At present various modules written in Limbo (even the official Limbo compiler) have been verified to run successfully using this implementation. Some precompiled byte-code modules (`.dis` extension) have been provided in the [Downloads](https://bitbucket.org/linuxuser27/disvm/downloads) section.
 
@@ -24,7 +24,7 @@ This component can also be replaced with a custom implementation if the DisVM is
 
 ### Scheduler - `src/vm/scheduler.cpp`
 
-The DisVM default scheduler supports utilization of 1 to 4 system threads, which is useful if parallelism is desired at runtime. The current default is for the scheduler to use 1 system thread, but this can be altered from the `disvm-exec` command line or programmatically. 
+The DisVM default scheduler supports utilization of 1 to 4 system threads, which is useful if parallelism is desired at runtime. The current default is for the scheduler to use 1 system thread, but this can be altered from the `disvm-exec` command line or programmatically.
 
 Like the garbage collector, this component can also be replaced with a custom implementation.
 
@@ -36,18 +36,11 @@ There is currently no support for the JIT compilation described in the Dis virtu
 
 Requirements
 
-  * gyp - http://gyp.gsrc.io
-  * Python 2.7 - http://www.python.org/download/releases/2.7/
+* [C++ 11](https://en.cppreference.com/w/c/language/history) compliant compiler.
+* [CMake](https://cmake.org/download/) &ndash; minimum is 3.20.
 
-DisVM build scripts can be generated using gyp (Generate-Your-Project)
-
-1. Install Python 2.7
-2. Get current source for gyp
-3. Generate build file for your platform
-    - Windows -- `gyp.bat src\exec\exec.gyp`
-    - Other -- `gyp_main.py src/exec/exec.gyp`
-
-Python and gyp are only needed for build file generation.
+1. `cmake -S . -B artifacts`
+1. `cmake --build artifacts --target install`
 
 # Source
 
@@ -96,15 +89,15 @@ See source directory for a `license.txt` that defines the license, otherwise lic
    License is also granted to make and use derivative works provided
    that such works are identified as "derived from the RSA Data
    Security, Inc. MD5 Message-Digest Algorithm" in all material
-   mentioning or referencing the derived work.  
-                                                                    
+   mentioning or referencing the derived work.
+
    RSA Data Security, Inc. makes no representations concerning either
    the merchantability of this software or the suitability of this
    software for any particular purpose. It is provided "as is"
-   without express or implied warranty of any kind.  
-                                                                    
+   without express or implied warranty of any kind.
+
    These notices must be retained in any copies of any part of this
-   documentation and/or software.  
+   documentation and/or software.
 
 ### [UTF8 Parsing](http://bjoern.hoehrmann.de/utf-8/decoder/dfa/) ###
 

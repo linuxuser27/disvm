@@ -11,6 +11,7 @@ typedef int logical;
 typedef double doublereal;
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
+extern logical lsame_(char*, char*);
 
 // Returns '1' based index of invalid argument, otherwise '0'
 /* Subroutine */ int dgemm_(char *transa, char *transb, integer *m, integer *
@@ -29,7 +30,6 @@ typedef double doublereal;
     logical nota, notb;
     doublereal temp;
     integer i, j, l, ncola, ncolb;
-    extern logical lsame_(char *, char *);
     integer nrowa, nrowb;
     //extern /* Subroutine */ int xerbla_(char *, integer *);
 

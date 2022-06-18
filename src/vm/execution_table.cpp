@@ -90,12 +90,12 @@ namespace
     //
 
     EXEC_DECL(cvtbw) { vt_ref<word_t>(r.dest) = vt_ref<byte_t>(r.src); }
-    EXEC_DECL(cvtwb) { vt_ref<byte_t>(r.dest) = vt_ref<word_t>(r.src); }
+    EXEC_DECL(cvtwb) { vt_ref<byte_t>(r.dest) = static_cast<byte_t>(vt_ref<word_t>(r.src)); }
     EXEC_DECL(cvtwl) { vt_ref<big_t>(r.dest) = vt_ref<word_t>(r.src); }
     EXEC_DECL(cvtlw) { vt_ref<word_t>(r.dest) = static_cast<word_t>(vt_ref<big_t>(r.src)); }
     EXEC_DECL(cvtrf) { vt_ref<short_real_t>(r.dest) = static_cast<short_real_t>(vt_ref<real_t>(r.src)); }
     EXEC_DECL(cvtfr) { vt_ref<real_t>(r.dest) = static_cast<real_t>(vt_ref<short_real_t>(r.src)); }
-    EXEC_DECL(cvtws) { vt_ref<short_word_t>(r.dest) = vt_ref<word_t>(r.src); }
+    EXEC_DECL(cvtws) { vt_ref<short_word_t>(r.dest) = static_cast<short_word_t>(vt_ref<word_t>(r.src)); }
     EXEC_DECL(cvtsw) { vt_ref<word_t>(r.dest) = vt_ref<short_word_t>(r.src); }
     EXEC_DECL(cvtlf) { vt_ref<real_t>(r.dest) = static_cast<real_t>(vt_ref<big_t>(r.src)); }
     EXEC_DECL(cvtfl)

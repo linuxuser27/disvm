@@ -751,7 +751,7 @@ namespace
         }
 
         auto resolved_pc = dbg.resolve_to_function_source_line(r.module_ref->module->vm_id, begin_pc, end_pc, function_name_format_t::name);
-        assert(resolved_pc.empty() || resolved_pc.size() == (end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
+        assert(resolved_pc.empty() || resolved_pc.size() == static_cast<size_t>(end_pc - begin_pc + 1) && "Resolved PCs should have failed or match the PC count");
 
         auto msg = std::stringstream{};
         for (auto curr_pc = begin_pc; curr_pc <= end_pc; ++curr_pc)

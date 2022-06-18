@@ -1,3 +1,5 @@
+artifacts/
+
 # Ignore VS noise
 Debug
 Release

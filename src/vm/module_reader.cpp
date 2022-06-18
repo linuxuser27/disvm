@@ -231,7 +231,7 @@ namespace
 
             header.Signature.signature.reset(new byte_t[header.Signature.length]);
             const auto bytesRead = reader.get_next_bytes(header.Signature.length, header.Signature.signature.get());
-            if (bytesRead != header.Signature.length) throw module_reader_exception{ "Failed to read full signature" };
+            if (bytesRead != static_cast<uint32_t>(header.Signature.length)) throw module_reader_exception{ "Failed to read full signature" };
         }
         else if (header.magic_number == disvm::format::magic_number_constants::xmagic)
         {
@@ -372,7 +372,7 @@ namespace
             if (map_in_bytes != 0)
             {
                 const auto bytesRead = reader.get_next_bytes(map_in_bytes, pointer_map.data());
-                if (bytesRead != map_in_bytes) throw module_reader_exception{ "Failed to read type pointer map" };
+                if (bytesRead != static_cast<uint32_t>(map_in_bytes)) throw module_reader_exception{ "Failed to read type pointer map" };
             }
 
             modobj.type_section[desc_number] = std::move(type_descriptor_t::create(size, pointer_map));
