@@ -1,15 +1,15 @@
 //
 // Dis VM
-// File: builtin_module.h
+// File: builtin_module.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_BUILTIN_MODULE_H_
-#define _DISVM_SRC_INCLUDE_BUILTIN_MODULE_H_
+#ifndef _DISVM_SRC_INCLUDE_BUILTIN_MODULE_HPP_
+#define _DISVM_SRC_INCLUDE_BUILTIN_MODULE_HPP_
 
 #include <cstdint>
 #include <memory>
-#include "runtime.h"
+#include "runtime.hpp"
 
 #define BUILTIN_MODULE_PREFIX_STR "$"
 #define BUILTIN_MODULE_PREFIX_CHAR '$'
@@ -118,4 +118,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_BUILTIN_MODULE_H_
+#endif // _DISVM_SRC_INCLUDE_BUILTIN_MODULE_HPP_

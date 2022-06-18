@@ -1,16 +1,16 @@
 //
 // Dis VM
-// File: exceptions.h
+// File: exceptions.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_EXCEPTIONS_H_
-#define _DISVM_SRC_INCLUDE_EXCEPTIONS_H_
+#ifndef _DISVM_SRC_INCLUDE_EXCEPTIONS_HPP_
+#define _DISVM_SRC_INCLUDE_EXCEPTIONS_HPP_
 
 #include <cassert>
 #include <string>
 #include <stdexcept>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -162,4 +162,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_EXCEPTIONS_H_
+#endif // _DISVM_SRC_INCLUDE_EXCEPTIONS_HPP_

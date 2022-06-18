@@ -15,8 +15,8 @@
 #include <cfenv>
 #include <algorithm>
 
-#include <debug.h>
-#include "Mathmod.h"
+#include <debug.hpp>
+#include "Mathmod.hpp"
 
 using disvm::vm_t;
 

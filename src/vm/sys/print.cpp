@@ -6,8 +6,8 @@
 
 #include <cinttypes>
 #include <array>
-#include <utf8.h>
-#include "sys_utils.h"
+#include <utf8.hpp>
+#include "sys_utils.hpp"
 
 using disvm::runtime::byte_t;
 using disvm::runtime::pointer_t;

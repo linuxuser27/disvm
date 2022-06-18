@@ -1,17 +1,17 @@
 //
 // Dis VM
-// File: garbage_collector.h
+// File: garbage_collector.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_GARBAGE_COLLECTOR_H_
-#define _DISVM_SRC_VM_GARBAGE_COLLECTOR_H_
+#ifndef _DISVM_SRC_VM_GARBAGE_COLLECTOR_HPP_
+#define _DISVM_SRC_VM_GARBAGE_COLLECTOR_HPP_
 
 #include <cstdint>
 #include <mutex>
 #include <forward_list>
 #include <vector>
-#include <disvm.h>
+#include <disvm.hpp>
 
 namespace disvm
 {
@@ -45,4 +45,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_GARBAGE_COLLECTOR_H_
+#endif // _DISVM_SRC_VM_GARBAGE_COLLECTOR_HPP_

@@ -9,8 +9,8 @@
 // Most code in this file falls under the above copyright. It was augmented only to be more C++ friendly.
 
 #include <cinttypes>
-#include <utf8.h>
-#include <exceptions.h>
+#include <utf8.hpp>
+#include <exceptions.hpp>
 
 using disvm::runtime::utf8::decode_state_t;
 using disvm::runtime::utf8::utf8_length_t;

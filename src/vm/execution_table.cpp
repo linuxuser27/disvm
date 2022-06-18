@@ -12,15 +12,15 @@
 #include <limits>
 #include <random>
 #include <vector>
-#include <disvm.h>
-#include <vm_memory.h>
-#include <opcodes.h>
-#include <utils.h>
-#include <exceptions.h>
-#include <debug.h>
-#include <builtin_module.h>
-#include "tool_dispatch.h"
-#include "execution_table.h"
+#include <disvm.hpp>
+#include <vm_memory.hpp>
+#include <opcodes.hpp>
+#include <utils.hpp>
+#include <exceptions.hpp>
+#include <debug.hpp>
+#include <builtin_module.hpp>
+#include "tool_dispatch.hpp"
+#include "execution_table.hpp"
 
 using namespace disvm;
 using namespace disvm::runtime;
@@ -640,7 +640,7 @@ namespace
         auto table = reinterpret_cast<word_t *>(r.dest);
         const auto entry_count = table[case_op_constants::table_length_index];
 
-        // Initialize the target PC with the fallback value. 
+        // Initialize the target PC with the fallback value.
         // This value is located after all entries in the table.
         auto target_pc = table[case_op_constants::first_entry_index + (entry_count * case_op_constants::entry_length)];
 
@@ -944,7 +944,7 @@ namespace
         auto alloc = at_val<vm_alloc_t>(r.src);
         if (alloc != nullptr)
         {
-            alloc->add_ref(); 
+            alloc->add_ref();
             pt_ref(new_list->value()) = alloc->get_allocation();
 
             vm.get_garbage_collector().track_allocation(new_list);
@@ -1104,8 +1104,8 @@ namespace
 
     EXEC_DECL(newcm)
     {
-        auto memory_size = vt_ref<word_t>(r.src); 
-        auto channel_data_type = type_descriptor_t::create(memory_size); 
+        auto memory_size = vt_ref<word_t>(r.src);
+        auto channel_data_type = type_descriptor_t::create(memory_size);
 
         _newc_(r, vm, std::move(channel_data_type), _channel_movm);
     }

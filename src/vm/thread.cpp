@@ -8,13 +8,13 @@
 #include <cassert>
 #include <memory>
 #include <atomic>
-#include <disvm.h>
-#include <exceptions.h>
-#include <vm_memory.h>
-#include <debug.h>
-#include <utils.h>
-#include "execution_table.h"
-#include "tool_dispatch.h"
+#include <disvm.hpp>
+#include <exceptions.hpp>
+#include <vm_memory.hpp>
+#include <debug.hpp>
+#include <utils.hpp>
+#include "execution_table.hpp"
+#include "tool_dispatch.hpp"
 
 using disvm::vm_t;
 using disvm::opcode_t;

@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: disvm.h
+// File: disvm.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_DISVM_H_
-#define _DISVM_SRC_INCLUDE_DISVM_H_
+#ifndef _DISVM_SRC_INCLUDE_DISVM_HPP_
+#define _DISVM_SRC_INCLUDE_DISVM_HPP_
 
 #include <array>
 #include <iosfwd>
@@ -13,8 +13,8 @@
 #include <functional>
 #include <mutex>
 #include <forward_list>
-#include "runtime.h"
-#include "exceptions.h"
+#include "runtime.hpp"
+#include "exceptions.hpp"
 
 namespace disvm
 {
@@ -150,4 +150,4 @@ namespace disvm
     };
 }
 
-#endif // _DISVM_SRC_INCLUDE_DISVM_H_
+#endif // _DISVM_SRC_INCLUDE_DISVM_HPP_

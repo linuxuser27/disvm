@@ -5,11 +5,11 @@
 //
 
 #include <cinttypes>
-#include <runtime.h>
-#include <builtin_module.h>
-#include <vm_memory.h>
-#include <debug.h>
-#include <exceptions.h>
+#include <runtime.hpp>
+#include <builtin_module.hpp>
+#include <vm_memory.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;

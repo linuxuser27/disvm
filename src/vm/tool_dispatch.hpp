@@ -1,19 +1,19 @@
 //
 // Dis VM
-// File: tool_dispatch.h
+// File: tool_dispatch.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_TOOL_DISPATCH_H_
-#define _DISVM_SRC_VM_TOOL_DISPATCH_H_
+#ifndef _DISVM_SRC_VM_TOOL_DISPATCH_HPP_
+#define _DISVM_SRC_VM_TOOL_DISPATCH_HPP_
 
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <mutex>
-#include <runtime.h>
+#include <runtime.hpp>
 #include <tuple>
-#include <vm_tools.h>
+#include <vm_tools.hpp>
 
 namespace disvm
 {
@@ -126,4 +126,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_TOOL_DISPATCH_H_
+#endif // _DISVM_SRC_VM_TOOL_DISPATCH_HPP_

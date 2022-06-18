@@ -9,9 +9,9 @@
 #include <vector>
 #include <cerrno>
 #include <memory>
-#include <vm_asm.h>
-#include <utils.h>
-#include <buffered_reader.h>
+#include <vm_asm.hpp>
+#include <utils.hpp>
+#include <buffered_reader.hpp>
 
 using disvm::runtime::vm_pc_t;
 

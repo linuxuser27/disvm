@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: debug.h
+// File: debug.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_DEBUG_H_
-#define _DISVM_SRC_INCLUDE_DEBUG_H_
+#ifndef _DISVM_SRC_INCLUDE_DEBUG_HPP_
+#define _DISVM_SRC_INCLUDE_DEBUG_HPP_
 
 #include <array>
 #include <cstdarg>
@@ -98,4 +98,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_DEBUG_H_
+#endif // _DISVM_SRC_INCLUDE_DEBUG_HPP_

@@ -13,9 +13,9 @@
 #include <vector>
 #include <condition_variable>
 #include <cinttypes>
-#include <vm_memory.h>
-#include <debug.h>
-#include <exceptions.h>
+#include <vm_memory.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
 
 using disvm::vm_t;
 
@@ -182,7 +182,7 @@ vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
 vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
 {
     auto alloc_copy = vm_alloc_t::allocate(other.alloc_type);
-    
+
     // Copy the current memory contents of the allocation
     std::memcpy(alloc_copy->get_allocation(), other.get_allocation(), alloc_copy->alloc_type->size_in_bytes);
 

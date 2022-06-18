@@ -1,15 +1,15 @@
 //
 // Dis VM
-// File: Sysmod.h
+// File: Sysmod.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_SYS_SYSMOD_H_
-#define _DISVM_SRC_VM_SYS_SYSMOD_H_
+#ifndef _DISVM_SRC_VM_SYS_SYSMOD_HPP_
+#define _DISVM_SRC_VM_SYS_SYSMOD_HPP_
 
 #include <vector>
-#include <disvm.h>
-#include <builtin_module.h>
+#include <disvm.hpp>
+#include <builtin_module.hpp>
 
 using disvm::vm_t;
 
@@ -468,4 +468,4 @@ const word_t Sys_UTFerror = 0xfffd;
 const word_t Sys_Runemax = 0x10ffff;
 const word_t Sys_Runemask = 0x1fffff;
 
-#endif // _DISVM_SRC_VM_SYS_SYSMOD_H_
+#endif // _DISVM_SRC_VM_SYS_SYSMOD_HPP_

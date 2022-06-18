@@ -1,14 +1,14 @@
 //
 // Dis VM
-// File: utf8.h
+// File: utf8.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_UTF8_H_
-#define _DISVM_SRC_INCLUDE_UTF8_H_
+#ifndef _DISVM_SRC_INCLUDE_UTF8_HPP_
+#define _DISVM_SRC_INCLUDE_UTF8_HPP_
 
 #include <cstdint>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -61,4 +61,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_UTF8_H_
+#endif // _DISVM_SRC_INCLUDE_UTF8_HPP_

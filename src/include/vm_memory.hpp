@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: vm_memory.h
+// File: vm_memory.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_VM_MEMORY_H_
-#define _DISVM_SRC_INCLUDE_VM_MEMORY_H_
+#ifndef _DISVM_SRC_INCLUDE_VM_MEMORY_HPP_
+#define _DISVM_SRC_INCLUDE_VM_MEMORY_HPP_
 
 #include <cstdint>
 #include <cassert>
@@ -14,7 +14,7 @@
 #include <memory>
 #include <bitset>
 #include <functional>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -86,4 +86,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_VM_MEMORY_H_
+#endif // _DISVM_SRC_INCLUDE_VM_MEMORY_HPP_

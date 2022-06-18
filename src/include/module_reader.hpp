@@ -1,14 +1,14 @@
 //
 // Dis VM
-// File: module_reader.h
+// File: module_reader.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_MODULE_READER_H_
-#define _DISVM_SRC_INCLUDE_MODULE_READER_H_
+#ifndef _DISVM_SRC_INCLUDE_MODULE_READER_HPP_
+#define _DISVM_SRC_INCLUDE_MODULE_READER_HPP_
 
 #include <cstdint>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -26,4 +26,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_MODULE_READER_H_
+#endif // _DISVM_SRC_INCLUDE_MODULE_READER_HPP_

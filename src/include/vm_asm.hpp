@@ -1,17 +1,17 @@
 //
 // Dis VM
-// File: vm_asm.h
+// File: vm_asm.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_VM_ASM_H_
-#define _DISVM_SRC_INCLUDE_VM_ASM_H_
+#ifndef _DISVM_SRC_INCLUDE_VM_ASM_HPP_
+#define _DISVM_SRC_INCLUDE_VM_ASM_HPP_
 
 #include <iosfwd>
 #include <cstdint>
-#include "opcodes.h"
-#include "runtime.h"
-#include "utils.h"
+#include "opcodes.hpp"
+#include "runtime.hpp"
+#include "utils.hpp"
 
 namespace disvm
 {
@@ -155,4 +155,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_VM_ASM_H_
+#endif // _DISVM_SRC_INCLUDE_VM_ASM_HPP_

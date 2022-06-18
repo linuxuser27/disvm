@@ -8,12 +8,12 @@
 #include <cassert>
 #include <array>
 #include <memory>
-#include <builtin_module.h>
-#include <debug.h>
-#include <exceptions.h>
-#include <vm_asm_sigkind.h>
-#include <vm_version.h>
-#include "exec.h"
+#include <builtin_module.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
+#include <vm_asm_sigkind.hpp>
+#include <vm_version.hpp>
+#include "exec.hpp"
 
 using disvm::vm_t;
 using disvm::vm_config_t;

@@ -1,16 +1,16 @@
 //
 // Dis VM
-// File: fd_types.h
+// File: fd_types.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_SYS_FD_TYPES_H_
-#define _DISVM_SRC_VM_SYS_FD_TYPES_H_
+#ifndef _DISVM_SRC_VM_SYS_FD_TYPES_HPP_
+#define _DISVM_SRC_VM_SYS_FD_TYPES_HPP_
 
 #include <memory>
 
-#include <runtime.h>
-#include <utils.h>
+#include <runtime.hpp>
+#include <utils.hpp>
 
 namespace disvm
 {
@@ -75,4 +75,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_SYS_FD_TYPES_H_
+#endif // _DISVM_SRC_VM_SYS_FD_TYPES_HPP_

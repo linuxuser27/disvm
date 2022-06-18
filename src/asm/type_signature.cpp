@@ -5,7 +5,7 @@
 //
 
 #include <array>
-#include <vm_asm_sigkind.h>
+#include <vm_asm_sigkind.hpp>
 #include "rfc1321/global.h"
 #include "rfc1321/md5.h"
 

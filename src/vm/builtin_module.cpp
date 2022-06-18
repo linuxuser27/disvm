@@ -8,11 +8,11 @@
 #include <atomic>
 #include <mutex>
 #include <forward_list>
-#include <runtime.h>
-#include <module_reader.h>
-#include <builtin_module.h>
-#include <debug.h>
-#include <exceptions.h>
+#include <runtime.hpp>
+#include <module_reader.hpp>
+#include <builtin_module.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
 
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_module_t;

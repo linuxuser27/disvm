@@ -1,16 +1,16 @@
 //
 // Dis VM
-// File: module_resolver.h
+// File: module_resolver.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_MODULE_RESOLVER_H_
-#define _DISVM_SRC_VM_MODULE_RESOLVER_H_
+#ifndef _DISVM_SRC_VM_MODULE_RESOLVER_HPP_
+#define _DISVM_SRC_VM_MODULE_RESOLVER_HPP_
 
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <runtime.h>
+#include <runtime.hpp>
 
 namespace disvm
 {
@@ -34,4 +34,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_MODULE_RESOLVER_H_
+#endif // _DISVM_SRC_VM_MODULE_RESOLVER_HPP_

@@ -1,18 +1,18 @@
 //
 // Dis VM
-// File: sys_utils.h
+// File: sys_utils.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_SYS_SYS_UTILS_H_
-#define _DISVM_SRC_VM_SYS_SYS_UTILS_H_
+#ifndef _DISVM_SRC_VM_SYS_SYS_UTILS_HPP_
+#define _DISVM_SRC_VM_SYS_SYS_UTILS_HPP_
 
 #include <vector>
 #include <ios>
 #include <memory>
-#include <disvm.h>
-#include <utils.h>
-#include "fd_types.h"
+#include <disvm.hpp>
+#include <utils.hpp>
+#include "fd_types.hpp"
 
 namespace disvm
 {
@@ -60,4 +60,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_SYS_SYS_UTILS_H_
+#endif // _DISVM_SRC_VM_SYS_SYS_UTILS_HPP_

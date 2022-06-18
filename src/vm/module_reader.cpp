@@ -11,12 +11,12 @@
 #include <sstream>
 #include <array>
 #include <tuple>
-#include <disvm.h>
-#include <exceptions.h>
-#include <vm_memory.h>
-#include <utils.h>
-#include <module_reader.h>
-#include "buffered_reader.h"
+#include <disvm.hpp>
+#include <exceptions.hpp>
+#include <vm_memory.hpp>
+#include <utils.hpp>
+#include <module_reader.hpp>
+#include "buffered_reader.hpp"
 
 using disvm::opcode_t;
 
@@ -565,7 +565,7 @@ namespace
     }
 
     // See import section in Dis VM specification (http://www.vitanuova.com/inferno/man/6/dis.html)
-    // [SPEC] The specification does not seem to match what is observed in an actual module. 
+    // [SPEC] The specification does not seem to match what is observed in an actual module.
     //        The function is modeled after the disassembler (dis.b and libinterp/load.c) instead.
     void read_import_section(disvm::util::buffered_reader_t &reader, vm_module_t &modobj)
     {

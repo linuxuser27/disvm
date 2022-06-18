@@ -7,10 +7,10 @@
 #include <cassert>
 #include <fstream>
 #include <sstream>
-#include <disvm.h>
-#include <debug.h>
-#include <exceptions.h>
-#include "module_resolver.h"
+#include <disvm.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
+#include "module_resolver.hpp"
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;

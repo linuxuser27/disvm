@@ -1,21 +1,21 @@
 //
 // Dis VM - exec program
-// File: exec.h
+// File: exec.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_EXEC_EXEC_H_
-#define _DISVM_SRC_EXEC_EXEC_H_
+#ifndef _DISVM_SRC_EXEC_EXEC_HPP_
+#define _DISVM_SRC_EXEC_EXEC_HPP_
 
 #include <cstdint>
 #include <unordered_set>
 #include <vector>
 #include <string>
 #include <memory>
-#include <disvm.h>
-#include <vm_asm.h>
-#include <vm_tools.h>
-#include <utils.h>
+#include <disvm.hpp>
+#include <vm_asm.hpp>
+#include <vm_tools.hpp>
+#include <utils.hpp>
 
 enum class debugger_options
 {
@@ -80,4 +80,4 @@ private:
     std::unordered_map<std::string, std::string> _debugger_options;
 };
 
-#endif // _DISVM_SRC_EXEC_EXEC_H_
+#endif // _DISVM_SRC_EXEC_EXEC_HPP_
