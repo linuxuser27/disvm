@@ -1,0 +1,21 @@
+name: disvm
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        flavor: [ 'Debug', 'Release' ]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Generate disvm
+      run: cmake -A Win32 -S . -B artifacts/${{ matrix.flavor }}
+    - name: Build disvm
+      run: cmake --build artifacts/${{ matrix.flavor }}  --config ${{ matrix.flavor }} --target install
