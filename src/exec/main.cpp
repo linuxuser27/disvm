@@ -241,7 +241,8 @@ void print_banner(const exec_options &options)
 {
     std::cout << "DisVM " << DISVM_VERSION_MAJOR << '.' << DISVM_VERSION_MINOR << '.' << DISVM_VERSION_PATCH;
 
-    if (DISVM_VERSION_LABEL != nullptr)
+    const auto label = DISVM_VERSION_LABEL;
+    if (label != nullptr)
         std::cout << '-' << DISVM_VERSION_LABEL;
 
     std::cout
@@ -298,7 +299,7 @@ void log_callback(const component_trace_t origin, const log_level_t level, const
     buffer[r] = '\0';
 
     ss << buffer.data() << "\n";
-    if (r == buffer.size() - 1)
+    if (r == static_cast<int>(buffer.size() - 1))
         ss << " <Possible truncation>\n";
 
     std::cout << ss.str();

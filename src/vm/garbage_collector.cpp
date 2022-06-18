@@ -84,7 +84,7 @@ namespace
         return sweeper_colours[epoch % sweeper_colours.size()];
     }
 
-    constexpr gc_colour_t get_gc_colour(const vm_alloc_t *a)
+    gc_colour_t get_gc_colour(const vm_alloc_t *a)
     {
         return *reinterpret_cast<const gc_colour_t *>(&a->gc_reserved);
     }

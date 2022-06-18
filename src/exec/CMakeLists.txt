@@ -1,6 +1,6 @@
 set(SOURCES
-    debugger.cpp
-    main.cpp
+  debugger.cpp
+  main.cpp
 )
 
 add_executable(disvm-exec

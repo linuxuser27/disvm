@@ -95,6 +95,8 @@ namespace disvm
         class symbol_pc_iter_t
         {
         public:
+            virtual ~symbol_pc_iter_t() { }
+
             // Set the current pc
             virtual void set_current_pc(disvm::runtime::vm_pc_t) = 0;
 
@@ -124,6 +126,8 @@ namespace disvm
         class symbol_data_t
         {
         public:
+            virtual ~symbol_data_t() { }
+
             // Get name of the module
             virtual const std::string& get_module_name() const = 0;
 

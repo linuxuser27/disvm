@@ -122,7 +122,7 @@ namespace disvm
             {
                 const auto amount_in_buffer = check_buffer_content();
                 if (amount_in_buffer == 0)
-                    return std::make_tuple(false, 0);
+                    return std::make_tuple<bool, uint8_t>(false, 0);
 
                 return std::make_tuple(true, _buffer[_current_index++]);
             }

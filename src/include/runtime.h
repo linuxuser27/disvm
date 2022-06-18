@@ -261,7 +261,7 @@ namespace disvm
             std::shared_ptr<const type_descriptor_t> _element_type;
             vm_list_t *_tail;
 
-            // Utilizing a union so that all value types can 
+            // Utilizing a union so that all value types can
             // be stored without allocating any extra memory.
             mutable union element_memory_t
             {

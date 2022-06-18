@@ -257,7 +257,8 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
 {
     const auto max_error_message = std::size_t{ 1024 };
     _registers.current_thread_state = vm_thread_state_t::running;
-    _registers.current_thread_quanta = quanta;
+    assert(quanta <= std::numeric_limits<uint16_t>::max());
+    _registers.current_thread_quanta = static_cast<uint16_t>(quanta);
     assert(_registers.pc != runtime_constants::invalid_program_counter);
     auto tool_dispatch = _registers.tool_dispatch.load();
 
