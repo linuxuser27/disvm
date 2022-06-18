@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: scheduler.h
+// File: scheduler.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_SCHEDULER_H_
-#define _DISVM_SRC_VM_SCHEDULER_H_
+#ifndef _DISVM_SRC_VM_SCHEDULER_HPP_
+#define _DISVM_SRC_VM_SCHEDULER_HPP_
 
 #include <cstdint>
 #include <thread>
@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <atomic>
-#include <disvm.h>
+#include <disvm.hpp>
 
 namespace disvm
 {
@@ -102,4 +102,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_VM_SCHEDULER_H_
+#endif // _DISVM_SRC_VM_SCHEDULER_HPP_

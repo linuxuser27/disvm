@@ -8,9 +8,9 @@
 #include <mutex>
 #include <vector>
 #include <queue>
-#include <exceptions.h>
-#include <vm_memory.h>
-#include "sys_utils.h"
+#include <exceptions.hpp>
+#include <vm_memory.hpp>
+#include "sys_utils.hpp"
 
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::word_t;

@@ -4,12 +4,12 @@
 // Author: arr
 //
 
-#include <debug.h>
+#include <debug.hpp>
 #include <iostream>
 #include <sstream>
 #include <queue>
-#include <exceptions.h>
-#include "scheduler.h"
+#include <exceptions.hpp>
+#include "scheduler.hpp"
 
 using disvm::vm_t;
 

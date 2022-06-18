@@ -7,10 +7,10 @@
 #include <cinttypes>
 #include <array>
 #include <stack>
-#include <debug.h>
-#include <vm_memory.h>
-#include <exceptions.h>
-#include "garbage_collector.h"
+#include <debug.hpp>
+#include <vm_memory.hpp>
+#include <exceptions.hpp>
+#include "garbage_collector.hpp"
 
 using disvm::vm_t;
 

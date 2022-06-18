@@ -12,11 +12,11 @@
 #include <algorithm>
 #include <map>
 #include <set>
-#include <utils.h>
-#include <vm_memory.h>
-#include <vm_asm.h>
-#include <exceptions.h>
-#include "exec.h"
+#include <utils.hpp>
+#include <vm_memory.hpp>
+#include <vm_asm.hpp>
+#include <exceptions.hpp>
+#include "exec.hpp"
 
 using disvm::vm_t;
 using disvm::loaded_vm_module_t;

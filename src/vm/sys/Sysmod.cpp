@@ -11,13 +11,13 @@
 #include <iostream>
 #include <fstream>
 #include <streambuf>
-#include <exceptions.h>
-#include <debug.h>
-#include <utf8.h>
-#include <vm_memory.h>
-#include "Sysmod.h"
-#include "sys_utils.h"
-#include "fd_types.h"
+#include <exceptions.hpp>
+#include <debug.hpp>
+#include <utf8.hpp>
+#include <vm_memory.hpp>
+#include "Sysmod.hpp"
+#include "sys_utils.hpp"
+#include "fd_types.hpp"
 
 using disvm::vm_t;
 

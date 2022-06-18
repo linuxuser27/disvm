@@ -8,16 +8,16 @@
 #include <memory>
 #include <algorithm>
 #include <sstream>
-#include <disvm.h>
-#include <debug.h>
-#include <runtime.h>
-#include <exceptions.h>
-#include <builtin_module.h>
-#include <vm_version.h>
-#include "scheduler.h"
-#include "garbage_collector.h"
-#include "tool_dispatch.h"
-#include "module_resolver.h"
+#include <disvm.hpp>
+#include <debug.hpp>
+#include <runtime.hpp>
+#include <exceptions.hpp>
+#include <builtin_module.hpp>
+#include <vm_version.hpp>
+#include "scheduler.hpp"
+#include "garbage_collector.hpp"
+#include "tool_dispatch.hpp"
+#include "module_resolver.hpp"
 
 using disvm::vm_t;
 using disvm::vm_config_t;

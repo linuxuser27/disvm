@@ -5,11 +5,11 @@
 //
 
 #include <cinttypes>
-#include <runtime.h>
-#include <utf8.h>
-#include <vm_memory.h>
-#include <debug.h>
-#include <exceptions.h>
+#include <runtime.hpp>
+#include <utf8.hpp>
+#include <vm_memory.hpp>
+#include <debug.hpp>
+#include <exceptions.hpp>
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
@@ -112,7 +112,7 @@ int vm_string_t::compare(const vm_string_t *s1, const vm_string_t *s2)
     if (result != 0)
         return result;
 
-    // Comparing lengths if one string is a proper sub-string of the other. 
+    // Comparing lengths if one string is a proper sub-string of the other.
     return (len_1 - len_2);
 }
 
@@ -519,7 +519,7 @@ const char *vm_string_t::str() const
         }
 
         const auto rune_str = (_is_alloc) ? reinterpret_cast<rune_t *>(_mem.alloc) : reinterpret_cast<rune_t *>(_mem.local);
-        const auto str_len = (_length * _character_size) + 1; // Plus 1 for a null terminator 
+        const auto str_len = (_length * _character_size) + 1; // Plus 1 for a null terminator
         auto encoded_str_local = alloc_memory<char>(str_len);
 
         auto s = reinterpret_cast<uint8_t *>(encoded_str_local);

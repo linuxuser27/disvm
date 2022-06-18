@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: opcodes.h
+// File: opcodes.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_OPCODES_H_
-#define _DISVM_SRC_INCLUDE_OPCODES_H_
+#ifndef _DISVM_SRC_INCLUDE_OPCODES_HPP_
+#define _DISVM_SRC_INCLUDE_OPCODES_HPP_
 
 #include <cstdint>
 
@@ -199,4 +199,4 @@ namespace disvm
     };
 }
 
-#endif // _DISVM_SRC_INCLUDE_OPCODES_H_
+#endif // _DISVM_SRC_INCLUDE_OPCODES_HPP_

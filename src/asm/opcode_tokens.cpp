@@ -6,7 +6,7 @@
 
 #include <cassert>
 #include <cstring>
-#include <vm_asm.h>
+#include <vm_asm.hpp>
 
 namespace
 {

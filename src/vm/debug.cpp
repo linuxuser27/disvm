@@ -6,7 +6,7 @@
 
 #include <mutex>
 #include <array>
-#include <debug.h>
+#include <debug.hpp>
 
 namespace
 {

@@ -8,10 +8,10 @@
 #include <algorithm>
 #include <streambuf>
 
-#include <debug.h>
-#include <exceptions.h>
-#include <vm_memory.h>
-#include "fd_types.h"
+#include <debug.hpp>
+#include <exceptions.hpp>
+#include <vm_memory.hpp>
+#include "fd_types.hpp"
 
 using disvm::vm_t;
 

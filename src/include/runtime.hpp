@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: runtime.h
+// File: runtime.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_RUNTIME_H_
-#define _DISVM_SRC_INCLUDE_RUNTIME_H_
+#ifndef _DISVM_SRC_INCLUDE_RUNTIME_HPP_
+#define _DISVM_SRC_INCLUDE_RUNTIME_HPP_
 
 #include <cstdint>
 #include <cassert>
@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <functional>
-#include "opcodes.h"
+#include "opcodes.hpp"
 
 namespace disvm
 {
@@ -962,4 +962,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_RUNTIME_H_
+#endif // _DISVM_SRC_INCLUDE_RUNTIME_HPP_

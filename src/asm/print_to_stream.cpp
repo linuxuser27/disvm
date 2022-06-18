@@ -5,7 +5,7 @@
 //
 
 #include <ostream>
-#include <vm_asm.h>
+#include <vm_asm.hpp>
 
 std::ostream& disvm::runtime::operator<<(std::ostream &ss, const inst_data_generic_t &m)
 {

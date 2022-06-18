@@ -1,17 +1,17 @@
 //
 // Dis VM
-// File: vm_tools.h
+// File: vm_tools.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_VM_TOOLS_H_
-#define _DISVM_SRC_INCLUDE_VM_TOOLS_H_
+#ifndef _DISVM_SRC_INCLUDE_VM_TOOLS_HPP_
+#define _DISVM_SRC_INCLUDE_VM_TOOLS_HPP_
 
 #include <cstdint>
 #include <vector>
 #include <memory>
 #include <functional>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -100,4 +100,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_VM_TOOLS_H_
+#endif // _DISVM_SRC_INCLUDE_VM_TOOLS_HPP_

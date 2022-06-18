@@ -4,10 +4,10 @@
 // Author: arr
 //
 
-#include <runtime.h>
-#include <exceptions.h>
-#include <vm_memory.h>
-#include <debug.h>
+#include <runtime.hpp>
+#include <exceptions.hpp>
+#include <vm_memory.hpp>
+#include <debug.hpp>
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;

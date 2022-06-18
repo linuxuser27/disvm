@@ -1,15 +1,15 @@
 //
 // Dis VM
-// File: Mathmod.h
+// File: Mathmod.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_VM_MATH_MATHMOD_H_
-#define _DISVM_SRC_VM_MATH_MATHMOD_H_
+#ifndef _DISVM_SRC_VM_MATH_MATHMOD_HPP_
+#define _DISVM_SRC_VM_MATH_MATHMOD_HPP_
 
 #include <cmath>
-#include <disvm.h>
-#include <builtin_module.h>
+#include <disvm.hpp>
+#include <builtin_module.hpp>
 
 using disvm::vm_t;
 
@@ -552,4 +552,4 @@ const word_t Math_RND_PINF = 0x200;
 const word_t Math_RND_Z = 0x300;
 const word_t Math_RND_MASK = 0x300;
 
-#endif // _DISVM_SRC_VM_MATH_MATHMOD_H_
+#endif // _DISVM_SRC_VM_MATH_MATHMOD_HPP_

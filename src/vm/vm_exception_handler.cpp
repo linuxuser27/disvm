@@ -5,10 +5,10 @@
 //
 
 #include <cstdint>
-#include <runtime.h>
-#include <vm_memory.h>
-#include <exceptions.h>
-#include <debug.h>
+#include <runtime.hpp>
+#include <vm_memory.hpp>
+#include <exceptions.hpp>
+#include <debug.hpp>
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;

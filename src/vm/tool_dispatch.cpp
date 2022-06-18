@@ -7,12 +7,12 @@
 #include <cassert>
 #include <thread>
 #include <vector>
-#include <debug.h>
-#include <disvm.h>
-#include <vm_tools.h>
-#include <exceptions.h>
-#include <utils.h>
-#include "tool_dispatch.h"
+#include <debug.hpp>
+#include <disvm.hpp>
+#include <vm_tools.hpp>
+#include <exceptions.hpp>
+#include <utils.hpp>
+#include "tool_dispatch.hpp"
 
 using disvm::vm_t;
 using disvm::opcode_t;
@@ -335,7 +335,7 @@ void vm_tool_dispatch_t::clear_breakpoint(cookie_t cookie_id)
     auto &pc_map = iter_orig->second;
     auto iter_pc = pc_map.find(target_pc);
     assert(iter_pc != pc_map.cend());
-    
+
     auto original_opcode = iter_pc->second.first;
 
     // Replace the breakpoint opcode with the original

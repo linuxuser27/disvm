@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: buffered_reader.h
+// File: buffered_reader.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_BUFFERED_READER_H_
-#define _DISVM_SRC_INCLUDE_BUFFERED_READER_H_
+#ifndef _DISVM_SRC_INCLUDE_BUFFERED_READER_HPP_
+#define _DISVM_SRC_INCLUDE_BUFFERED_READER_HPP_
 
 #include <cstdint>
 #include <cassert>
@@ -156,4 +156,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_BUFFERED_READER_H_
+#endif // _DISVM_SRC_INCLUDE_BUFFERED_READER_HPP_

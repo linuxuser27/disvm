@@ -1,17 +1,17 @@
 //
 // Dis VM
-// File: vm_asm_sigkind.h
+// File: vm_asm_sigkind.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_H_
-#define _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_H_
+#ifndef _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_HPP_
+#define _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_HPP_
 
 #include <iosfwd>
 #include <sstream>
 #include <cassert>
 #include <cstdint>
-#include "runtime.h"
+#include "runtime.hpp"
 
 namespace disvm
 {
@@ -378,4 +378,4 @@ namespace disvm
     }
 }
 
-#endif // _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_H_
+#endif // _DISVM_SRC_INCLUDE_VM_ASM_SIGKIND_HPP_

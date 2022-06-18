@@ -1,11 +1,11 @@
 //
 // Dis VM
-// File: utils.h
+// File: utils.hpp
 // Author: arr
 //
 
-#ifndef _DISVM_SRC_INCLUDE_UTILS_H_
-#define _DISVM_SRC_INCLUDE_UTILS_H_
+#ifndef _DISVM_SRC_INCLUDE_UTILS_HPP_
+#define _DISVM_SRC_INCLUDE_UTILS_HPP_
 
 #include <cstdint>
 #include <type_traits>
@@ -84,4 +84,4 @@ constexpr TYPE operator ^ (TYPE a, TYPE b) { return static_cast<TYPE>(static_cas
 inline TYPE &operator ^= (TYPE &a, TYPE b) { a = a ^ b; return a; } \
 constexpr TYPE operator ~ (TYPE a) { return static_cast<TYPE>(~static_cast<std::underlying_type_t<TYPE>>(a)); }
 
-#endif // _DISVM_SRC_INCLUDE_UTILS_H_
+#endif // _DISVM_SRC_INCLUDE_UTILS_HPP_
