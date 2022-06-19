@@ -58,7 +58,7 @@ namespace
         inefficient_spin_lock_t(std::atomic_flag &is_lock)
             : _lf{ is_lock }
         {
-            while (!_lf.test_and_set())
+            while (_lf.test_and_set())
                 ;
         }
 
