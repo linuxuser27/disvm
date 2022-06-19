@@ -16,6 +16,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Generate disvm
-      run: cmake -A Win32 -S . -B artifacts/${{ matrix.flavor }}
+      run: build.cmd generate -build ${{ matrix.flavor }}
+      shell: cmd
     - name: Build disvm
-      run: cmake --build artifacts/${{ matrix.flavor }}  --config ${{ matrix.flavor }} --target install
+      run: build.cmd ${{ matrix.flavor }}
+      shell: cmd

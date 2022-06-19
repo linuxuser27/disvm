@@ -39,8 +39,7 @@ Requirements
 * [C++ 11](https://en.cppreference.com/w/c/language/history) compliant compiler.
 * [CMake](https://cmake.org/download/) &ndash; minimum is 3.20.
 
-1. `cmake -S . -B artifacts`
-1. `cmake --build artifacts --target install`
+1. `build.cmd generate (Debug|Release)?`
 
 # Source
 
