@@ -17,5 +17,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Generate disvm
       run: build.cmd generate -build ${{ matrix.flavor }}
+      shell: cmd
     - name: Build disvm
       run: build.cmd ${{ matrix.flavor }}
+      shell: cmd
