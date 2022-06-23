@@ -24,16 +24,10 @@ namespace disvm
             return (static_cast<std::underlying_type_t<Flags>>(flags) & static_cast<std::underlying_type_t<Flags>>(flag)) != 0;
         }
 
-        template <typename T1, typename T2>
-        bool are_equal(const T1 &l, const T2 &r)
+        template<typename T, std::size_t N>
+        constexpr std::size_t array_length(T const (&)[N])
         {
-            return (l == r);
-        }
-
-        template <typename T1, typename T2, typename... Others>
-        bool are_equal(const T1 &l, const T2 &r, const Others &... args)
-        {
-            return (l == r) && are_equal(r, args...);
+            return N;
         }
 
         // split the string using the delimiters contained in the supplied string

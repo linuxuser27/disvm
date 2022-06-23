@@ -14,6 +14,7 @@
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::pointer_t;
 using disvm::runtime::vm_pc_t;
@@ -44,7 +45,7 @@ namespace
 
     struct vm_stack_layout final : public vm_alloc_t
     {
-        static std::shared_ptr<const type_descriptor_t> type_desc()
+        static managed_ptr_t<const type_descriptor_t> type_desc()
         {
             static auto td = type_descriptor_t::create(0);
             return td;
@@ -106,10 +107,10 @@ namespace
     };
 }
 
-vm_frame_t::vm_frame_t(std::shared_ptr<const type_descriptor_t> td)
+vm_frame_t::vm_frame_t(managed_ptr_t<const type_descriptor_t> td)
     : frame_type{ std::move(td) }
 {
-    assert(frame_type != nullptr);
+    assert(frame_type.is_valid());
 
     // Initialize the new frame
     init_memory(*frame_type, base());
@@ -206,9 +207,9 @@ vm_stack_t::~vm_stack_t()
     log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm stack");
 }
 
-vm_frame_t *vm_stack_t::alloc_frame(std::shared_ptr<const type_descriptor_t> frame_type)
+vm_frame_t *vm_stack_t::alloc_frame(managed_ptr_t<const type_descriptor_t> frame_type)
 {
-    assert(frame_type != nullptr);
+    assert(frame_type.is_valid());
     assert(sizeof(vm_frame_base_alloc_t) < frame_type->size_in_bytes && "Requested frame size less than VM frame base size");
 
     auto layout = static_cast<vm_stack_layout *>(_mem.get());

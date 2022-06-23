@@ -20,6 +20,7 @@ using disvm::debug::log_level_t;
 
 using disvm::runtime::big_t;
 using disvm::runtime::byte_t;
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_string_t;
 using disvm::runtime::word_t;
@@ -32,7 +33,7 @@ using disvm::runtime::sys::seek_start_t;
 using disvm::runtime::sys::std_streams;
 using disvm::runtime::sys::vm_fd_t;
 
-vm_fd_t::vm_fd_t(std::shared_ptr<const type_descriptor_t> td)
+vm_fd_t::vm_fd_t(managed_ptr_t<const type_descriptor_t> td)
     : vm_alloc_t(std::move(td))
 { }
 
@@ -41,20 +42,12 @@ namespace
     namespace hidden_type_desc
     {
         const type_descriptor_t vm_fd_t{ 0, 0, nullptr, type_descriptor_t::no_finalizer, "vm_fd_t" };
-
-        struct
-        {
-            void operator()(const type_descriptor_t *)
-            {
-                // Not allocated on heap
-            }
-        } deleter;
     }
 }
 
-std::shared_ptr<const type_descriptor_t> vm_fd_t::type_desc()
+managed_ptr_t<const type_descriptor_t> vm_fd_t::type_desc()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_fd_t, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_fd_t };
     return t;
 }
 

@@ -44,7 +44,7 @@ namespace disvm
             class vm_fd_t : public vm_alloc_t
             {
             public: // static
-                static std::shared_ptr<const type_descriptor_t> type_desc();
+                static managed_ptr_t<const type_descriptor_t> type_desc();
 
             public:
                 // Read from the file descriptor into the supplied buffer
@@ -57,7 +57,7 @@ namespace disvm
                 virtual big_t seek(vm_t &vm, const seek_start_t seek_start, const big_t offset) = 0;
 
             protected:
-                vm_fd_t(std::shared_ptr<const type_descriptor_t> td);
+                vm_fd_t(managed_ptr_t<const type_descriptor_t> td);
             };
 
             // Create a file descriptor based on a file system path

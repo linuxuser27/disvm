@@ -46,6 +46,50 @@ namespace disvm
         // Forward declaration
         class vm_alloc_t;
 
+        // Represents a pointer that is managed by the VM.
+        template<typename T>
+        class managed_ptr_t
+        {
+        public:
+            managed_ptr_t()
+                : _p{ reinterpret_cast<T*>(std::numeric_limits<intptr_t>::max()) }
+            {
+                assert(!is_valid());
+            }
+
+            explicit managed_ptr_t(T* p)
+                : _p{ p }
+            {
+                assert(is_valid());
+            }
+
+            managed_ptr_t(std::nullptr_t) = delete;
+
+            managed_ptr_t(managed_ptr_t const&) = default;
+            managed_ptr_t(managed_ptr_t&&) = default;
+            managed_ptr_t& operator=(managed_ptr_t const&) = default;
+            managed_ptr_t& operator=(managed_ptr_t&&) = default;
+
+            constexpr T* operator->() const { return _p; }
+            constexpr T& operator*() const { return *_p; }
+
+            constexpr bool operator==(managed_ptr_t const& other) const { return _p == other._p; }
+            constexpr bool operator!=(managed_ptr_t const& other) const { return !operator==(other); }
+
+            // Check if the managed pointer is valid.
+            constexpr bool is_valid() const
+            {
+                return _p != reinterpret_cast<T*>(std::numeric_limits<intptr_t>::max())
+                    && _p != nullptr;
+            }
+
+            // The internal pointer is only exposed as an integer type, not a pointer.
+            constexpr explicit operator intptr_t() const { return reinterpret_cast<intptr_t>(_p); }
+
+        private:
+            T* _p;
+        };
+
         // Finalizer callback for allocations.
         using vm_alloc_instance_finalizer_t = void(*)(vm_alloc_t *);
 
@@ -56,9 +100,9 @@ namespace disvm
             static vm_alloc_instance_finalizer_t no_finalizer;
 
             // Create a type descriptor for type of the supplied size and pointers based on the supplied map.
-            static std::shared_ptr<const type_descriptor_t> create(const word_t size_in_bytes);
-            static std::shared_ptr<const type_descriptor_t> create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map);
-            static std::shared_ptr<const type_descriptor_t> create(
+            static managed_ptr_t<const type_descriptor_t> create(const word_t size_in_bytes);
+            static managed_ptr_t<const type_descriptor_t> create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map);
+            static managed_ptr_t<const type_descriptor_t> create(
                 const word_t size_in_bytes,
                 const word_t pointer_map_length,
                 const byte_t *pointer_map,
@@ -69,7 +113,7 @@ namespace disvm
             type_descriptor_t(const type_descriptor_t&) = delete;
             type_descriptor_t& operator=(const type_descriptor_t&) = delete;
 
-            bool is_equal(const type_descriptor_t *) const;
+            bool is_equal(managed_ptr_t<const type_descriptor_t> const&) const;
 
             const word_t size_in_bytes;
             const word_t map_in_bytes;
@@ -86,7 +130,7 @@ namespace disvm
         public:
             // Templated type descriptor getter
             template<typename IntrinsicType>
-            static std::shared_ptr<const type_descriptor_t> type();
+            static managed_ptr_t<const type_descriptor_t> type();
         };
 
         // VM memory allocation
@@ -96,7 +140,7 @@ namespace disvm
             static void *operator new(std::size_t sz);
             static void operator delete(void *ptr);
 
-            static vm_alloc_t *allocate(std::shared_ptr<const type_descriptor_t> td);
+            static vm_alloc_t *allocate(managed_ptr_t<const type_descriptor_t> td);
             static vm_alloc_t *copy(const vm_alloc_t &other);
 
             static vm_alloc_t *from_allocation(pointer_t allocation)
@@ -111,12 +155,12 @@ namespace disvm
             static T *from_allocation(pointer_t allocation)
             {
                 auto alloc_inst = vm_alloc_t::from_allocation(allocation);
-                assert(alloc_inst == nullptr || alloc_inst->alloc_type->is_equal(intrinsic_type_desc::type<T>().get()));
+                assert(alloc_inst == nullptr || alloc_inst->alloc_type->is_equal(intrinsic_type_desc::type<T>()));
                 return static_cast<T *>(alloc_inst);
             }
 
         protected:
-            vm_alloc_t(std::shared_ptr<const type_descriptor_t> td);
+            vm_alloc_t(managed_ptr_t<const type_descriptor_t> td);
 
         public:
             virtual ~vm_alloc_t();
@@ -125,7 +169,7 @@ namespace disvm
             std::size_t release();
             std::size_t get_ref_count() const;
 
-            std::shared_ptr<const type_descriptor_t> alloc_type;
+            managed_ptr_t<const type_descriptor_t> alloc_type;
 
             // Reserved for use by the garbage collector.
             // This should not be accessed by any other component.
@@ -160,7 +204,7 @@ namespace disvm
         class vm_string_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
             // Compare two string objects
             static int compare(const vm_string_t *s1, const vm_string_t *s2);
@@ -206,15 +250,15 @@ namespace disvm
         class vm_array_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
         public:
-            vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length);
+            vm_array_t(managed_ptr_t<const type_descriptor_t> td, word_t length);
             vm_array_t(vm_array_t &original, word_t begin_index, word_t length);
             vm_array_t(const vm_string_t *s);
             ~vm_array_t();
 
-            std::shared_ptr<const type_descriptor_t> get_element_type() const;
+            managed_ptr_t<const type_descriptor_t> get_element_type() const;
 
             word_t get_length() const;
 
@@ -230,7 +274,7 @@ namespace disvm
             void copy_from(const vm_array_t &source, word_t this_begin_index);
 
         private:
-            std::shared_ptr<const type_descriptor_t> _element_type;
+            managed_ptr_t<const type_descriptor_t> _element_type;
             vm_array_t *_original;
             word_t _length;
             byte_t *_arr;
@@ -240,13 +284,13 @@ namespace disvm
         class vm_list_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
         public:
-            vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tail = nullptr);
+            vm_list_t(managed_ptr_t<const type_descriptor_t> td, vm_list_t *tail = nullptr);
             ~vm_list_t();
 
-            std::shared_ptr<const type_descriptor_t> get_element_type() const;
+            managed_ptr_t<const type_descriptor_t> get_element_type() const;
 
             word_t get_length() const;
 
@@ -258,7 +302,7 @@ namespace disvm
             pointer_t value() const;
 
         private:
-            std::shared_ptr<const type_descriptor_t> _element_type;
+            managed_ptr_t<const type_descriptor_t> _element_type;
             vm_list_t *_tail;
 
             // Utilizing a union so that all value types can
@@ -307,18 +351,18 @@ namespace disvm
         class vm_channel_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
-            using data_transfer_func_t = void(*)(pointer_t, pointer_t, const type_descriptor_t *);
+            using data_transfer_func_t = void(*)(pointer_t, pointer_t, managed_ptr_t<const type_descriptor_t>);
 
         public:
             vm_channel_t(
-                std::shared_ptr<const type_descriptor_t> td,
+                managed_ptr_t<const type_descriptor_t> td,
                 data_transfer_func_t transfer,
                 word_t buffer_len);
             ~vm_channel_t();
 
-            std::shared_ptr<const type_descriptor_t> get_data_type() const;
+            managed_ptr_t<const type_descriptor_t> get_data_type() const;
 
             // Send data into the channel.
             // Returns true if the data was sent, otherwise request is queued and false returned.
@@ -344,7 +388,7 @@ namespace disvm
 
         private:
             std::mutex _data_lock;
-            std::shared_ptr<const type_descriptor_t> _data_type;
+            managed_ptr_t<const type_descriptor_t> _data_type;
             data_transfer_func_t _data_transfer;
 
             vm_array_t *_data_buffer;
@@ -565,12 +609,12 @@ namespace disvm
             // See exceptions in Limbo language for details.
             word_t exception_type_count;
 
-            std::shared_ptr<const type_descriptor_t> type_desc;
+            managed_ptr_t<const type_descriptor_t> type_desc;
             std::vector<exception_entry_t> exception_table;
         };
 
         using code_section_t = std::vector<vm_instruction_t>;
-        using type_section_map_t = std::vector<std::shared_ptr<const type_descriptor_t>>;
+        using type_section_map_t = std::vector<managed_ptr_t<const type_descriptor_t>>;
         using export_section_t = std::unordered_multimap<word_t, const export_function_t>;
         using import_section_t = std::vector<import_vm_module_t>;
         using handler_section_t = std::vector<handler_entry_t>;
@@ -626,7 +670,7 @@ namespace disvm
         class vm_module_ref_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
         public:
             vm_module_ref_t(std::shared_ptr<const vm_module_t> module);
@@ -650,10 +694,10 @@ namespace disvm
         class vm_frame_t final
         {
         public:
-            vm_frame_t(std::shared_ptr<const type_descriptor_t> frame_type);
+            vm_frame_t(managed_ptr_t<const type_descriptor_t> frame_type);
             ~vm_frame_t();
 
-            std::shared_ptr<const type_descriptor_t> frame_type;
+            managed_ptr_t<const type_descriptor_t> frame_type;
 
             // Copy the frame contents
             void copy_frame_contents(const vm_frame_t &other);
@@ -691,7 +735,7 @@ namespace disvm
             ~vm_stack_t();
 
             // Allocate a new frame instance.
-            vm_frame_t *alloc_frame(std::shared_ptr<const type_descriptor_t> frame_type);
+            vm_frame_t *alloc_frame(managed_ptr_t<const type_descriptor_t> frame_type);
 
             // Push the latest allocated frame as the new top frame.
             vm_frame_t *push_frame();
@@ -785,7 +829,7 @@ namespace disvm
         class vm_thread_t final : public vm_alloc_t
         {
         public: //static
-            static std::shared_ptr<const type_descriptor_t> type_desc();
+            static managed_ptr_t<const type_descriptor_t> type_desc();
 
         public:
             vm_thread_t(

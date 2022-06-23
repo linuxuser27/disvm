@@ -12,6 +12,7 @@
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::pointer_t;
 using disvm::runtime::type_descriptor_t;
@@ -19,19 +20,19 @@ using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_list_t;
 using disvm::runtime::word_t;
 
-std::shared_ptr<const type_descriptor_t> vm_list_t::type_desc()
+managed_ptr_t<const type_descriptor_t> vm_list_t::type_desc()
 {
     return intrinsic_type_desc::type<vm_list_t>();
 }
 
-vm_list_t::vm_list_t(std::shared_ptr<const type_descriptor_t> td, vm_list_t *tail)
+vm_list_t::vm_list_t(managed_ptr_t<const type_descriptor_t> td, vm_list_t *tail)
     : vm_alloc_t(vm_list_t::type_desc())
     , _is_alloc{ sizeof(_mem) < td->size_in_bytes }
     , _mem{}
+    , _element_type{ std::move(td) }
     , _tail{ nullptr }
 {
-    _element_type = std::move(td);
-    assert(_element_type != nullptr);
+    assert(_element_type.is_valid());
     set_tail(tail);
 
     // If the default list element storage is not enough, allocate more memory.
@@ -66,7 +67,7 @@ vm_list_t::~vm_list_t()
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm list");
 }
 
-std::shared_ptr<const type_descriptor_t> vm_list_t::get_element_type() const
+managed_ptr_t<const type_descriptor_t> vm_list_t::get_element_type() const
 {
     return _element_type;
 }
@@ -93,7 +94,7 @@ void vm_list_t::set_tail(vm_list_t *new_tail)
 {
     if (new_tail != nullptr)
     {
-        if (!new_tail->get_element_type()->is_equal(_element_type.get()))
+        if (!new_tail->get_element_type()->is_equal(_element_type))
             throw type_violation{};
 
         new_tail->add_ref();

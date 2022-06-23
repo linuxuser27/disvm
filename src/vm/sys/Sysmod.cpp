@@ -29,6 +29,7 @@ using disvm::runtime::dereference_nil;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::out_of_range_memory;
 using disvm::runtime::pointer_t;
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
@@ -95,11 +96,11 @@ namespace
 
     const word_t Sysmodlen = 43;
 
-    std::shared_ptr<const type_descriptor_t> T_Qid;
-    std::shared_ptr<const type_descriptor_t> T_Dir;
-    std::shared_ptr<const type_descriptor_t> T_FD;
-    std::shared_ptr<const type_descriptor_t> T_Connection;
-    std::shared_ptr<const type_descriptor_t> T_FileIO;
+    managed_ptr_t<const type_descriptor_t> T_Qid;
+    managed_ptr_t<const type_descriptor_t> T_Dir;
+    managed_ptr_t<const type_descriptor_t> T_FD;
+    managed_ptr_t<const type_descriptor_t> T_Connection;
+    managed_ptr_t<const type_descriptor_t> T_FileIO;
 
     class Sys_FD_Impl final : public Sys_FD
     {
@@ -808,7 +809,7 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
     if (alloc_d == nullptr)
         throw dereference_nil{ "Destination in stream" };
 
-    assert(alloc_s->alloc_type->is_equal(T_FD.get()) && alloc_d->alloc_type->is_equal(T_FD.get()));
+    assert(alloc_s->alloc_type->is_equal(T_FD) && alloc_d->alloc_type->is_equal(T_FD));
     auto src = alloc_s->get_allocation<Sys_FD_Impl>()->impl;
     auto dst = alloc_d->get_allocation<Sys_FD_Impl>()->impl;
 

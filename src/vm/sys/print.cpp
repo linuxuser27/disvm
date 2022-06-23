@@ -167,14 +167,14 @@ word_t disvm::runtime::sys::printf_to_buffer(
                 auto p = *reinterpret_cast<pointer_t *>(msg_args);
                 auto alloc = vm_alloc_t::from_allocation(p);
                 auto rc = static_cast<std::size_t>(-1);
-                const void *type_alloc = nullptr;
+                std::intptr_t type_alloc = 0;
                 if (alloc != nullptr)
                 {
                     rc = alloc->get_ref_count();
-                    type_alloc = alloc->alloc_type.get();
+                    type_alloc = static_cast<std::intptr_t>(alloc->alloc_type);
                 }
 
-                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIuPTR ".%#08" PRIxPTR, static_cast<std::uintptr_t>(rc), reinterpret_cast<std::uintptr_t>(type_alloc));
+                wb = std::snprintf(b_curr, (b_end - b_curr), "%" PRIuPTR ".%#08" PRIxPTR, static_cast<std::uintptr_t>(rc), type_alloc);
                 msg_args += sizeof(p);
                 break;
             }

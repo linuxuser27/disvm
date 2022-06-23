@@ -384,8 +384,8 @@ Math_dot(vm_registers_t &r, vm_t &vm)
     if (xs == nullptr || ys == nullptr)
         throw dereference_nil{ "dot product" };
 
-    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
-    assert(ys->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
+    assert(ys->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto x_len = xs->get_length();
     if (x_len != ys->get_length())
         throw vm_user_exception{ "Array lengths must be equal" };
@@ -434,10 +434,10 @@ Math_export_int(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_export_int>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>()));
     const auto values_len = values->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(word_t) * values_len))
@@ -462,10 +462,10 @@ Math_export_real(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto values_len = values->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(real_t) * values_len))
@@ -497,10 +497,10 @@ Math_export_real32(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_export_real32>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto values = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto values_len = values->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(float) * values_len))
@@ -616,9 +616,9 @@ Math_gemm(vm_registers_t &r, vm_t &vm)
     if (c_v == nullptr)
         throw dereference_nil{ "gemm - c" };
 
-    assert(a_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
-    assert(b_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
-    assert(c_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(a_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
+    assert(b_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
+    assert(c_v->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
 
     const auto a_len = a_v->get_length();
     const auto b_len = b_v->get_length();
@@ -672,7 +672,7 @@ Math_iamax(vm_registers_t &r, vm_t &vm)
     *fp.ret = -1;
 
     auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     if (result->get_length() <= 0)
         return;
 
@@ -707,10 +707,10 @@ Math_import_int(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_import_int>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>()));
     const auto result_len = result->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(word_t) * result_len))
@@ -734,10 +734,10 @@ Math_import_real(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_import_real>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto result_len = result->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(real_t) * result_len))
@@ -764,10 +764,10 @@ Math_import_real32(vm_registers_t &r, vm_t &vm)
     auto &fp = r.stack.peek_frame()->base<F_Math_import_real32>();
 
     auto buffer = vm_alloc_t::from_allocation<vm_array_t>(fp.b);
-    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>().get()));
+    assert(buffer->get_element_type()->is_equal(intrinsic_type_desc::type<byte_t>()));
 
     auto result = vm_alloc_t::from_allocation<vm_array_t>(fp.x);
-    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto result_len = result->get_length();
 
     if (static_cast<size_t>(buffer->get_length()) != (sizeof(float) * result_len))
@@ -881,7 +881,7 @@ Math_norm1(vm_registers_t &r, vm_t &vm)
     if (xs == nullptr)
         throw dereference_nil{ "norm1" };
 
-    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
 
     const auto x_len = xs->get_length();
     auto x_raw = reinterpret_cast<real_t *>(xs->at(0));
@@ -903,7 +903,7 @@ Math_norm2(vm_registers_t &r, vm_t &vm)
     if (xs == nullptr)
         throw dereference_nil{ "norm2" };
 
-    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
+    assert(xs->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
 
     const auto x_len = xs->get_length();
     auto x_raw = reinterpret_cast<real_t *>(xs->at(0));
@@ -1002,8 +1002,8 @@ Math_sort(vm_registers_t &r, vm_t &vm)
     if (reals == nullptr || words == nullptr)
         throw dereference_nil{ "Sort reals" };
 
-    assert(reals->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>().get()));
-    assert(words->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>().get()));
+    assert(reals->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
+    assert(words->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>()));
 
     const auto words_len = words->get_length();
     if (reals->get_length() != words_len)

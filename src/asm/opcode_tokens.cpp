@@ -191,13 +191,13 @@ namespace
     };
 
     // Verify the length of the opcode strings array against the total number of opcodes.
-    static_assert((sizeof(opcode_tokens) / sizeof(opcode_tokens[0])) == (static_cast<std::size_t>(disvm::opcode_t::last_opcode) + 1), "Missing opcode string");
+    static_assert(disvm::util::array_length(opcode_tokens) == (static_cast<std::size_t>(disvm::opcode_t::last_opcode) + 1), "Missing opcode string");
 }
 
 const char *disvm::assembly::opcode_to_token(disvm::opcode_t o)
 {
     const auto opcode_index = static_cast<std::size_t>(o);
-    assert(opcode_index < (sizeof(opcode_tokens) / sizeof(opcode_tokens[0])));
+    assert(opcode_index < disvm::util::array_length(opcode_tokens));
     return opcode_tokens[opcode_index];
 }
 
@@ -208,7 +208,7 @@ disvm::opcode_t disvm::assembly::token_to_opcode(const char *t)
         return opcode_t::invalid;
 
     // [PERF] Linear search for the token could be improved, but the array storage would need to be reconsidered.
-    for (auto i = std::size_t{ 0 }; i < (sizeof(opcode_tokens) / sizeof(opcode_tokens[0])); ++i)
+    for (auto i = std::size_t{ 0 }; i < disvm::util::array_length(opcode_tokens); ++i)
     {
         if (std::strcmp(opcode_tokens[i], t) == 0)
             return static_cast<disvm::opcode_t>(i);

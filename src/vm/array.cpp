@@ -12,6 +12,7 @@
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::pointer_t;
 using disvm::runtime::type_descriptor_t;
@@ -20,19 +21,19 @@ using disvm::runtime::vm_array_t;
 using disvm::runtime::vm_string_t;
 using disvm::runtime::word_t;
 
-std::shared_ptr<const type_descriptor_t> vm_array_t::type_desc()
+managed_ptr_t<const type_descriptor_t> vm_array_t::type_desc()
 {
     return intrinsic_type_desc::type<vm_array_t>();
 }
 
-vm_array_t::vm_array_t(std::shared_ptr<const type_descriptor_t> td, word_t length)
+vm_array_t::vm_array_t(managed_ptr_t<const type_descriptor_t> td, word_t length)
     : vm_alloc_t(vm_array_t::type_desc())
     , _arr{ nullptr }
     , _element_type{ std::move(td) }
     , _length{ length }
     , _original{ nullptr }
 {
-    assert(_element_type != nullptr);
+    assert(_element_type.is_valid());
     assert(_length >= 0);
     _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
     disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm array: %d", _length);
@@ -125,7 +126,7 @@ vm_array_t::~vm_array_t()
 
 }
 
-std::shared_ptr<const type_descriptor_t> vm_array_t::get_element_type() const
+managed_ptr_t<const type_descriptor_t> vm_array_t::get_element_type() const
 {
     return _element_type;
 }
@@ -148,7 +149,7 @@ void vm_array_t::copy_from(const vm_array_t &source, word_t this_begin_index)
     if (this_begin_index < 0 || _length < (this_begin_index + source._length))
         throw out_of_range_memory{};
 
-    if (!source._element_type->is_equal(_element_type.get()))
+    if (!source._element_type->is_equal(_element_type))
         throw type_violation{};
 
     auto dest_arr = _arr + (this_begin_index * _element_type->size_in_bytes);

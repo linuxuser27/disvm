@@ -12,6 +12,7 @@
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
@@ -31,13 +32,13 @@ vm_channel_request_t::vm_channel_request_t(uint32_t thread_id, vm_request_mutex_
     , thread_id{ thread_id }
 { }
 
-std::shared_ptr<const type_descriptor_t> vm_channel_t::type_desc()
+managed_ptr_t<const type_descriptor_t> vm_channel_t::type_desc()
 {
     return intrinsic_type_desc::type<vm_channel_t>();
 }
 
 vm_channel_t::vm_channel_t(
-    std::shared_ptr<const type_descriptor_t> td,
+    managed_ptr_t<const type_descriptor_t> td,
     data_transfer_func_t transfer,
     word_t buffer_len)
     : vm_alloc_t(vm_channel_t::type_desc())
@@ -62,7 +63,7 @@ vm_channel_t::~vm_channel_t()
     disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm channel");
 }
 
-std::shared_ptr<const type_descriptor_t> vm_channel_t::get_data_type() const
+managed_ptr_t<const type_descriptor_t> vm_channel_t::get_data_type() const
 {
     return _data_type;
 }
@@ -124,7 +125,7 @@ bool vm_channel_t::send_data(vm_channel_request_t &send_request)
     _data_receivers.pop_front();
 
     // Transfer data
-    _data_transfer(receiver.data, send_request.data, _data_type.get());
+    _data_transfer(receiver.data, send_request.data, _data_type);
 
     // Release channel and pending request lock after data transfer
     pending_req_lock.unlock();
@@ -207,7 +208,7 @@ bool vm_channel_t::receive_data(vm_channel_request_t &receive_request)
     else
     {
         // Transfer data since there wasn't anything in the buffer
-        _data_transfer(receive_request.data, sender.data, _data_type.get());
+        _data_transfer(receive_request.data, sender.data, _data_type);
 
         if (disvm::debug::is_component_tracing_enabled<component_trace_t::channel>())
             disvm::debug::log_msg(component_trace_t::channel, log_level_t::debug, "channel: receive: %d %d", receive_request.thread_id, sender.thread_id);
@@ -272,7 +273,7 @@ bool vm_channel_t::try_send_to_buffer(vm_channel_request_t &send_request)
     auto dest = _data_buffer->at(next_buffer_index);
 
     // Transfer data to buffer
-    _data_transfer(dest, send_request.data, _data_type.get());
+    _data_transfer(dest, send_request.data, _data_type);
     send_request.request_mutex.get().pending_request = false;
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::channel>())
@@ -298,7 +299,7 @@ bool vm_channel_t::try_receive_from_buffer(vm_channel_request_t &receive_request
     _data_buffer_count--;
 
     // Transfer data from buffer
-    _data_transfer(receive_request.data, src, _data_type.get());
+    _data_transfer(receive_request.data, src, _data_type);
 
     receive_request.request_mutex.get().pending_request = false;
 

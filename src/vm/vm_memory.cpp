@@ -16,12 +16,14 @@
 #include <vm_memory.hpp>
 #include <debug.hpp>
 #include <exceptions.hpp>
+#include "utils.hpp"
 
 using disvm::vm_t;
 
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::byte_t;
@@ -163,9 +165,9 @@ void vm_alloc_t::operator delete(void *ptr)
     free_memory(ptr);
 }
 
-vm_alloc_t *vm_alloc_t::allocate(std::shared_ptr<const type_descriptor_t> td)
+vm_alloc_t *vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t> td)
 {
-    assert(td != nullptr);
+    assert(td.is_valid());
     const auto type_size_in_bytes = td->size_in_bytes;
     if (type_size_in_bytes <= 0)
         throw vm_system_exception{ "Invalid dynamic memory allocation size" };
@@ -193,12 +195,12 @@ vm_alloc_t *vm_alloc_t::copy(const vm_alloc_t &other)
     return alloc_copy;
 }
 
-vm_alloc_t::vm_alloc_t(std::shared_ptr<const type_descriptor_t> td)
+vm_alloc_t::vm_alloc_t(managed_ptr_t<const type_descriptor_t> td)
     : alloc_type{ std::move(td) }
     , gc_reserved{ nullptr }
     , _ref_count{ 1 }
 {
-    assert(alloc_type != nullptr);
+    assert(alloc_type.is_valid());
 }
 
 vm_alloc_t::~vm_alloc_t()
@@ -256,7 +258,7 @@ namespace
         TYPE_DESC(big, sizeof(big_t), 0, nullptr, type_descriptor_t::no_finalizer);
 
         const byte_t pointer_map[] = { 0x80 };
-        TYPE_DESC(pointer, sizeof(pointer_t), (sizeof(pointer_map) / sizeof(pointer_map[0])), pointer_map, type_descriptor_t::no_finalizer);
+        TYPE_DESC(pointer, sizeof(pointer_t), disvm::util::array_length(pointer_map), pointer_map, type_descriptor_t::no_finalizer);
 
         TYPE_DESC(vm_array, 0, 0, nullptr, type_descriptor_t::no_finalizer);
         TYPE_DESC(vm_list, 0, 0, nullptr, type_descriptor_t::no_finalizer);
@@ -268,147 +270,139 @@ namespace
         TYPE_DESC(vm_thread, 0, 0, nullptr, type_descriptor_t::no_finalizer);
 
 #undef TYPE_DESC
-
-        struct
-        {
-            void operator()(const type_descriptor_t *)
-            {
-                // Not allocated on heap
-            }
-        } deleter;
     }
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<byte_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<byte_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::byte, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::byte };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::short_word, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::short_word };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<word_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<word_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::word, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::word };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::short_real, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::short_real };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<real_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<real_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::real, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::real };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<big_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<big_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::big, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::big };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::pointer, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::pointer };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_array, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_array };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_list, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_list };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_channel, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_channel };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_string, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_string };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_module_ref, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_module_ref };
     return t;
 }
 
 template<>
-std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_stack, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_stack };
     return t;
 }
 
 template<>
- std::shared_ptr<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
+ managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
 {
-    static std::shared_ptr<const type_descriptor_t> t = { &hidden_type_desc::vm_thread, hidden_type_desc::deleter };
+    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_thread };
     return t;
 }
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;
 
-std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes)
+managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes)
 {
     return type_descriptor_t::create(size_in_bytes, 0, nullptr);
 }
 
-std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map)
+managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map)
 {
     assert(pointer_map.size() < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
     return type_descriptor_t::create(size_in_bytes, static_cast<word_t>(pointer_map.size()), pointer_map.data());
 }
 
-std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
+managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(
     const word_t size_in_bytes,
     const word_t pointer_map_length,
     const byte_t *pointer_map,
     const vm_alloc_instance_finalizer_t finalizer)
 {
-    struct
-    {
-        void operator()(type_descriptor_t *td)
-        {
-            free_memory(const_cast<byte_t *>(td->pointer_map));
-            debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
+    //struct
+    //{
+    //    void operator()(type_descriptor_t *td)
+    //    {
+    //        free_memory(const_cast<byte_t *>(td->pointer_map));
+    //        debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
 
-            if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
-                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: type descriptor");
+    //        if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+    //            disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: type descriptor");
 
-            free_memory(td);
-        }
-    } deleter;
+    //        free_memory(td);
+    //    }
+    //} deleter;
 
     auto new_type_memory = alloc_memory(sizeof(type_descriptor_t));
 
@@ -421,7 +415,7 @@ std::shared_ptr<const type_descriptor_t> type_descriptor_t::create(
     }
 
     auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer, "?" };
-    return std::shared_ptr<type_descriptor_t>{ new_type, deleter };
+    return managed_ptr_t<const type_descriptor_t>{ new_type };
 }
 
 type_descriptor_t::type_descriptor_t(
@@ -443,18 +437,15 @@ type_descriptor_t::type_descriptor_t(
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: type descriptor");
 }
 
-bool type_descriptor_t::is_equal(const type_descriptor_t *other) const
+bool type_descriptor_t::is_equal(managed_ptr_t<const type_descriptor_t> const &other) const
 {
-    if (other == nullptr)
-        return false;
-
-    if (this == other)
+    if (reinterpret_cast<std::intptr_t>(this) == static_cast<std::intptr_t>(other))
         return true;
 
-    bool equal = size_in_bytes == other->size_in_bytes;
-    equal = equal && map_in_bytes == other->map_in_bytes;
-    equal = equal && 0 == std::memcmp(pointer_map, other->pointer_map, map_in_bytes);
-    equal = equal && finalizer == other->finalizer;
+    bool equal = size_in_bytes == other->size_in_bytes
+        && map_in_bytes == other->map_in_bytes
+        && 0 == std::memcmp(pointer_map, other->pointer_map, map_in_bytes)
+        && finalizer == other->finalizer;
 
     return equal;
 }

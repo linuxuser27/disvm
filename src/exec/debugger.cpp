@@ -22,6 +22,7 @@ using disvm::vm_t;
 using disvm::loaded_vm_module_t;
 using disvm::opcode_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::word_t;
@@ -219,7 +220,7 @@ namespace
         return register_string.str();
     }
 
-    std::ostream& operator<<(std::ostream &ss, const std::shared_ptr<const type_descriptor_t> &t)
+    std::ostream& operator<<(std::ostream &ss, const managed_ptr_t<const type_descriptor_t> &t)
     {
         ss << "size: " << t->size_in_bytes;
 
@@ -795,7 +796,7 @@ namespace
         if (a.size() < 3)
             throw debug_cmd_error_t{ "Invalid number of arguments" };
 
-        std::shared_ptr<const type_descriptor_t> base_type;
+        managed_ptr_t<const type_descriptor_t> base_type;
         word_t *base_pointer;
         auto &base_ptr_id = a[1];
         if (base_ptr_id.compare("mp") == 0)
@@ -817,7 +818,7 @@ namespace
             throw debug_cmd_error_t{ "Invalid memory base pointer" };
         }
 
-        assert(base_type != nullptr && base_pointer != nullptr);
+        assert(base_type.is_valid() && base_pointer != nullptr);
 
         const auto pointer_size = static_cast<int>(sizeof(pointer_t));
         auto byte_offset1 = int{ 0 };
@@ -1012,7 +1013,7 @@ namespace
         { "tlk~*", nullptr, nullptr, nullptr, cmd_tlk_tilde_star }
     };
 
-    const auto cmds_length = sizeof(cmds) / sizeof(cmds[0]);
+    const auto cmds_length = disvm::util::array_length(cmds);
 
     dbg_cmd_exec_t find_cmd(const std::string &cmd_maybe)
     {

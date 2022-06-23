@@ -22,6 +22,7 @@ using disvm::opcode_t;
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::word_t;
 using disvm::runtime::pointer_t;
@@ -125,7 +126,7 @@ void disvm::runtime::walk_stack(const vm_registers_t &r, vm_stack_walk_callback_
     }
 }
 
-std::shared_ptr<const type_descriptor_t> vm_thread_t::type_desc()
+managed_ptr_t<const type_descriptor_t> vm_thread_t::type_desc()
 {
     return intrinsic_type_desc::type<vm_thread_t>();
 }

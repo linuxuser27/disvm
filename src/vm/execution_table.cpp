@@ -499,13 +499,13 @@ namespace
     //
 
     template<typename PrimitiveType>
-    void _mov_(pointer_t dest, pointer_t src, const type_descriptor_t *)
+    void _mov_(pointer_t dest, pointer_t src, managed_ptr_t<const type_descriptor_t>)
     {
         vt_ref<PrimitiveType>(dest) = vt_ref<PrimitiveType>(src);
     }
 
     template<>
-    void _mov_<vm_alloc_t>(pointer_t dest, pointer_t src, const type_descriptor_t *)
+    void _mov_<vm_alloc_t>(pointer_t dest, pointer_t src, managed_ptr_t<const type_descriptor_t>)
     {
         auto alloc_prev = at_val<vm_alloc_t>(dest);
         auto alloc = at_val<vm_alloc_t>(src);
@@ -520,11 +520,11 @@ namespace
         dec_ref_count_and_free(alloc_prev);
     }
 
-    EXEC_DECL(movb) { _mov_<byte_t>(r.dest, r.src, nullptr); }
-    EXEC_DECL(movw) { _mov_<word_t>(r.dest, r.src, nullptr); }
-    EXEC_DECL(movf) { _mov_<real_t>(r.dest, r.src, nullptr); }
-    EXEC_DECL(movl) { _mov_<big_t>(r.dest, r.src, nullptr); }
-    EXEC_DECL(movp) { _mov_<vm_alloc_t>(r.dest, r.src, nullptr); }
+    EXEC_DECL(movb) { _mov_<byte_t>(r.dest, r.src, {}); }
+    EXEC_DECL(movw) { _mov_<word_t>(r.dest, r.src, {}); }
+    EXEC_DECL(movf) { _mov_<real_t>(r.dest, r.src, {}); }
+    EXEC_DECL(movl) { _mov_<big_t>(r.dest, r.src, {}); }
+    EXEC_DECL(movp) { _mov_<vm_alloc_t>(r.dest, r.src, {}); }
 
     EXEC_DECL(movm)
     {
@@ -1047,15 +1047,13 @@ namespace
 
     namespace
     {
-        void _channel_movm(pointer_t dest, pointer_t src, const type_descriptor_t *type)
+        void _channel_movm(pointer_t dest, pointer_t src, managed_ptr_t<const type_descriptor_t>type)
         {
-            assert(type != nullptr);
             std::memmove(dest, src, type->size_in_bytes);
         }
 
-        void _channel_movmp(pointer_t dest, pointer_t src, const type_descriptor_t *type)
+        void _channel_movmp(pointer_t dest, pointer_t src, managed_ptr_t<const type_descriptor_t>type)
         {
-            assert(type != nullptr);
             destroy_memory(*type, dest);
 
             inc_ref_count_in_memory(*type, src);
@@ -1073,7 +1071,7 @@ namespace
         void _newc_(
             vm_registers_t &r,
             const vm_t &vm,
-            std::shared_ptr<const type_descriptor_t> type_desc,
+            managed_ptr_t<const type_descriptor_t> type_desc,
             vm_channel_t::data_transfer_func_t transfer)
         {
             auto buffer_len = word_t{ 0 };
@@ -1418,7 +1416,7 @@ namespace
         if (s == nullptr)
             return;
 
-        if (d == nullptr || !s->alloc_type->is_equal(d->alloc_type.get()))
+        if (d == nullptr || !s->alloc_type->is_equal(d->alloc_type))
             throw type_violation{};
     }
 
@@ -1763,7 +1761,7 @@ namespace
         }
 
         // Re-initialize the current frame
-        if (handler->type_desc != nullptr)
+        if (handler->type_desc.is_valid())
         {
             destroy_memory(*handler->type_desc, target_frame->base());
             init_memory(*handler->type_desc, target_frame->base());

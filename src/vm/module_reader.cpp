@@ -647,7 +647,7 @@ namespace
             {
                 assert(0 <= type_desc_number && type_desc_number < static_cast<operand_t>(modobj.type_section.size()));
                 handler.type_desc = modobj.type_section[type_desc_number];
-                assert(handler.type_desc != nullptr);
+                assert(handler.type_desc.is_valid());
             }
 
             auto handler_cases = operand_t{};
