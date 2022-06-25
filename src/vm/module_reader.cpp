@@ -31,6 +31,7 @@ using disvm::runtime::word_t;
 using disvm::runtime::real_t;
 using disvm::runtime::pointer_t;
 using disvm::runtime::runtime_flags_t;
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_module_t;
 using disvm::runtime::vm_alloc_t;
@@ -375,7 +376,17 @@ namespace
                 if (bytesRead != static_cast<uint32_t>(map_in_bytes)) throw module_reader_exception{ "Failed to read type pointer map" };
             }
 
-            modobj.type_section[desc_number] = std::move(type_descriptor_t::create(size, static_cast<word_t>(map_in_bytes), pointer_map.data()));
+            modobj.type_section[desc_number] = managed_ptr_t<const type_descriptor_t>
+            {
+                new type_descriptor_t
+                {
+                    size,
+                    static_cast<word_t>(map_in_bytes),
+                    pointer_map.data(),
+                    type_descriptor_t::no_finalizer,
+                    "adt"
+                }
+            };
         }
     }
 

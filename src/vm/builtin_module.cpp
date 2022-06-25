@@ -85,8 +85,17 @@ std::unique_ptr<vm_module_t> disvm::runtime::builtin::create_builtin_module(cons
         const auto &ex = module_runtime_table[i];
 
         // Type
-        auto frame_type = type_descriptor_t::create(ex.frame_size, ex.frame_pointer_count, ex.frame_pointer_map);
-        new_builtin->type_section.push_back(std::move(frame_type));
+        new_builtin->type_section.push_back(managed_ptr_t<const type_descriptor_t>
+        {
+            new type_descriptor_t
+            {
+                ex.frame_size,
+                ex.frame_pointer_count,
+                ex.frame_pointer_map,
+                type_descriptor_t::no_finalizer,
+                "adt"
+            }
+        });
 
         // Export
         auto item = export_function_t{};

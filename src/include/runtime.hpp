@@ -43,9 +43,6 @@ namespace disvm
         // VM memory management
         //
 
-        // Forward declaration
-        class vm_alloc_t;
-
         // Represents a pointer that is managed by the VM.
         template<typename T>
         class managed_ptr_t
@@ -90,58 +87,8 @@ namespace disvm
             T* _p;
         };
 
-        // Finalizer callback for allocations.
-        using vm_alloc_instance_finalizer_t = void(*)(vm_alloc_t *);
-
-        // VM type description
-        class type_descriptor_t final
-        {
-        public: // static
-            static vm_alloc_instance_finalizer_t no_finalizer;
-
-            // Create a type descriptor for type of the supplied size and pointers based on the supplied map.
-            static managed_ptr_t<const type_descriptor_t> create(
-                const word_t size_in_bytes,
-                const word_t pointer_map_length,
-                const byte_t *pointer_map,
-                vm_alloc_instance_finalizer_t finalizer = type_descriptor_t::no_finalizer);
-
-        public:
-            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer, const char *debug_name);
-            type_descriptor_t(type_descriptor_t const&) = delete;
-            type_descriptor_t(type_descriptor_t&&) = delete;
-            ~type_descriptor_t();
-
-            type_descriptor_t& operator=(type_descriptor_t const&) = delete;
-            type_descriptor_t& operator=(type_descriptor_t&&) = delete;
-
-            bool is_equal(managed_ptr_t<const type_descriptor_t> const&) const;
-
-            const byte_t* get_map() const;
-
-            const word_t size_in_bytes;
-            const word_t map_in_bytes;
-        private:
-            union
-            {
-                byte_t* p;
-                byte_t a[sizeof(pointer_t)];
-            } _pointer_map;
-        public:
-            const vm_alloc_instance_finalizer_t finalizer;
-#ifndef NDEBUG
-            const char *debug_type_name;
-#endif
-        };
-
-        // Access to type descriptors for VM intrinsic types
-        class intrinsic_type_desc final
-        {
-        public:
-            // Templated type descriptor getter
-            template<typename IntrinsicType>
-            static managed_ptr_t<const type_descriptor_t> type();
-        };
+        // Forward declaration
+        class type_descriptor_t;
 
         // VM memory allocation
         class vm_alloc_t
@@ -201,6 +148,55 @@ namespace disvm
 
         private:
             std::atomic<std::size_t> _ref_count;
+        };
+
+        // Finalizer callback for allocations.
+        using vm_alloc_instance_finalizer_t = void(*)(vm_alloc_t*);
+
+        // VM type description
+        class type_descriptor_t final : public vm_alloc_t
+        {
+        public: // static
+            static managed_ptr_t<const type_descriptor_t> type_desc();
+
+            static vm_alloc_instance_finalizer_t no_finalizer;
+
+        public:
+            // Create a type descriptor for type of the supplied size and pointers based on the supplied map.
+            type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t* pointer_map, vm_alloc_instance_finalizer_t finalizer, const char* debug_name);
+            type_descriptor_t(type_descriptor_t const&) = delete;
+            type_descriptor_t(type_descriptor_t&&) = delete;
+            ~type_descriptor_t();
+
+            type_descriptor_t& operator=(type_descriptor_t const&) = delete;
+            type_descriptor_t& operator=(type_descriptor_t&&) = delete;
+
+            bool is_equal(managed_ptr_t<const type_descriptor_t> const&) const;
+
+            const byte_t* get_map() const;
+
+            const word_t size_in_bytes;
+            const word_t map_in_bytes;
+        private:
+            union
+            {
+                byte_t* p;
+                byte_t a[sizeof(pointer_t)];
+            } _pointer_map;
+        public:
+            const vm_alloc_instance_finalizer_t finalizer;
+#ifndef NDEBUG
+            const char* debug_type_name;
+#endif
+        };
+
+        // Access to type descriptors for VM intrinsic types
+        class intrinsic_type_desc final
+        {
+        public:
+            // Templated type descriptor getter
+            template<typename IntrinsicType>
+            static managed_ptr_t<const type_descriptor_t> type();
         };
 
         //

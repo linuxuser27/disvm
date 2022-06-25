@@ -260,6 +260,8 @@ namespace
         const byte_t pointer_map[] = { 0x80 };
         TYPE_DESC(pointer, sizeof(pointer_t), disvm::util::array_length(pointer_map), pointer_map, type_descriptor_t::no_finalizer);
 
+        TYPE_DESC(type_descriptor, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+
         TYPE_DESC(vm_array, 0, 0, nullptr, type_descriptor_t::no_finalizer);
         TYPE_DESC(vm_list, 0, 0, nullptr, type_descriptor_t::no_finalizer);
         TYPE_DESC(vm_channel, 0, 0, nullptr, type_descriptor_t::no_finalizer);
@@ -316,6 +318,12 @@ managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
 }
 
 template<>
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<type_descriptor_t>()
+{
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::type_descriptor };
+}
+
+template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
 {
     return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_array };
@@ -359,15 +367,9 @@ template<>
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;
 
-managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(
-    const word_t size_in_bytes,
-    const word_t pointer_map_length,
-    const byte_t *pointer_map,
-    const vm_alloc_instance_finalizer_t finalizer)
+managed_ptr_t<const type_descriptor_t> type_descriptor_t::type_desc()
 {
-    auto new_type_memory = alloc_memory(sizeof(type_descriptor_t));
-    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map, finalizer, "?" };
-    return managed_ptr_t<const type_descriptor_t>{ new_type };
+    return intrinsic_type_desc::type<type_descriptor_t>();
 }
 
 type_descriptor_t::type_descriptor_t(
@@ -376,7 +378,8 @@ type_descriptor_t::type_descriptor_t(
     const byte_t * pointer_map,
     vm_alloc_instance_finalizer_t finalizer,
     const char *debug_name)
-    : size_in_bytes{ size_in_bytes }
+    : vm_alloc_t(type_desc())
+    , size_in_bytes{ size_in_bytes }
     , map_in_bytes{ map_in_bytes }
     , _pointer_map{}
     , finalizer{ finalizer }
