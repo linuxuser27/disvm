@@ -47,8 +47,8 @@ namespace
     {
         static managed_ptr_t<const type_descriptor_t> type_desc()
         {
-            static auto td = type_descriptor_t::create(0);
-            return td;
+            static const type_descriptor_t td{ 0, 0, nullptr, nullptr, "vm_stack_layout" };
+            return managed_ptr_t<const type_descriptor_t>{ &td };
         }
 
         vm_stack_layout(std::size_t stack_page_size)

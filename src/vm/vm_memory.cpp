@@ -137,10 +137,10 @@ bool disvm::runtime::is_offset_pointer(const type_descriptor_t &type_desc, std::
 
     assert(offset < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
     const auto byte_offset = static_cast<word_t>(offset / 8);
-
+    auto map = type_desc.get_map();
     if (byte_offset < type_desc.map_in_bytes)
     {
-        const auto words8 = type_desc.pointer_map[byte_offset];
+        const auto words8 = map[byte_offset];
         assert(sizeof(words8) == 1);
         if (words8 != 0)
         {
@@ -276,113 +276,88 @@ namespace
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<byte_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::byte };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::byte };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<short_word_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::short_word };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::short_word };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<word_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::word };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::word };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<short_real_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::short_real };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::short_real };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<real_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::real };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::real };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<big_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::big };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::big };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<pointer_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::pointer };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::pointer };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_array_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_array };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_array };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_list_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_list };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_list };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_channel_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_channel };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_channel };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_string_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_string };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_string };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_module_ref_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_module_ref };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_module_ref };
 }
 
 template<>
 managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_stack };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_stack };
 }
 
 template<>
  managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_thread };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_thread };
 }
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;
-
-managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes)
-{
-    return type_descriptor_t::create(size_in_bytes, 0, nullptr);
-}
-
-managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map)
-{
-    assert(pointer_map.size() < static_cast<std::size_t>(std::numeric_limits<word_t>::max()));
-    return type_descriptor_t::create(size_in_bytes, static_cast<word_t>(pointer_map.size()), pointer_map.data());
-}
 
 managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(
     const word_t size_in_bytes,
@@ -390,31 +365,8 @@ managed_ptr_t<const type_descriptor_t> type_descriptor_t::create(
     const byte_t *pointer_map,
     const vm_alloc_instance_finalizer_t finalizer)
 {
-    //struct
-    //{
-    //    void operator()(type_descriptor_t *td)
-    //    {
-    //        free_memory(const_cast<byte_t *>(td->pointer_map));
-    //        debug::assign_debug_pointer(const_cast<byte_t **>(&td->pointer_map));
-
-    //        if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
-    //            disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: type descriptor");
-
-    //        free_memory(td);
-    //    }
-    //} deleter;
-
     auto new_type_memory = alloc_memory(sizeof(type_descriptor_t));
-
-    byte_t *pointer_map_local = nullptr;
-    if (pointer_map_length > 0)
-    {
-        pointer_map_local = alloc_memory<byte_t>(pointer_map_length);
-        for (auto i = word_t{ 0 }; i < pointer_map_length; ++i)
-            pointer_map_local[i] = pointer_map[i];
-    }
-
-    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map_local, finalizer, "?" };
+    auto new_type = ::new(new_type_memory) type_descriptor_t{ size_in_bytes, pointer_map_length, pointer_map, finalizer, "?" };
     return managed_ptr_t<const type_descriptor_t>{ new_type };
 }
 
@@ -426,15 +378,42 @@ type_descriptor_t::type_descriptor_t(
     const char *debug_name)
     : size_in_bytes{ size_in_bytes }
     , map_in_bytes{ map_in_bytes }
-    , pointer_map{ pointer_map }
+    , _pointer_map{}
     , finalizer{ finalizer }
 #ifndef NDEBUG
     , debug_type_name{ debug_name }
 #endif
 {
+    if (map_in_bytes == 0)
+    {
+        // nop - map is zero initialized above
+    }
+    else if (map_in_bytes <= sizeof(_pointer_map))
+    {
+        std::memcpy(_pointer_map.a, pointer_map, map_in_bytes);
+    }
+    else
+    {
+        _pointer_map.p = alloc_memory<byte_t>(map_in_bytes);
+        for (auto i = word_t{ 0 }; i < map_in_bytes; ++i)
+            _pointer_map.p[i] = pointer_map[i];
+    }
+
     (void)debug_name;
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: type descriptor");
+}
+
+type_descriptor_t::~type_descriptor_t()
+{
+    if (map_in_bytes > sizeof(_pointer_map))
+    {
+        free_memory(_pointer_map.p);
+        debug::assign_debug_pointer(reinterpret_cast<byte_t**>(&_pointer_map));
+    }
+
+    if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: type descriptor");
 }
 
 bool type_descriptor_t::is_equal(managed_ptr_t<const type_descriptor_t> const &other) const
@@ -444,8 +423,13 @@ bool type_descriptor_t::is_equal(managed_ptr_t<const type_descriptor_t> const &o
 
     bool equal = size_in_bytes == other->size_in_bytes
         && map_in_bytes == other->map_in_bytes
-        && 0 == std::memcmp(pointer_map, other->pointer_map, map_in_bytes)
+        && 0 == std::memcmp(get_map(), other->get_map(), map_in_bytes)
         && finalizer == other->finalizer;
 
     return equal;
+}
+
+const byte_t* type_descriptor_t::get_map() const
+{
+    return map_in_bytes <= sizeof(_pointer_map) ? _pointer_map.a : _pointer_map.p;
 }

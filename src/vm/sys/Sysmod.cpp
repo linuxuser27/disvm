@@ -30,10 +30,12 @@ using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::out_of_range_memory;
 using disvm::runtime::pointer_t;
 using disvm::runtime::managed_ptr_t;
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
 using disvm::runtime::vm_list_t;
+using disvm::runtime::vm_module_t;
 using disvm::runtime::vm_string_t;
 using disvm::runtime::vm_syscall_exception;
 using disvm::runtime::vm_system_exception;
@@ -96,16 +98,10 @@ namespace
 
     const word_t Sysmodlen = 43;
 
-    managed_ptr_t<const type_descriptor_t> T_Qid;
-    managed_ptr_t<const type_descriptor_t> T_Dir;
-    managed_ptr_t<const type_descriptor_t> T_FD;
-    managed_ptr_t<const type_descriptor_t> T_Connection;
-    managed_ptr_t<const type_descriptor_t> T_FileIO;
-
     class Sys_FD_Impl final : public Sys_FD
     {
     public: // static
-        static void finalizer(vm_alloc_t *fileHandle)
+        static void finalizer(vm_alloc_t* fileHandle)
         {
             auto fd = fileHandle->get_allocation<Sys_FD_Impl>();
 
@@ -122,35 +118,10 @@ namespace
         }
 
         // The ref count of the supplied vm_fd_t instance is updated.
-        static vm_alloc_t * create_new(vm_fd_t *vm_fd)
-        {
-            assert(vm_fd != nullptr);
-            assert(vm_fd->get_ref_count() == 1 && "Should be a new FD");
-
-            auto alloc = vm_alloc_t::allocate(T_FD);
-            auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
-
-            fd_impl->fd = disvm::runtime::sys::create_fd_record(vm_fd);
-            fd_impl->impl = vm_fd;
-            vm_fd->add_ref();
-
-            return alloc;
-        }
+        static vm_alloc_t* create_new(vm_fd_t* vm_fd);
 
         // The ref count of the supplied vm_fd_t instance is _not_ altered.
-        static vm_alloc_t * create_existing(word_t fd, vm_fd_t *vm_fd)
-        {
-            assert(vm_fd != nullptr);
-            assert(fd >= 0);
-
-            auto alloc = vm_alloc_t::allocate(T_FD);
-            auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
-
-            fd_impl->fd = fd;
-            fd_impl->impl = vm_fd;
-
-            return alloc;
-        }
+        static vm_alloc_t* create_existing(word_t fd, vm_fd_t* vm_fd);
 
     public:
         ~Sys_FD_Impl()
@@ -165,6 +136,41 @@ namespace
     private:
         Sys_FD_Impl() = default;
     };
+
+    const type_descriptor_t T_Qid{ sizeof(Sys_Qid), sizeof(Sys_Qid_map), Sys_Qid_map, type_descriptor_t::no_finalizer, "T_Qid" };
+    const type_descriptor_t T_Dir{ sizeof(Sys_Dir), sizeof(Sys_Dir_map), Sys_Dir_map, type_descriptor_t::no_finalizer, "T_Dir" };
+    const type_descriptor_t T_FD{ sizeof(Sys_FD_Impl), sizeof(Sys_FD_map), Sys_FD_map, Sys_FD_Impl::finalizer, "T_FD" };
+    const type_descriptor_t T_Connection{ sizeof(Sys_Connection), sizeof(Sys_Connection_map), Sys_Connection_map, type_descriptor_t::no_finalizer, "T_Connection" };
+    const type_descriptor_t T_FileIO{ sizeof(Sys_FileIO), sizeof(Sys_FileIO_map), Sys_FileIO_map, type_descriptor_t::no_finalizer, "T_FileIO" };
+    
+    vm_alloc_t* Sys_FD_Impl::create_new(vm_fd_t* vm_fd)
+    {
+        assert(vm_fd != nullptr);
+        assert(vm_fd->get_ref_count() == 1 && "Should be a new FD");
+
+        auto alloc = vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t>{ &T_FD });
+        auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
+
+        fd_impl->fd = disvm::runtime::sys::create_fd_record(vm_fd);
+        fd_impl->impl = vm_fd;
+        vm_fd->add_ref();
+
+        return alloc;
+    }
+
+    vm_alloc_t* Sys_FD_Impl::create_existing(word_t fd, vm_fd_t* vm_fd)
+    {
+        assert(vm_fd != nullptr);
+        assert(fd >= 0);
+
+        auto alloc = vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t>{ &T_FD });
+        auto fd_impl = ::new(alloc->get_allocation())Sys_FD_Impl{};
+
+        fd_impl->fd = fd;
+        fd_impl->impl = vm_fd;
+
+        return alloc;
+    }
 
     // File descriptors for std streams.
     word_t fd_stdin = disvm::runtime::sys::vm_invalid_fd;
@@ -235,15 +241,15 @@ namespace
     }
 }
 
-void
-Sysmodinit(void)
+std::unique_ptr<vm_module_t> Sysmodinit()
 {
-    disvm::runtime::builtin::register_module_exports(Sys_PATH, Sysmodlen, Sysmodtab);
-    T_Qid = type_descriptor_t::create(sizeof(Sys_Qid), sizeof(Sys_Qid_map), Sys_Qid_map);
-    T_Dir = type_descriptor_t::create(sizeof(Sys_Dir), sizeof(Sys_Dir_map), Sys_Dir_map);
-    T_FD = type_descriptor_t::create(sizeof(Sys_FD_Impl), sizeof(Sys_FD_map), Sys_FD_map, Sys_FD_Impl::finalizer);
-    T_Connection = type_descriptor_t::create(sizeof(Sys_Connection), sizeof(Sys_Connection_map), Sys_Connection_map);
-    T_FileIO = type_descriptor_t::create(sizeof(Sys_FileIO), sizeof(Sys_FileIO_map), Sys_FileIO_map);
+    auto mod = disvm::runtime::builtin::create_builtin_module(Sys_PATH, Sysmodlen, Sysmodtab);
+
+    mod->type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &T_Qid });
+    mod->type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &T_Dir });
+    mod->type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &T_FD });
+    mod->type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &T_Connection });
+    mod->type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &T_FileIO });
 
     // Initialize default file descriptors
     auto std_streams = disvm::runtime::sys::get_std_streams();
@@ -262,6 +268,8 @@ Sysmodinit(void)
     fd_stderr = disvm::runtime::sys::create_fd_record(std_streams.error);
     assert(fd_stderr == 2);
     disvm::debug::log_msg(component_trace_t::builtin, log_level_t::debug, "sys: stderr: %d", fd_stderr);
+
+    return mod;
 }
 
 void
@@ -530,7 +538,7 @@ Sys_fprint(vm_registers_t &r, vm_t &vm)
     auto fp_base = r.stack.peek_frame()->base();
     auto &fp = r.stack.peek_frame()->base<F_Sys_fprint>();
     auto fd_alloc = vm_alloc_t::from_allocation(fp.fd);
-    assert(fd_alloc->alloc_type == T_FD);
+    assert(fd_alloc->alloc_type == managed_ptr_t<const type_descriptor_t>{ &T_FD });
     auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
     auto str = vm_alloc_t::from_allocation<vm_string_t>(fp.s);
     if (str == nullptr)
@@ -704,7 +712,7 @@ Sys_read(vm_registers_t &r, vm_t &vm)
     if (fd_alloc == nullptr)
         throw dereference_nil{ "Read from file descriptor" };
 
-    assert(fd_alloc->alloc_type == T_FD);
+    assert(fd_alloc->alloc_type == managed_ptr_t<const type_descriptor_t>{ &T_FD });
 
     auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
     *fp.ret = fd->impl->read(vm, n, buffer->at(0));
@@ -739,7 +747,7 @@ Sys_seek(vm_registers_t &r, vm_t &vm)
     if (fd_alloc == nullptr)
         throw dereference_nil{ "Seek in file descriptor" };
 
-    assert(fd_alloc->alloc_type == T_FD);
+    assert(fd_alloc->alloc_type == managed_ptr_t<const type_descriptor_t>{ &T_FD });
     auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
 
     const auto start = convert_to_seekdir(fp.start);
@@ -809,7 +817,8 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
     if (alloc_d == nullptr)
         throw dereference_nil{ "Destination in stream" };
 
-    assert(alloc_s->alloc_type->is_equal(T_FD) && alloc_d->alloc_type->is_equal(T_FD));
+    assert(alloc_s->alloc_type->is_equal(managed_ptr_t<const type_descriptor_t>{ &T_FD })
+        && alloc_d->alloc_type->is_equal(managed_ptr_t<const type_descriptor_t>{ &T_FD }));
     auto src = alloc_s->get_allocation<Sys_FD_Impl>()->impl;
     auto dst = alloc_d->get_allocation<Sys_FD_Impl>()->impl;
 
@@ -1021,7 +1030,7 @@ Sys_write(vm_registers_t &r, vm_t &vm)
     if (fd_alloc == nullptr)
         throw dereference_nil{ "Write to file descriptor" };
 
-    assert(fd_alloc->alloc_type == T_FD);
+    assert(fd_alloc->alloc_type == managed_ptr_t<const type_descriptor_t>{ &T_FD });
 
     auto fd = fd_alloc->get_allocation<Sys_FD_Impl>();
     fd->impl->write(vm, n, buffer->at(0));

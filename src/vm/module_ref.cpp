@@ -32,8 +32,8 @@ namespace
 {
     std::unique_ptr<vm_array_t> resolve_imports(const export_section_t &exports, const import_vm_module_t &imports)
     {
-        static auto function_ref_type_desc = type_descriptor_t::create(sizeof(vm_module_function_ref_t), std::vector<byte_t>{});
-        auto refs = std::make_unique<vm_array_t>(function_ref_type_desc, imports.functions.size());
+        static const type_descriptor_t function_ref_type_desc{ sizeof(vm_module_function_ref_t), 0, nullptr, nullptr, "vm_module_function_ref_t" };
+        auto refs = std::make_unique<vm_array_t>(managed_ptr_t<const type_descriptor_t>{ &function_ref_type_desc }, imports.functions.size());
 
         for (auto index = std::size_t{ 0 }; index < imports.functions.size(); ++index)
         {

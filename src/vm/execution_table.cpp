@@ -1103,7 +1103,7 @@ namespace
     EXEC_DECL(newcm)
     {
         auto memory_size = vt_ref<word_t>(r.src);
-        auto channel_data_type = type_descriptor_t::create(memory_size);
+        auto channel_data_type = type_descriptor_t::create(memory_size, 0, nullptr);
 
         _newc_(r, vm, std::move(channel_data_type), _channel_movm);
     }

@@ -60,9 +60,10 @@ namespace disvm
             assert(data != nullptr);
 
             auto memory = reinterpret_cast<word_t *>(data);
+            auto map = type_desc.get_map();
             for (auto i = word_t{ 0 }; i < type_desc.map_in_bytes; ++i, memory += 8)
             {
-                const auto words8 = type_desc.pointer_map[i];
+                const auto words8 = map[i];
                 assert(sizeof(words8) == 1);
                 if (words8 == 0)
                     continue;

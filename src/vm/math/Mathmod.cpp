@@ -29,6 +29,7 @@ using disvm::runtime::out_of_range_memory;
 using disvm::runtime::real_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
+using disvm::runtime::vm_module_t;
 using disvm::runtime::vm_user_exception;
 using disvm::runtime::vm_system_exception;
 using disvm::runtime::word_t;
@@ -209,10 +210,9 @@ namespace
     }
 }
 
-void
-Mathmodinit(void)
+std::unique_ptr<vm_module_t> Mathmodinit()
 {
-    disvm::runtime::builtin::register_module_exports(Math_PATH, Mathmodlen, Mathmodtab);
+    auto mod = disvm::runtime::builtin::create_builtin_module(Math_PATH, Mathmodlen, Mathmodtab);
 
     // Inferno floating point flags (http://www.vitanuova.com/inferno/man/2/math-fp.html)
     set_fp_control_flags(
@@ -220,6 +220,8 @@ Mathmodinit(void)
         FE_ALL_EXCEPT,
         FE_TONEAREST,  // Round to nearest even
         FE_ROUND_MASK);
+
+    return mod;
 }
 
 void

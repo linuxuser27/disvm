@@ -100,8 +100,6 @@ namespace disvm
             static vm_alloc_instance_finalizer_t no_finalizer;
 
             // Create a type descriptor for type of the supplied size and pointers based on the supplied map.
-            static managed_ptr_t<const type_descriptor_t> create(const word_t size_in_bytes);
-            static managed_ptr_t<const type_descriptor_t> create(const word_t size_in_bytes, const std::vector<byte_t> &pointer_map);
             static managed_ptr_t<const type_descriptor_t> create(
                 const word_t size_in_bytes,
                 const word_t pointer_map_length,
@@ -110,14 +108,26 @@ namespace disvm
 
         public:
             type_descriptor_t(word_t size_in_bytes, word_t map_in_bytes, const byte_t * pointer_map, vm_alloc_instance_finalizer_t finalizer, const char *debug_name);
-            type_descriptor_t(const type_descriptor_t&) = delete;
-            type_descriptor_t& operator=(const type_descriptor_t&) = delete;
+            type_descriptor_t(type_descriptor_t const&) = delete;
+            type_descriptor_t(type_descriptor_t&&) = delete;
+            ~type_descriptor_t();
+
+            type_descriptor_t& operator=(type_descriptor_t const&) = delete;
+            type_descriptor_t& operator=(type_descriptor_t&&) = delete;
 
             bool is_equal(managed_ptr_t<const type_descriptor_t> const&) const;
 
+            const byte_t* get_map() const;
+
             const word_t size_in_bytes;
             const word_t map_in_bytes;
-            const byte_t * const pointer_map;
+        private:
+            union
+            {
+                byte_t* p;
+                byte_t a[sizeof(pointer_t)];
+            } _pointer_map;
+        public:
             const vm_alloc_instance_finalizer_t finalizer;
 #ifndef NDEBUG
             const char *debug_type_name;
@@ -622,7 +632,7 @@ namespace disvm
         using module_id_t = std::size_t;
 
         // VM module
-        struct vm_module_t
+        struct vm_module_t final
         {
             vm_module_t() = default;
             vm_module_t(const vm_module_t &) = delete;
@@ -931,7 +941,7 @@ namespace disvm
         // The supplied allocation is guaranteed to be valid for the lifetime of the callback.
         using vm_alloc_callback_t = std::function<void(const vm_alloc_t *)>;
 
-        using vm_memory_alloc_t = void *(*)(std::size_t element_count, std::size_t element_size);
+        using vm_memory_alloc_t = void* (*)(std::size_t element_count, std::size_t element_size);
         using vm_memory_free_t = void(*)(void *);
 
         // Memory allocator functions to be used by the VM
@@ -946,6 +956,12 @@ namespace disvm
             vm_memory_free_t free;
         };
 
+        enum class vm_alloc_track_type_t
+        {
+            managed = 0,    // Managed by garbage collector
+            global,         // Remains alive for lifetime of VM instance
+        };
+
         // VM garbage collector interface
         class vm_garbage_collector_t
         {
@@ -956,8 +972,7 @@ namespace disvm
             virtual vm_memory_allocator_t get_allocator() const = 0;
 
             // Supply an allocation for the collector to track.
-            // Note that it is assumed the collector implementation will increment the reference count on the supplied alloc.
-            virtual void track_allocation(vm_alloc_t *alloc) = 0;
+            virtual void track_allocation(vm_alloc_t *alloc, vm_alloc_track_type_t type = vm_alloc_track_type_t::managed) = 0;
 
             // Enumerate allocations that are being tracked by the collector.
             // See callback type description.

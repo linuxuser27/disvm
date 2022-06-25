@@ -13,6 +13,7 @@
 #include <builtin_module.hpp>
 #include <debug.hpp>
 #include <exceptions.hpp>
+#include <utils.hpp>
 
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_module_t;
@@ -26,8 +27,8 @@ namespace
 }
 
 // Declare initializers for built-in modules.
-extern void Sysmodinit(void);
-extern void Mathmodinit(void);
+extern std::unique_ptr<vm_module_t> Sysmodinit();
+extern std::unique_ptr<vm_module_t> Mathmodinit();
 
 void disvm::runtime::builtin::initialize_builtin_modules()
 {
@@ -38,16 +39,29 @@ void disvm::runtime::builtin::initialize_builtin_modules()
     // Add built-in module initialization calls here.
     // e.g. Sysmodinit()
 
-    Sysmodinit();
-    Mathmodinit();
+    std::unique_ptr<vm_module_t> mods[] =
+    {
+        Sysmodinit(),
+        Mathmodinit()
+    };
+
+    std::lock_guard<std::mutex> lock{ builtin_modules_lock };
+    for (auto curr = std::begin(mods); curr != std::end(mods); ++curr)
+    {
+#ifndef NDEBUG
+        for (const auto& m : builtin_modules)
+            assert(0 != vm_string_t::compare(m->module_name.get(), (*curr)->module_name.get()) && "Built-in module with matching name already exists");
+#endif
+        builtin_modules.push_front(std::move(*curr));
+    }
 }
 
-void disvm::runtime::builtin::register_module_exports(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table)
+std::unique_ptr<vm_module_t> disvm::runtime::builtin::create_builtin_module(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table)
 {
     assert(name != nullptr && (module_runtime_table != nullptr || table_length == 0) && 0 <= table_length);
     assert(name[0] == BUILTIN_MODULE_PREFIX_CHAR && "Built-in modules should have the \"" BUILTIN_MODULE_PREFIX_STR "\" prefix");
 
-    auto new_builtin = std::make_shared<vm_module_t>();
+    auto new_builtin = std::make_unique<vm_module_t>();
 
     // Define the module header
     auto &header = new_builtin->header;
@@ -90,16 +104,7 @@ void disvm::runtime::builtin::register_module_exports(const char *name, word_t t
         new_builtin->code_section.push_back(std::move(vm_instr));
     }
 
-    {
-        std::lock_guard<std::mutex> lock{ builtin_modules_lock };
-
-#ifndef NDEBUG
-        for (const auto &m : builtin_modules)
-            assert(0 != std::strcmp(m->module_name->str(), name) && "Built-in module with matching name already exists");
-#endif
-
-        builtin_modules.push_front(std::move(new_builtin));
-    }
+    return new_builtin;
 }
 
 std::shared_ptr<vm_module_t> disvm::runtime::builtin::get_builtin_module(const char *name)

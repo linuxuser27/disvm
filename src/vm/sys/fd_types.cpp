@@ -47,8 +47,7 @@ namespace
 
 managed_ptr_t<const type_descriptor_t> vm_fd_t::type_desc()
 {
-    static managed_ptr_t<const type_descriptor_t> t{ &hidden_type_desc::vm_fd_t };
-    return t;
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_fd_t };
 }
 
 namespace

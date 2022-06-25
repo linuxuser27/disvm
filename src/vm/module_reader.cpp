@@ -375,7 +375,7 @@ namespace
                 if (bytesRead != static_cast<uint32_t>(map_in_bytes)) throw module_reader_exception{ "Failed to read type pointer map" };
             }
 
-            modobj.type_section[desc_number] = std::move(type_descriptor_t::create(size, pointer_map));
+            modobj.type_section[desc_number] = std::move(type_descriptor_t::create(size, static_cast<word_t>(map_in_bytes), pointer_map.data()));
         }
     }
 

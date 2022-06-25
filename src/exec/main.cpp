@@ -13,6 +13,7 @@
 #include <exceptions.hpp>
 #include <vm_asm_sigkind.hpp>
 #include <vm_version.hpp>
+#include <utils.hpp>
 #include "exec.hpp"
 
 using disvm::vm_t;
@@ -28,6 +29,7 @@ using disvm::assembly::sigkind::Tnone;
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::byte_t;
@@ -64,7 +66,25 @@ namespace
         pointer_t command_stack_frame; // [SPEC] Stack frames are not managed by the GC and as such should not be marked as a pointer field. See pointer map below.
     };
 
-    const auto entry_frame_pointer_map = std::vector<byte_t>{ 0x04 };
+    const byte_t entry_frame_pointer_map[] = { 0x04 };
+    const type_descriptor_t entry_frame_type
+    {
+        sizeof(vm_entry_frame_t),
+        disvm::util::array_length(entry_frame_pointer_map),
+        entry_frame_pointer_map,
+        nullptr,
+        "entry stack frame type"
+    };
+
+    const byte_t mp_type_pointer_map[] = { 0xc0 };
+    const type_descriptor_t mp_type
+    {
+        sizeof(pointer_t) * 2,
+        disvm::util::array_length(mp_type_pointer_map),
+        mp_type_pointer_map,
+        nullptr,
+        "module base register type"
+    };
 
     std::shared_ptr<const vm_module_t> command_module;
 
@@ -113,14 +133,11 @@ namespace
         // Inherit the stack extent from the command module and add the entry frame size.
         e.header.stack_extent = command_module->header.stack_extent + sizeof(vm_entry_frame_t);
 
-        e.type_section =
-        {
-            type_descriptor_t::create(sizeof(vm_entry_frame_t), entry_frame_pointer_map)
-        };
+        e.type_section.push_back(managed_ptr_t<const type_descriptor_t>{ &entry_frame_type });
 
         // Initialize the module base register
-        const auto mp_type = type_descriptor_t::create(8, { 0xc0 });
-        e.original_mp.reset(vm_alloc_t::allocate(mp_type));
+        e.original_mp.reset(vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t>{ &mp_type }));
+
         auto mp_base = e.original_mp->get_allocation<pointer_t>();
 
         // Take a reference on the command module path and store it on the entry frame

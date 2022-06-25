@@ -40,8 +40,11 @@ namespace disvm
                 byte_t frame_pointer_map[16];
             };
 
-            // Called by the built-in module during initialization
-            void register_module_exports(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table);
+            // Called by a built-in module during initialization
+            std::unique_ptr<vm_module_t> create_builtin_module(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table);
+
+            // Called by a build-in module during initialization
+            void record_builtin_module(std::unique_ptr<vm_module_t> mod);
 
             // Get the supplied built-in module.
             std::shared_ptr<vm_module_t> get_builtin_module(const char *name);
