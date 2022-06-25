@@ -442,7 +442,7 @@ Math_export_int(vm_registers_t &r, vm_t &vm)
     assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>()));
     const auto values_len = values->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(word_t) * values_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(word_t) * values_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Insert as big endian
@@ -470,7 +470,7 @@ Math_export_real(vm_registers_t &r, vm_t &vm)
     assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto values_len = values->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(real_t) * values_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(real_t) * values_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Insert as big endian
@@ -505,7 +505,7 @@ Math_export_real32(vm_registers_t &r, vm_t &vm)
     assert(values->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto values_len = values->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(float) * values_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(float) * values_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Insert as big endian
@@ -715,7 +715,7 @@ Math_import_int(vm_registers_t &r, vm_t &vm)
     assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<word_t>()));
     const auto result_len = result->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(word_t) * result_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(word_t) * result_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Process as big endian
@@ -742,7 +742,7 @@ Math_import_real(vm_registers_t &r, vm_t &vm)
     assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto result_len = result->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(real_t) * result_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(real_t) * result_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Process as big endian
@@ -772,7 +772,7 @@ Math_import_real32(vm_registers_t &r, vm_t &vm)
     assert(result->get_element_type()->is_equal(intrinsic_type_desc::type<real_t>()));
     const auto result_len = result->get_length();
 
-    if (static_cast<size_t>(buffer->get_length()) != (sizeof(float) * result_len))
+    if (static_cast<std::size_t>(buffer->get_length()) != (sizeof(float) * result_len))
         throw vm_user_exception{ "Invalid buffer size based on conversion" };
 
     // Process as big endian

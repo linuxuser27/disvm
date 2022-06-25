@@ -817,7 +817,7 @@ namespace
             return _file->header.module_name;
         }
 
-        size_t get_instruction_count() const
+        std::size_t get_instruction_count() const
         {
             return _file->pc_table.size();
         }

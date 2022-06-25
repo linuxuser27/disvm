@@ -132,7 +132,7 @@ namespace disvm
             virtual const std::string& get_module_name() const = 0;
 
             // Get instruction count in the symbol data
-            virtual size_t get_instruction_count() const = 0;
+            virtual std::size_t get_instruction_count() const = 0;
 
             // Get list of functions in module.
             // Supply a formatting enum for the function name.
