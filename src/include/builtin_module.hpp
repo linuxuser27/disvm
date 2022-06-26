@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <forward_list>
 #include "runtime.hpp"
 
 #define BUILTIN_MODULE_PREFIX_STR "$"
@@ -21,8 +22,7 @@ namespace disvm
         namespace builtin
         {
             // Called to initialize built-in modules.
-            // This will be called once per process hosting a VM.
-            void initialize_builtin_modules();
+            std::forward_list<std::shared_ptr<vm_module_t>> initialize_builtin_modules();
 
             // Defined as 'Runtab' in Inferno (limbo/stubs.c)
             struct vm_runtab_t
@@ -42,12 +42,6 @@ namespace disvm
 
             // Called by a built-in module during initialization
             std::unique_ptr<vm_module_t> create_builtin_module(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table);
-
-            // Called by a build-in module during initialization
-            void record_builtin_module(std::unique_ptr<vm_module_t> mod);
-
-            // Get the supplied built-in module.
-            std::shared_ptr<vm_module_t> get_builtin_module(const char *name);
         }
 
         // [SPEC] All allocated frames have the following base layout.

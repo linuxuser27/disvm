@@ -36,7 +36,7 @@ namespace disvm
         using short_real_t = float;
         using real_t = double;
         using big_t = int64_t;
-        using pointer_t = std::size_t *;
+        using pointer_t = std::size_t*;
         using vm_pc_t = word_t;
 
         //
@@ -182,8 +182,8 @@ namespace disvm
         private:
             union
             {
-                byte_t* p;
-                byte_t a[sizeof(pointer_t)];
+                byte_t* alloc;
+                byte_t local[sizeof(pointer_t)];
             } _pointer_map;
         public:
             const vm_alloc_instance_finalizer_t finalizer;
@@ -246,8 +246,8 @@ namespace disvm
             mutable char *_encoded_str;
             mutable union string_memory_t
             {
+                uint8_t* alloc;
                 uint8_t local[16]; // Optimization for short strings
-                uint8_t *alloc;
             } _mem;
 
             uint8_t _character_size; // 1 byte (ASCII) or 4 bytes (multi-byte)

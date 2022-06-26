@@ -179,7 +179,7 @@ vm_t::vm_t()
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    disvm::runtime::builtin::initialize_builtin_modules();
+    _builtin_modules = disvm::runtime::builtin::initialize_builtin_modules();
 
     _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
     _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this));
@@ -196,7 +196,7 @@ vm_t::vm_t(vm_config_t config)
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    disvm::runtime::builtin::initialize_builtin_modules();
+    _builtin_modules = disvm::runtime::builtin::initialize_builtin_modules();
 
     if (config.create_scheduler == nullptr)
         _scheduler = std::make_unique<default_scheduler_t>(*this, config.sys_thread_pool_size, config.thread_quanta);
@@ -371,7 +371,17 @@ std::shared_ptr<vm_module_t> vm_t::load_module(const char *path)
 
         if (path[0] == BUILTIN_MODULE_PREFIX_CHAR)
         {
-            new_module = std::move(disvm::runtime::builtin::get_builtin_module(path));
+            for (const auto& m : _builtin_modules)
+            {
+                if (0 == std::strcmp(m->module_name->str(), path))
+                {
+                    new_module = m;
+                    break;
+                }
+            }
+
+            if (new_module == nullptr)
+                throw vm_module_exception{ "Unknown built-in module" };
         }
         else
         {

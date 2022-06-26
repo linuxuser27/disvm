@@ -394,13 +394,13 @@ type_descriptor_t::type_descriptor_t(
     }
     else if (map_in_bytes <= sizeof(_pointer_map))
     {
-        std::memcpy(_pointer_map.a, pointer_map, map_in_bytes);
+        std::memcpy(_pointer_map.local, pointer_map, map_in_bytes);
     }
     else
     {
-        _pointer_map.p = alloc_unmanaged_memory<byte_t>(map_in_bytes);
+        _pointer_map.alloc = alloc_unmanaged_memory<byte_t>(map_in_bytes);
         for (auto i = word_t{ 0 }; i < map_in_bytes; ++i)
-            _pointer_map.p[i] = pointer_map[i];
+            _pointer_map.alloc[i] = pointer_map[i];
     }
 
     (void)debug_name;
@@ -412,7 +412,7 @@ type_descriptor_t::~type_descriptor_t()
 {
     if (map_in_bytes > sizeof(_pointer_map))
     {
-        free_unmanaged_memory(_pointer_map.p);
+        free_unmanaged_memory(_pointer_map.alloc);
         debug::assign_debug_pointer(reinterpret_cast<byte_t**>(&_pointer_map));
     }
 
@@ -435,5 +435,5 @@ bool type_descriptor_t::is_equal(managed_ptr_t<const type_descriptor_t> const &o
 
 const byte_t* type_descriptor_t::get_map() const
 {
-    return map_in_bytes <= sizeof(_pointer_map) ? _pointer_map.a : _pointer_map.p;
+    return map_in_bytes <= sizeof(_pointer_map) ? _pointer_map.local : _pointer_map.alloc;
 }

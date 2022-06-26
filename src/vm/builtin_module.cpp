@@ -7,7 +7,6 @@
 #include <cassert>
 #include <atomic>
 #include <mutex>
-#include <forward_list>
 #include <runtime.hpp>
 #include <module_reader.hpp>
 #include <builtin_module.hpp>
@@ -18,24 +17,12 @@
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_module_t;
 
-namespace
-{
-    std::atomic_bool builtin_modules_initialized{ false };
-
-    std::mutex builtin_modules_lock;
-    std::forward_list<std::shared_ptr<vm_module_t>> builtin_modules;
-}
-
 // Declare initializers for built-in modules.
 extern std::unique_ptr<vm_module_t> Sysmodinit();
 extern std::unique_ptr<vm_module_t> Mathmodinit();
 
-void disvm::runtime::builtin::initialize_builtin_modules()
+std::forward_list<std::shared_ptr<vm_module_t>> disvm::runtime::builtin::initialize_builtin_modules()
 {
-    auto is_false = bool{ false };
-    if (!builtin_modules_initialized.compare_exchange_strong(is_false, true))
-        return;
-
     // Add built-in module initialization calls here.
     // e.g. Sysmodinit()
 
@@ -45,7 +32,7 @@ void disvm::runtime::builtin::initialize_builtin_modules()
         Mathmodinit()
     };
 
-    std::lock_guard<std::mutex> lock{ builtin_modules_lock };
+    std::forward_list<std::shared_ptr<vm_module_t>> builtin_modules;
     for (auto curr = std::begin(mods); curr != std::end(mods); ++curr)
     {
 #ifndef NDEBUG
@@ -54,6 +41,8 @@ void disvm::runtime::builtin::initialize_builtin_modules()
 #endif
         builtin_modules.push_front(std::move(*curr));
     }
+
+    return builtin_modules;
 }
 
 std::unique_ptr<vm_module_t> disvm::runtime::builtin::create_builtin_module(const char *name, word_t table_length, const vm_runtab_t *module_runtime_table)
@@ -114,16 +103,4 @@ std::unique_ptr<vm_module_t> disvm::runtime::builtin::create_builtin_module(cons
     }
 
     return new_builtin;
-}
-
-std::shared_ptr<vm_module_t> disvm::runtime::builtin::get_builtin_module(const char *name)
-{
-    std::lock_guard<std::mutex> lock{ builtin_modules_lock };
-    for (const auto &m : builtin_modules)
-    {
-        if (0 == std::strcmp(m->module_name->str(), name))
-            return m;
-    }
-
-    throw vm_module_exception{ "Unknown built-in module" };
 }

@@ -136,6 +136,9 @@ namespace disvm
         mutable std::mutex _modules_lock;
         loaded_modules_t _modules;
 
+        using builtin_modules_t = std::forward_list<std::shared_ptr<runtime::vm_module_t>>;
+        builtin_modules_t _builtin_modules;
+
         std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> _module_resolvers;
         std::unique_ptr<runtime::vm_scheduler_t> _scheduler;
         std::unique_ptr<runtime::vm_garbage_collector_t> _gc;
