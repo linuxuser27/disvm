@@ -15,6 +15,7 @@ using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
 using disvm::runtime::managed_ptr_t;
+using disvm::runtime::unmanaged_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::pointer_t;
 using disvm::runtime::vm_pc_t;
@@ -27,7 +28,7 @@ namespace
 {
     struct vm_stack_page
     {
-        vm_stack_page *prev_page;
+        unmanaged_ptr_t<vm_stack_page> prev_page;
         std::uintptr_t page_limit_addr;
         vm_frame_t *page_top_frame; // Do not free. This is used as a tracking pointer.
 
@@ -60,32 +61,28 @@ namespace
             new_page();
         }
 
-        ~vm_stack_layout()
-        {
-            assert(top_page != nullptr);
-            disvm::runtime::free_memory(top_page);
-        }
+        ~vm_stack_layout() = default;
 
         const std::size_t stack_page_size;
 
-        vm_stack_page *top_page;
+        unmanaged_ptr_t<vm_stack_page> top_page;
         vm_frame_t *top_frame; // Do not free. This is used as a tracking pointer.
 
         // Create a new 'top page' and return stack data address
         void *new_page()
         {
-            auto current_stack_page = top_page;
-            top_page = disvm::runtime::alloc_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size);
+            auto current_stack_page = std::move(top_page);
+            top_page.reset(disvm::runtime::alloc_unmanaged_memory<vm_stack_page>(sizeof(vm_stack_page) + stack_page_size));
 
             // Initialize the stack allocation.
-            top_page->prev_page = current_stack_page;
+            top_page->prev_page = std::move(current_stack_page);
 
             // The top frame member is only for tracking and so is initialized to null.
             top_page->page_top_frame = nullptr;
-            top_page->page_limit_addr = reinterpret_cast<std::uintptr_t>(top_page)+stack_page_size;
+            top_page->page_limit_addr = reinterpret_cast<std::uintptr_t>(top_page.get())+stack_page_size;
 
             if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
-                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR, top_page, top_page->page_limit_addr);
+                disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: vm stack alloc: %#" PRIxPTR " %#"  PRIxPTR, top_page.get(), top_page->page_limit_addr);
 
             return top_page->stack_data();
         }
@@ -93,16 +90,14 @@ namespace
         // Drop the current page and move to the previous one
         void drop_page()
         {
-            auto current_stack_page = top_page->prev_page;
+            auto current_stack_page = std::move(top_page->prev_page);
             assert(current_stack_page != nullptr);
 
-            disvm::runtime::free_memory(top_page);
+            // Set the top page
+            top_page = std::move(current_stack_page);
 
             if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
                 disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free: vm stack alloc");
-
-            // Set the top page
-            top_page = current_stack_page;
         }
     };
 }

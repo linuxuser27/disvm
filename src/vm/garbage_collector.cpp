@@ -24,7 +24,7 @@ using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_alloc_callback_t;
 using disvm::runtime::vm_garbage_collector_t;
-using disvm::runtime::vm_alloc_track_type_t;
+using disvm::runtime::vm_memory_type_t;
 using disvm::runtime::vm_memory_allocator_t;
 using disvm::runtime::vm_string_t;
 using disvm::runtime::vm_thread_t;
@@ -40,13 +40,21 @@ std::unique_ptr<vm_garbage_collector_t> disvm::runtime::create_no_op_gc(vm_t &)
 {
     class no_op_gc final : public vm_garbage_collector_t
     {
+        static void* _alloc(std::size_t size, vm_memory_type_t)
+        {
+            return std::calloc(1, size);
+        }
+        static void _free(void* alloc)
+        {
+            std::free(alloc);
+        }
     public:
         vm_memory_allocator_t get_allocator() const
         {
-            return{ std::calloc, std::free };
+            return{ _alloc, _free, _free };
         }
 
-        void track_allocation(vm_alloc_t*, vm_alloc_track_type_t) override
+        void track_allocation(vm_alloc_t*) override
         {
         }
 
@@ -111,6 +119,16 @@ namespace
             return a;
         }
     };
+
+    void* default_alloc(std::size_t size, vm_memory_type_t)
+    {
+        return std::calloc(1, size);
+    }
+
+    void default_free(void* alloc)
+    {
+        std::free(alloc);
+    }
 }
 
 default_garbage_collector_t::default_garbage_collector_t(vm_t &vm)
@@ -132,10 +150,10 @@ default_garbage_collector_t::~default_garbage_collector_t()
 
 vm_memory_allocator_t default_garbage_collector_t::get_allocator() const
 {
-    return{ std::calloc, std::free };
+    return{ default_alloc, default_free, default_free };
 }
 
-void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc, vm_alloc_track_type_t type)
+void default_garbage_collector_t::track_allocation(vm_alloc_t *alloc)
 {
     assert(alloc != nullptr);
 

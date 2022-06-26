@@ -45,7 +45,7 @@ namespace disvm
 
         // Represents a pointer that is managed by the VM.
         template<typename T>
-        class managed_ptr_t
+        class managed_ptr_t final
         {
         public:
             managed_ptr_t()
@@ -64,6 +64,8 @@ namespace disvm
 
             managed_ptr_t(managed_ptr_t const&) = default;
             managed_ptr_t(managed_ptr_t&&) = default;
+            ~managed_ptr_t() = default;
+
             managed_ptr_t& operator=(managed_ptr_t const&) = default;
             managed_ptr_t& operator=(managed_ptr_t&&) = default;
 
@@ -95,7 +97,7 @@ namespace disvm
         {
         public: // static
             static void *operator new(std::size_t sz);
-            static void operator delete(void *ptr);
+            static void operator delete(void* ptr);
 
             static vm_alloc_t *allocate(managed_ptr_t<const type_descriptor_t> td);
             static vm_alloc_t *copy(const vm_alloc_t &other);
@@ -934,28 +936,39 @@ namespace disvm
             virtual void set_tool_dispatch_on_all_threads(vm_tool_dispatch_t *dispatch) = 0;
         };
 
+        enum class vm_memory_type_t
+        {
+            // Creates unmanaged memory that is known to the garbage collector.
+            // Required to be manually freed.
+            unmanaged = 0,
+
+            // Managed by garbage collector.
+            managed,
+
+            // Creates managed rooted memory that is considered a root to the garbage collector.
+            // Required to be manually freed.
+            managed_root,
+        };
+
         // The supplied allocation is guaranteed to be valid for the lifetime of the callback.
         using vm_alloc_callback_t = std::function<void(const vm_alloc_t *)>;
 
-        using vm_memory_alloc_t = void* (*)(std::size_t element_count, std::size_t element_size);
+        using vm_memory_alloc_t = void* (*)(std::size_t element_size, vm_memory_type_t type);
         using vm_memory_free_t = void(*)(void *);
 
-        // Memory allocator functions to be used by the VM
+        // Memory allocator functions to be used by the VM.
         struct vm_memory_allocator_t final
         {
-            // Function must adhere to the documented semantics of std::calloc
-            // http://en.cppreference.com/w/cpp/memory/c/calloc
+            // Function must return zero-initialized memory.
             vm_memory_alloc_t alloc;
 
-            // Function must adhere to the documented semantics of std::free
-            // http://en.cppreference.com/w/cpp/memory/c/free
-            vm_memory_free_t free;
-        };
+            // Passing memory other than vm_memory_type_t::unmanaged has
+            // undefined behavior.
+            vm_memory_free_t free_unmanaged;
 
-        enum class vm_alloc_track_type_t
-        {
-            managed = 0,    // Managed by garbage collector
-            global,         // Remains alive for lifetime of VM instance
+            // Passing memory other than vm_memory_type_t::managed
+            // or vm_memory_type_t::managed_root has undefined behavior.
+            vm_memory_free_t free_managed;
         };
 
         // VM garbage collector interface
@@ -968,7 +981,7 @@ namespace disvm
             virtual vm_memory_allocator_t get_allocator() const = 0;
 
             // Supply an allocation for the collector to track.
-            virtual void track_allocation(vm_alloc_t *alloc, vm_alloc_track_type_t type = vm_alloc_track_type_t::managed) = 0;
+            virtual void track_allocation(vm_alloc_t *alloc) = 0;
 
             // Enumerate allocations that are being tracked by the collector.
             // See callback type description.

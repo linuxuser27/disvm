@@ -35,7 +35,7 @@ vm_array_t::vm_array_t(managed_ptr_t<const type_descriptor_t> td, word_t length)
 {
     assert(_element_type.is_valid());
     assert(_length >= 0);
-    _arr = alloc_memory<byte_t>(_length * _element_type->size_in_bytes);
+    _arr = alloc_unmanaged_memory<byte_t>(_length * _element_type->size_in_bytes);
     disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm array: %d", _length);
 
     // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
@@ -80,7 +80,7 @@ vm_array_t::vm_array_t(const vm_string_t *s)
 
         // Ignoring the null terminator.
         _length = std::strlen(str);
-        _arr = alloc_memory<byte_t>(_length);
+        _arr = alloc_unmanaged_memory<byte_t>(_length);
         static_assert(sizeof(byte_t) == sizeof(char), "String characters should be byte size");
 
         std::memcpy(_arr, str, _length);
@@ -118,7 +118,7 @@ vm_array_t::~vm_array_t()
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "end: destroy: elements: %d", array_len);
 
         // Free array memory
-        free_memory(_arr);
+        free_unmanaged_memory(_arr);
 
         debug::assign_debug_pointer(&_arr);
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "destroy: vm array");

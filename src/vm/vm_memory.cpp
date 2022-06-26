@@ -47,23 +47,24 @@ using disvm::runtime::vm_alloc_instance_finalizer_t;
 
 // Defined in vm.cpp
 extern thread_local disvm::runtime::vm_memory_alloc_t vm_memory_alloc;
-extern thread_local disvm::runtime::vm_memory_free_t vm_memory_free;
+extern thread_local disvm::runtime::vm_memory_free_t vm_memory_free_unmanaged;
+extern thread_local disvm::runtime::vm_memory_free_t vm_memory_free_managed;
 
-void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes)
+void *disvm::runtime::alloc_memory(std::size_t amount_in_bytes, vm_memory_type_t type)
 {
-    auto memory = vm_memory_alloc(amount_in_bytes, sizeof(byte_t));
+    auto memory = vm_memory_alloc(amount_in_bytes, type);
     if (memory == nullptr)
         throw vm_system_exception{ "Out of memory" };
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
-        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: %#" PRIxPTR " %d", memory, amount_in_bytes);
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "alloc: %#" PRIxPTR " %d, type: %d", memory, amount_in_bytes, type);
 
     return memory;
 }
 
-void disvm::runtime::free_memory(void *memory)
+void disvm::runtime::free_unmanaged_memory(void *memory)
 {
-    vm_memory_free(memory);
+    vm_memory_free_unmanaged(memory);
 
     if (memory != nullptr && debug::is_component_tracing_enabled<component_trace_t::memory>())
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free: %#" PRIxPTR, memory);
@@ -157,12 +158,12 @@ bool disvm::runtime::is_offset_pointer(const type_descriptor_t &type_desc, std::
 
 void *vm_alloc_t::operator new(std::size_t sz)
 {
-    return alloc_memory(sz);
+    return alloc_memory(sz, vm_memory_type_t::managed);
 }
 
 void vm_alloc_t::operator delete(void *ptr)
 {
-    free_memory(ptr);
+    vm_memory_free_managed(ptr);
 }
 
 vm_alloc_t *vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t> td)
@@ -172,7 +173,7 @@ vm_alloc_t *vm_alloc_t::allocate(managed_ptr_t<const type_descriptor_t> td)
     if (type_size_in_bytes <= 0)
         throw vm_system_exception{ "Invalid dynamic memory allocation size" };
 
-    auto mem = alloc_memory(sizeof(vm_alloc_t) + type_size_in_bytes);
+    auto mem = alloc_memory(sizeof(vm_alloc_t) + type_size_in_bytes, vm_memory_type_t::managed);
     auto alloc = ::new(mem)vm_alloc_t{ std::move(td) };
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
@@ -397,7 +398,7 @@ type_descriptor_t::type_descriptor_t(
     }
     else
     {
-        _pointer_map.p = alloc_memory<byte_t>(map_in_bytes);
+        _pointer_map.p = alloc_unmanaged_memory<byte_t>(map_in_bytes);
         for (auto i = word_t{ 0 }; i < map_in_bytes; ++i)
             _pointer_map.p[i] = pointer_map[i];
     }
@@ -411,7 +412,7 @@ type_descriptor_t::~type_descriptor_t()
 {
     if (map_in_bytes > sizeof(_pointer_map))
     {
-        free_memory(_pointer_map.p);
+        free_unmanaged_memory(_pointer_map.p);
         debug::assign_debug_pointer(reinterpret_cast<byte_t**>(&_pointer_map));
     }
 

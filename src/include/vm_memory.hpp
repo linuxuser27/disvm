@@ -23,16 +23,28 @@ namespace disvm
         // Allocate memory from the VM heap that is initialize to 0.
         // [SPEC] All memory in this implementation of the Dis VM spec
         // will be 0 initialized.
-        void *alloc_memory(std::size_t amount_in_bytes);
+        void *alloc_memory(std::size_t amount_in_bytes, vm_memory_type_t type);
 
         template<typename T>
-        T *alloc_memory(std::size_t amount_in_bytes = sizeof(T))
+        T *alloc_unmanaged_memory(std::size_t amount_in_bytes = sizeof(T))
         {
-            return reinterpret_cast<T *>(alloc_memory(amount_in_bytes));
+            return reinterpret_cast<T *>(alloc_memory(amount_in_bytes, vm_memory_type_t::unmanaged));
         }
 
-        // Free memory on the VM heap
-        void free_memory(void *memory);
+        // Free unmanaged memory on the VM heap
+        void free_unmanaged_memory(void *memory);
+
+        // Unmanaged deleter
+        struct unmanaged_deleter_t final
+        {
+            void operator()(void* p) const
+            {
+                free_unmanaged_memory(p);
+            }
+        };
+
+        template<typename T>
+        using unmanaged_ptr_t = std::unique_ptr<T, unmanaged_deleter_t>;
 
         // Initialize supplied memory based on the type descriptor
         void init_memory(const type_descriptor_t &type_desc, void *data);

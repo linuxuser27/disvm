@@ -30,13 +30,14 @@ using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::out_of_range_memory;
 using disvm::runtime::pointer_t;
 using disvm::runtime::managed_ptr_t;
-using disvm::runtime::managed_ptr_t;
+using disvm::runtime::unmanaged_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::vm_alloc_t;
 using disvm::runtime::vm_array_t;
 using disvm::runtime::vm_list_t;
 using disvm::runtime::vm_module_t;
 using disvm::runtime::vm_string_t;
+using disvm::runtime::vm_memory_type_t;
 using disvm::runtime::vm_syscall_exception;
 using disvm::runtime::vm_system_exception;
 using disvm::runtime::vm_user_exception;
@@ -826,7 +827,7 @@ Sys_stream(vm_registers_t &r, vm_t &vm)
     if (buffer_size <= 0)
         throw out_of_range_memory{};
 
-    std::unique_ptr<void, decltype(&disvm::runtime::free_memory)> buffer{ disvm::runtime::alloc_memory(buffer_size), disvm::runtime::free_memory };
+    unmanaged_ptr_t<void> buffer{ disvm::runtime::alloc_memory(buffer_size, vm_memory_type_t::unmanaged) };
     auto written = word_t{};
     for (;;)
     {

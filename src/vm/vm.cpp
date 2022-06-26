@@ -95,30 +95,44 @@ std::string disvm::runtime::pop_syscall_error_message(disvm::vm_t &vm)
 
 // Consumed in vm_memory.cpp
 thread_local disvm::runtime::vm_memory_alloc_t vm_memory_alloc;
-thread_local disvm::runtime::vm_memory_free_t vm_memory_free;
+thread_local disvm::runtime::vm_memory_free_t vm_memory_free_unmanaged;
+thread_local disvm::runtime::vm_memory_free_t vm_memory_free_managed;
 
 namespace
 {
     void internal_register_system_thread(vm_memory_allocator_t allocator) noexcept
     {
-        assert(((vm_memory_alloc == nullptr && vm_memory_free == nullptr)
-            || (vm_memory_alloc == allocator.alloc && vm_memory_free == allocator.free))
+        assert(((vm_memory_alloc == nullptr
+                && vm_memory_free_unmanaged == nullptr
+                && vm_memory_free_managed == nullptr)
+            || (vm_memory_alloc == allocator.alloc
+                && vm_memory_free_unmanaged == allocator.free_unmanaged
+                && vm_memory_free_managed == allocator.free_managed))
             && "Thread already registered with another VM");
 
         vm_memory_alloc = allocator.alloc;
-        vm_memory_free = allocator.free;
+        vm_memory_free_unmanaged = allocator.free_unmanaged;
+        vm_memory_free_managed = allocator.free_managed;
 
-        assert(vm_memory_alloc != nullptr && vm_memory_free != nullptr && "Invalid allocator functions supplied");
+        assert(vm_memory_alloc != nullptr
+            && vm_memory_free_unmanaged != nullptr
+            && vm_memory_free_managed != nullptr
+            && "Invalid allocator functions supplied");
     }
 
     void internal_unregister_system_thread(vm_memory_allocator_t allocator) noexcept
     {
-        assert(((vm_memory_alloc == nullptr && vm_memory_free == nullptr)
-            || (vm_memory_alloc == allocator.alloc && vm_memory_free == allocator.free))
+        assert(((vm_memory_alloc == nullptr
+                && vm_memory_free_unmanaged == nullptr
+                && vm_memory_free_managed == nullptr)
+            || (vm_memory_alloc == allocator.alloc
+                && vm_memory_free_unmanaged == allocator.free_unmanaged
+                && vm_memory_free_managed == allocator.free_managed))
             && "Thread already registered with another VM");
 
         vm_memory_alloc = nullptr;
-        vm_memory_free = nullptr;
+        vm_memory_free_unmanaged = nullptr;
+        vm_memory_free_managed = nullptr;
     }
 }
 

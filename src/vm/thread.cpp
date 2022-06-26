@@ -189,7 +189,7 @@ vm_thread_t::~vm_thread_t()
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::thread>())
         disvm::debug::log_msg(component_trace_t::thread, log_level_t::debug, "destroy: vm thread: %d %d", _thread_id, _parent_thread_id);
 
-    free_memory(_error_message);
+    free_unmanaged_memory(_error_message);
     debug::assign_debug_pointer(&_error_message);
 }
 
@@ -276,7 +276,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
     }
     catch (const unhandled_user_exception &uue)
     {
-        _error_message = alloc_memory<char>(max_error_message);
+        _error_message = alloc_unmanaged_memory<char>(max_error_message);
         const int ec = std::snprintf(_error_message, max_error_message, "%s in %s @%d\n  %s", uue.what(), uue.module_name, uue.program_counter, uue.exception_id);
         assert(ec > 0 && ec < max_error_message);
         (void)ec;
@@ -284,7 +284,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
     }
     catch (const index_out_of_range_memory &ioor)
     {
-        _error_message = alloc_memory<char>(max_error_message);
+        _error_message = alloc_unmanaged_memory<char>(max_error_message);
         const int ec = std::snprintf(_error_message, max_error_message, "%s - %d [%d,%d]", ioor.what(), ioor.invalid_value, ioor.valid_min, ioor.valid_max);
         assert(ec > 0 && ec < max_error_message);
         (void)ec;
@@ -293,7 +293,7 @@ vm_thread_state_t vm_thread_t::execute(vm_t &vm, const uint32_t quanta)
     catch (const vm_user_exception &ue)
     {
         // [TODO] Include the module and IP to aid in debugging.
-        _error_message = alloc_memory<char>(max_error_message);
+        _error_message = alloc_unmanaged_memory<char>(max_error_message);
         const int ec = std::snprintf(_error_message, max_error_message, "%s", ue.what());
         assert(ec > 0 && ec < max_error_message);
         (void)ec;

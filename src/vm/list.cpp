@@ -38,7 +38,7 @@ vm_list_t::vm_list_t(managed_ptr_t<const type_descriptor_t> td, vm_list_t *tail)
     // If the default list element storage is not enough, allocate more memory.
     // [SPEC] Element memory is already initialized to zero based on the alloc_memory contract
     if (_is_alloc)
-        _mem.alloc = static_cast<pointer_t>(alloc_memory(_element_type->size_in_bytes));
+        _mem.alloc = static_cast<pointer_t>(alloc_memory(_element_type->size_in_bytes, vm_memory_type_t::unmanaged));
 
     if (disvm::debug::is_component_tracing_enabled<component_trace_t::memory>())
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm list");
@@ -50,7 +50,7 @@ vm_list_t::~vm_list_t()
     if (_is_alloc)
     {
         destroy_memory(*_element_type, _mem.alloc);
-        free_memory(_mem.alloc);
+        free_unmanaged_memory(_mem.alloc);
     }
     else
     {
