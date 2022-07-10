@@ -83,7 +83,7 @@ managed_ptr_t<const type_descriptor_t> vm_module_ref_t::type_desc()
     return intrinsic_type_desc::type<vm_module_ref_t>();
 }
 
-vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module)
+vm_module_ref_t::vm_module_ref_t(managed_ptr_t<vm_module_t> module)
     : vm_alloc_t(vm_module_ref_t::type_desc())
     , code_section{ module->code_section }
     , module{ module }
@@ -98,7 +98,7 @@ vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module)
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "init: vm module ref");
 }
 
-vm_module_ref_t::vm_module_ref_t(std::shared_ptr<const vm_module_t> module, const import_vm_module_t &imports)
+vm_module_ref_t::vm_module_ref_t(managed_ptr_t<vm_module_t> module, const import_vm_module_t &imports)
     : vm_alloc_t(vm_module_ref_t::type_desc())
     , code_section{ module->code_section }
     , module{ module }

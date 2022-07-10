@@ -12,15 +12,11 @@
 #include <memory>
 #include <functional>
 #include <mutex>
-#include <forward_list>
 #include "runtime.hpp"
 #include "exceptions.hpp"
 
 namespace disvm
 {
-    // Read in a module from the supplied stream
-    std::unique_ptr<runtime::vm_module_t> read_module(std::istream &data);
-
     template <typename C>
     using create_vm_interface_callback_t = std::unique_ptr<C>(*)(vm_t &);
 
@@ -38,13 +34,13 @@ namespace disvm
     class loaded_vm_module_t final
     {
     public:
-        runtime::module_id_t vm_id;
+        runtime::module_id_t const vm_id;
 
         // Origin of module
-        std::unique_ptr<runtime::vm_string_t> origin;
+        std::string const origin;
 
-        // Weak reference to a loaded module
-        std::weak_ptr<runtime::vm_module_t> module;
+        // Reference to a loaded module
+        runtime::managed_ptr_t<runtime::vm_module_t> const module;
     };
 
     // Callback for enumerating loaded modules - return 'false' to stop enumeration, otherwise 'true'
@@ -67,7 +63,7 @@ namespace disvm
 
         // Prefix paths used by the default module resolver if the path supplied by
         // the user isn't found. Note these will be concatenated with the supplied
-        // path, not other manipulation will be performed.
+        // path, no other manipulation will be performed.
         std::vector<std::string> probing_paths;
         std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> additional_resolvers;
     };
@@ -94,7 +90,7 @@ namespace disvm
         uint32_t exec(const char *path);
 
         // Begin execution of the supplied module and return the ID of the executing thread.
-        uint32_t exec(std::unique_ptr<runtime::vm_module_t> entry_module);
+        uint32_t exec(runtime::managed_ptr_t<runtime::vm_module_t> entry_module);
 
         // Begin execution of a child thread in the supplied module at the indicated
         // program counter and return the ID of the executing thread.
@@ -105,7 +101,7 @@ namespace disvm
             runtime::vm_pc_t initial_pc);
 
         // Load the module at the supplied path into the virtual machine.
-        std::shared_ptr<runtime::vm_module_t> load_module(const char *path);
+        runtime::managed_ptr_t<runtime::vm_module_t> load_module(const char *path);
 
         // Enumerate all loaded modules - this can include references to modules that
         // have been unloaded due to no longer being used. If the module instance is null, the
@@ -132,12 +128,12 @@ namespace disvm
     private:
         void schedule_thread(std::unique_ptr<runtime::vm_thread_t> thread);
 
-        using loaded_modules_t = std::forward_list<loaded_vm_module_t>;
         mutable std::mutex _modules_lock;
-        loaded_modules_t _modules;
+        runtime::rooted_collection_t<runtime::vm_module_t> _modules;
+        runtime::rooted_collection_t<runtime::vm_module_t> _builtin_modules;
 
-        using builtin_modules_t = std::forward_list<std::shared_ptr<runtime::vm_module_t>>;
-        builtin_modules_t _builtin_modules;
+        using loaded_modules_t = std::vector<loaded_vm_module_t>;
+        loaded_modules_t _loaded_modules;
 
         std::vector<std::unique_ptr<runtime::vm_module_resolver_t>> _module_resolvers;
         std::unique_ptr<runtime::vm_scheduler_t> _scheduler;

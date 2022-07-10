@@ -8,9 +8,8 @@
 #define _DISVM_SRC_INCLUDE_BUILTIN_MODULE_HPP_
 
 #include <cstdint>
-#include <memory>
-#include <forward_list>
 #include "runtime.hpp"
+#include "vm_memory.hpp"
 
 #define BUILTIN_MODULE_PREFIX_STR "$"
 #define BUILTIN_MODULE_PREFIX_CHAR '$'
@@ -22,7 +21,7 @@ namespace disvm
         namespace builtin
         {
             // Called to initialize built-in modules.
-            std::forward_list<std::shared_ptr<vm_module_t>> initialize_builtin_modules();
+            std::vector<rooted_ptr_t<vm_module_t>> initialize_builtin_modules();
 
             // Defined as 'Runtab' in Inferno (limbo/stubs.c)
             struct vm_runtab_t

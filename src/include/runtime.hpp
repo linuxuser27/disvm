@@ -43,7 +43,7 @@ namespace disvm
         // VM memory management
         //
 
-        // Represents a pointer that is managed by the VM.
+        // Represents a pointer of memory that is managed by the VM.
         template<typename T>
         class managed_ptr_t final
         {
@@ -87,6 +87,16 @@ namespace disvm
 
         private:
             T* _p;
+
+        private: // Helpers
+            T* release()
+            {
+                T* p = nullptr;
+                std::swap(_p, p);
+                return p;
+            }
+
+            friend disvm::vm_t;
         };
 
         // Forward declaration
@@ -150,6 +160,77 @@ namespace disvm
 
         private:
             std::atomic<std::size_t> _ref_count;
+        };
+
+        // Collection of rooted managed memory.
+        template<
+            typename T,
+            typename std::enable_if<std::is_base_of<vm_alloc_t, T>::value, int>::type = 0>
+        class rooted_collection_t
+        {
+        public:
+            using inner_collection = std::vector<managed_ptr_t<T*>>;
+
+            virtual ~rooted_collection_t() = default;
+
+            struct iterator
+            {
+                iterator(typename inner_collection::iterator&& iter)
+                    : _iter{ iter }
+                { }
+
+                iterator(iterator const&) = default;
+
+                iterator& operator++()
+                {
+                    _iter++;
+                    return *this;
+                }
+
+                managed_ptr_t<T> operator*() const
+                {
+                    return managed_ptr_t<T>{ *(*_iter) };
+                }
+
+                bool operator!=(iterator const& other) const
+                {
+                    return _iter != other._iter;
+                }
+
+                typename inner_collection::iterator _iter;
+            };
+
+            bool empty() const noexcept
+            {
+                return _inner.empty();
+            }
+
+            iterator begin() noexcept
+            {
+                return { _inner.begin() };
+            }
+
+            iterator end() noexcept
+            {
+                return { _inner.end() };
+            }
+
+            managed_ptr_t<T> last()
+            {
+                assert(!_inner.empty());
+                return managed_ptr_t<T>{ *(*(_inner.end() - 1)) };
+            }
+
+        private:
+            inner_collection _inner;
+
+        private: // Helpers
+            void push_back(managed_ptr_t<T*>&& ptr)
+            {
+                _inner.push_back(ptr);
+            }
+
+            friend disvm::vm_t;
         };
 
         // Finalizer callback for allocations.
@@ -630,9 +711,15 @@ namespace disvm
         using module_id_t = std::size_t;
 
         // VM module
-        struct vm_module_t final
+        class vm_module_t final : public vm_alloc_t
         {
-            vm_module_t() = default;
+        public:
+            // Read in a module from the supplied stream
+            static managed_ptr_t<runtime::vm_module_t> read_module(std::istream& data);
+
+        public:
+            vm_module_t();
+
             vm_module_t(const vm_module_t &) = delete;
             vm_module_t &operator=(const vm_module_t &) = delete;
 
@@ -681,11 +768,11 @@ namespace disvm
             static managed_ptr_t<const type_descriptor_t> type_desc();
 
         public:
-            vm_module_ref_t(std::shared_ptr<const vm_module_t> module);
-            vm_module_ref_t(std::shared_ptr<const vm_module_t> module, const import_vm_module_t &imports);
+            vm_module_ref_t(managed_ptr_t<vm_module_t> module);
+            vm_module_ref_t(managed_ptr_t<vm_module_t> module, const import_vm_module_t &imports);
             ~vm_module_ref_t();
 
-            std::shared_ptr<const vm_module_t> module;
+            managed_ptr_t<vm_module_t> module;
             vm_alloc_t *mp_base;
             const code_section_t &code_section;
             const type_section_map_t &type_section;
@@ -1006,7 +1093,7 @@ namespace disvm
             // Implementers of this interface should never explicitly throw
             // an exception and instead return 'false'. Exception thrown
             // indirectly by calling supplied DisVM functions are valid.
-            virtual bool try_resolve_module(const char *path, std::unique_ptr<vm_module_t> &new_module) = 0;
+            virtual bool try_resolve_module(const char *path, managed_ptr_t<vm_module_t> &new_module) = 0;
         };
 
         // Forward declaration

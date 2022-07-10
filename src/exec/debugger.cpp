@@ -443,12 +443,12 @@ namespace
         auto msg = std::stringstream{};
         cxt.vm.enum_loaded_modules([&msg, &cxt](const loaded_vm_module_t &m)
         {
-            auto module_instance = m.module.lock();
-            if (module_instance != nullptr)
+            managed_ptr_t<vm_module_t> module_instance = m.module;
+            if (module_instance.is_valid())
             {
                 msg << std::setw(3) << m.vm_id << ": "
                     << std::setw(16) << module_instance->module_name->str()
-                    << std::setw(0) << "  -  " << m.origin->str();
+                    << std::setw(0) << "  -  " << m.origin;
 
                 if (cxt.dbg.symbols_exist(m.vm_id))
                     msg << " [symbols loaded]";
@@ -509,10 +509,10 @@ namespace
             throw debug_cmd_error_t{ "Invalid IP format" };
         }
 
-        auto module = std::const_pointer_cast<vm_module_t>(cxt.current_register->module_ref->module);
+        managed_ptr_t<vm_module_t> module = cxt.current_register->module_ref->module;
         if (a.size() > 2)
         {
-            module.reset();
+            module = {};
             uint32_t module_id;
             try
             {
@@ -529,12 +529,12 @@ namespace
                     return true;
 
                 // Found the matching ID so stop
-                module = m.module.lock();
+                module = m.module;
                 return false;
             });
         }
 
-        if (module == nullptr)
+        if (!module.is_valid())
         {
             throw debug_cmd_error_t{ "Invalid module ID" };
         }
@@ -1275,7 +1275,7 @@ void debugger::on_load(vm_tool_controller_t &controller_, std::size_t tool_id)
 
     _event_cookies.emplace(controller->subscribe_event(vm_event_t::module_thread_load, [&](vm_event_t, vm_event_context_t &cxt)
     {
-        auto m = (*cxt.value2.module);
+        auto m = cxt.value2.module;
         auto ss = std::stringstream{};
         ss << "Module "
             << m->module_name->str()
@@ -1344,11 +1344,11 @@ void debugger::on_unload()
 
 void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
 {
-    auto m = loaded_mod.module.lock();
-    assert(m != nullptr && "Loaded module event should have valid module reference");
+    managed_ptr_t<vm_module_t> m = loaded_mod.module;
+    assert(m.is_valid() && "Loaded module event should have valid module reference");
 
     auto symbol_extension = ".sbl";
-    std::string symbol_path_maybe{ loaded_mod.origin->str() };
+    std::string symbol_path_maybe{ loaded_mod.origin };
     const auto ext_index = symbol_path_maybe.find_last_of('.');
     if (ext_index == std::string::npos)
     {
@@ -1392,7 +1392,7 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
         msg << "Symbol file '"
             << symbol_path_maybe
             << "' does not match loaded module '"
-            << loaded_mod.origin->str()
+            << loaded_mod.origin
             << "'.";
         debug_print_error(msg.str());
         return;
@@ -1407,7 +1407,7 @@ void debugger::load_symbols(const disvm::loaded_vm_module_t &loaded_mod)
     msg << "Symbol file '"
         << symbol_path_maybe
         << "' loaded for '"
-        << loaded_mod.origin->str()
+        << loaded_mod.origin
         << "'.";
     debug_print_info(msg.str());
 }

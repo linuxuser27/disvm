@@ -762,6 +762,20 @@ handler_entry_t::handler_entry_t(handler_entry_t &&other)
 {
 }
 
+vm_module_t::vm_module_t()
+    : vm_alloc_t(intrinsic_type_desc::type<vm_module_t>())
+    , vm_id{}
+    , header{}
+    , code_section{}
+    , original_mp{}
+    , type_section{}
+    , module_name{}
+    , export_section{}
+    , import_section{}
+    , handler_section{}
+{
+}
+
 vm_module_t::~vm_module_t()
 {
     if (module_name != nullptr)
@@ -771,11 +785,11 @@ vm_module_t::~vm_module_t()
         original_mp->release();
 }
 
-std::unique_ptr<vm_module_t> disvm::read_module(std::istream &data)
+managed_ptr_t<vm_module_t> disvm::runtime::vm_module_t::read_module(std::istream &data)
 {
     disvm::util::buffered_reader_t reader{ data };
 
-    auto modobj = std::make_unique<vm_module_t>();
+    auto modobj = managed_ptr_t<vm_module_t>{ new vm_module_t() };
 
     read_header(reader, *modobj);
 

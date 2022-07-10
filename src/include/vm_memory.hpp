@@ -46,6 +46,78 @@ namespace disvm
         template<typename T>
         using unmanaged_ptr_t = std::unique_ptr<T, unmanaged_deleter_t>;
 
+        // Free rooted memory on the VM heap
+        void free_rooted_memory(void* memory);
+
+        template<
+            typename T,
+            typename std::enable_if<std::is_base_of<vm_alloc_t, T>::value, int>::type = 0>
+        class rooted_ptr_t final
+        {
+        public: // static
+            // Create a rooted pointer from a managed pointer.
+            static rooted_ptr_t create(managed_ptr_t<T> ptr)
+            {
+                if (!ptr.is_valid())
+                    return {};
+
+                rooted_ptr_t res;
+                res._p = static_cast<T**>(alloc_memory(sizeof(_p), vm_memory_type_t::managed_root));
+                *res._p = reinterpret_cast<T*>(static_cast<std::intptr_t>(ptr));
+                assert(res.is_valid());
+                return res;
+            }
+
+        public:
+            rooted_ptr_t() : _p{}
+            { }
+
+            rooted_ptr_t(rooted_ptr_t const&) = delete;
+            rooted_ptr_t(rooted_ptr_t&& other) noexcept
+                : _p{}
+            {
+                std::swap(_p, other._p);
+            }
+
+            ~rooted_ptr_t()
+            {
+                free_rooted_memory(_p);
+            }
+
+            rooted_ptr_t& operator=(rooted_ptr_t const&) = delete;
+            rooted_ptr_t& operator=(rooted_ptr_t&& other)
+            {
+                std::swap(_p, other._p);
+                return *this;
+            }
+
+            T* operator->() const noexcept
+            {
+                assert(is_valid());
+                return *_p;
+            }
+
+            constexpr bool is_valid() const noexcept
+            {
+                return _p != nullptr;
+            }
+
+            operator managed_ptr_t<T>() const { return managed_ptr_t<T>{ *_p }; }
+
+        private:
+            T** _p;
+
+        private: // Helpers
+            T** release()
+            {
+                T** p = nullptr;
+                std::swap(_p, p);
+                return p;
+            }
+
+            friend disvm::vm_t;
+        };
+
         // Initialize supplied memory based on the type descriptor
         void init_memory(const type_descriptor_t &type_desc, void *data);
 

@@ -49,7 +49,7 @@ namespace disvm
             void on_module_vm_load(const loaded_vm_module_t &loaded_module);
 
             // Callback for when a thread loads a module into its scope.
-            void on_module_thread_load(vm_registers_t &r, std::shared_ptr<vm_module_t> &m);
+            void on_module_thread_load(vm_registers_t &r, managed_ptr_t<vm_module_t> &m);
 
             // Callback when thread lifetime begins.
             // The thread has not been scheduled and no opcodes have been executed.
@@ -71,7 +71,7 @@ namespace disvm
             cookie_t subscribe_event(vm_event_t evt, vm_event_callback_t cb) override;
             void unsubscribe_event(cookie_t cookie_id) override;
 
-            cookie_t set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc) override;
+            cookie_t set_breakpoint(managed_ptr_t<vm_module_t> module, vm_pc_t pc) override;
             breakpoint_details_t get_breakpoint_details(cookie_t) const override;
             void clear_breakpoint(cookie_t cookie_id) override;
 
@@ -116,7 +116,7 @@ namespace disvm
                 cookie_to_details_t cookie_to_details;
 
                 using pc_to_opcode_cookie_map_t = std::unordered_map<vm_pc_t, std::pair<opcode_t, cookie_t>>;
-                using module_to_pc_map_t = std::unordered_map<std::uintptr_t, pc_to_opcode_cookie_map_t>;
+                using module_to_pc_map_t = std::unordered_map<std::intptr_t, pc_to_opcode_cookie_map_t>;
                 module_to_pc_map_t original_opcodes;
 
                 mutable std::mutex lock;

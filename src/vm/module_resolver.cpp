@@ -35,7 +35,7 @@ default_resolver_t::default_resolver_t(disvm::vm_t &vm, std::vector<std::string>
 default_resolver_t::~default_resolver_t()
 { }
 
-bool default_resolver_t::try_resolve_module(const char *path, std::unique_ptr<vm_module_t> &new_module)
+bool default_resolver_t::try_resolve_module(const char *path, managed_ptr_t<vm_module_t> &new_module)
 {
     assert(path != nullptr);
 
@@ -70,8 +70,8 @@ bool default_resolver_t::try_resolve_module(const char *path, std::unique_ptr<vm
         }
     }
 
-    new_module = disvm::read_module(module_file);
-    assert(new_module != nullptr);
+    new_module = vm_module_t::read_module(module_file);
+    assert(new_module.is_valid());
 
     return true;
 }

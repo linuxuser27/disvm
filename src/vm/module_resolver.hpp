@@ -25,7 +25,7 @@ namespace disvm
             ~default_resolver_t();
 
         public: // vm_module_resolver_t
-            bool try_resolve_module(const char *path, std::unique_ptr<vm_module_t> &new_module);
+            bool try_resolve_module(const char *path, managed_ptr_t<vm_module_t> &new_module);
 
         private:
             const std::vector<std::string> _probing_paths;

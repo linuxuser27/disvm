@@ -24,7 +24,7 @@ namespace disvm
         {
             cookie_t cookie;
             vm_trap_flags_t trap;
-            std::shared_ptr<vm_module_t> *module; // Note this is a pointer to std::shared_ptr<>
+            managed_ptr_t<vm_module_t> module;
             vm_registers_t *registers;
             const vm_thread_t *thread;
             const vm_string_t *str;
@@ -71,7 +71,7 @@ namespace disvm
 
         struct breakpoint_details_t final
         {
-            std::shared_ptr<vm_module_t> module;
+            managed_ptr_t<vm_module_t> module;
             vm_pc_t pc;
             opcode_t original_opcode;
         };
@@ -88,7 +88,7 @@ namespace disvm
             virtual void unsubscribe_event(cookie_t) = 0;
 
             // Set a breakpoint in the supplied module at the specified PC location
-            virtual cookie_t set_breakpoint(std::shared_ptr<vm_module_t>, vm_pc_t) = 0;
+            virtual cookie_t set_breakpoint(managed_ptr_t<vm_module_t>, vm_pc_t) = 0;
             virtual breakpoint_details_t get_breakpoint_details(cookie_t) const = 0;
             virtual void clear_breakpoint(cookie_t) = 0;
 

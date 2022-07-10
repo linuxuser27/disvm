@@ -13,6 +13,7 @@
 #include <exceptions.hpp>
 #include <vm_asm_sigkind.hpp>
 #include <vm_version.hpp>
+#include <vm_memory.hpp>
 #include <utils.hpp>
 #include "exec.hpp"
 
@@ -30,6 +31,7 @@ using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
 using disvm::runtime::managed_ptr_t;
+using disvm::runtime::rooted_ptr_t;
 using disvm::runtime::type_descriptor_t;
 using disvm::runtime::intrinsic_type_desc;
 using disvm::runtime::byte_t;
@@ -86,9 +88,7 @@ namespace
         "module base register type"
     };
 
-    std::shared_ptr<const vm_module_t> command_module;
-
-    std::unique_ptr<vm_module_t> create_entry_module(vm_t &vm, const std::vector<char *> &vm_args)
+    rooted_ptr_t<vm_module_t> create_entry_module(vm_t &vm, const std::vector<char *> &vm_args)
     {
         // Convert arguments to a list
         vm_string_t *command_module_path = nullptr;
@@ -118,7 +118,7 @@ namespace
             throw vm_user_exception{ "Entry module not supplied" };
 
         // Pre-load the command module in the VM.
-        command_module = vm.load_module(command_module_path->str());
+        auto command_module = vm.load_module(command_module_path->str());
 
         // Create the entry module
         auto entry_module = std::make_unique<vm_module_t>();
@@ -220,7 +220,7 @@ namespace
             e.import_section.push_back(std::move(import));
         }
 
-        return entry_module;
+        return rooted_ptr_t<vm_module_t>::create(managed_ptr_t<vm_module_t>{ entry_module.release() });
     }
 }
 
@@ -462,7 +462,7 @@ int main(int argc, char* argv[])
     {
         auto entry = create_entry_module(vm, options.vm_args);
 
-        vm.exec(std::move(entry));
+        vm.exec(entry);
 
         vm.spin_sleep_till_idle(std::chrono::milliseconds(100));
     }

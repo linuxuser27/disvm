@@ -170,13 +170,13 @@ void vm_tool_dispatch_t::on_module_vm_load(const loaded_vm_module_t &m)
     _events.fire_event_callbacks(vm_event_t::module_vm_load, cxt);
 }
 
-void vm_tool_dispatch_t::on_module_thread_load(vm_registers_t &r, std::shared_ptr<vm_module_t> &m)
+void vm_tool_dispatch_t::on_module_thread_load(vm_registers_t &r, managed_ptr_t<vm_module_t> &m)
 {
-    assert(m != nullptr);
+    assert(m.is_valid());
 
     vm_event_context_t cxt{};
     cxt.value1.registers = &r;
-    cxt.value2.module = &m;
+    cxt.value2.module = m;
 
     _events.fire_event_callbacks(vm_event_t::module_thread_load, cxt);
 }
@@ -265,9 +265,9 @@ void vm_tool_dispatch_t::unsubscribe_event(cookie_t cookie_id)
         disvm::debug::log_msg(component_trace_t::tool, log_level_t::debug, "unsubscribe: event: %d %d", evt, cookie_id);
 }
 
-cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module, vm_pc_t pc)
+cookie_t vm_tool_dispatch_t::set_breakpoint(managed_ptr_t<vm_module_t> module, vm_pc_t pc)
 {
-    if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
+    if (!module.is_valid() || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to set breakpoint in supplied module" };
 
     auto &code_section = module->code_section;
@@ -278,7 +278,7 @@ cookie_t vm_tool_dispatch_t::set_breakpoint(std::shared_ptr<vm_module_t> module,
 
     {
         std::lock_guard<std::mutex> lock{ _breakpoints.lock };
-        auto &pc_map = _breakpoints.original_opcodes[reinterpret_cast<std::uintptr_t>(module.get())];
+        auto &pc_map = _breakpoints.original_opcodes[static_cast<std::intptr_t>(module)];
 
         // If the real opcode is already a breakpoint and it is known, return the current cookie.
         if (real_opcode == opcode_t::brkpt)
@@ -329,7 +329,7 @@ void vm_tool_dispatch_t::clear_breakpoint(cookie_t cookie_id)
     const auto target_pc = details.pc;
 
     // Determine the original opcode
-    auto iter_orig = _breakpoints.original_opcodes.find(reinterpret_cast<std::uintptr_t>(details.module.get()));
+    auto iter_orig = _breakpoints.original_opcodes.find(static_cast<std::intptr_t>(details.module));
     assert(iter_orig != _breakpoints.original_opcodes.cend());
 
     auto &pc_map = iter_orig->second;
@@ -407,14 +407,14 @@ void vm_tool_dispatch_t::set_thread_trap_flag(const vm_registers_t &r, vm_trap_f
 
 std::tuple<opcode_t, cookie_t> vm_tool_dispatch_t::get_original_opcode_and_cookie(const vm_registers_t &r)
 {
-    const auto module = r.module_ref->module.get();
+    const auto module = r.module_ref->module;
 
-    if (module == nullptr || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
+    if (!module.is_valid() || util::has_flag(module->header.runtime_flag, runtime_flags_t::builtin))
         throw vm_system_exception{ "Unable to determine original opcode in supplied module" };
 
     std::lock_guard<std::mutex> lock{ _breakpoints.lock };
 
-    auto iter_orig = _breakpoints.original_opcodes.find(reinterpret_cast<std::uintptr_t>(module));
+    auto iter_orig = _breakpoints.original_opcodes.find(static_cast<std::intptr_t>(module));
     if (iter_orig != _breakpoints.original_opcodes.cend())
     {
         auto &pc_map = iter_orig->second;

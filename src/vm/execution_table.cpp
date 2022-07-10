@@ -1825,13 +1825,13 @@ namespace
         dec_ref_count_and_free(at_val<vm_alloc_t>(r.dest));
         pt_ref(r.dest) = nullptr;
 
-        auto imported_module = std::shared_ptr<vm_module_t>{};
+        auto imported_module = managed_ptr_t<vm_module_t>{};
 
         // Handle self loading module optimization.
         if (std::strcmp(str->str(), "$self") == 0)
         {
             // Remove 'const' from the module type in the shared_ptr<>
-            imported_module = std::const_pointer_cast<vm_module_t>(r.module_ref->module);
+            imported_module = r.module_ref->module;
         }
         else
         {

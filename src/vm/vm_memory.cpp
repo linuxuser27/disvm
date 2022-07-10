@@ -70,6 +70,14 @@ void disvm::runtime::free_unmanaged_memory(void *memory)
         disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free: %#" PRIxPTR, memory);
 }
 
+void disvm::runtime::free_rooted_memory(void* memory)
+{
+    vm_memory_free_managed(memory);
+
+    if (memory != nullptr && debug::is_component_tracing_enabled<component_trace_t::memory>())
+        disvm::debug::log_msg(component_trace_t::memory, log_level_t::debug, "free rooted: %#" PRIxPTR, memory);
+}
+
 void disvm::runtime::init_memory(const type_descriptor_t &type_desc, void *data)
 {
     assert(data != nullptr);
@@ -272,6 +280,8 @@ namespace
         TYPE_DESC(vm_stack, 0, 0, nullptr, type_descriptor_t::no_finalizer);
         TYPE_DESC(vm_thread, 0, 0, nullptr, type_descriptor_t::no_finalizer);
 
+        TYPE_DESC(vm_module, 0, 0, nullptr, type_descriptor_t::no_finalizer);
+
 #undef TYPE_DESC
     }
 }
@@ -361,9 +371,15 @@ managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_stack_t>()
 }
 
 template<>
- managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_thread_t>()
 {
     return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_thread };
+}
+
+template<>
+managed_ptr_t<const type_descriptor_t> intrinsic_type_desc::type<vm_module_t>()
+{
+    return managed_ptr_t<const type_descriptor_t>{ &hidden_type_desc::vm_module };
 }
 
 vm_alloc_instance_finalizer_t type_descriptor_t::no_finalizer = nullptr;

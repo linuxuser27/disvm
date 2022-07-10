@@ -7,21 +7,21 @@
 #include <cassert>
 #include <atomic>
 #include <mutex>
-#include <runtime.hpp>
-#include <module_reader.hpp>
 #include <builtin_module.hpp>
+#include <module_reader.hpp>
 #include <debug.hpp>
 #include <exceptions.hpp>
 #include <utils.hpp>
 
 using disvm::runtime::type_descriptor_t;
+using disvm::runtime::rooted_ptr_t;
 using disvm::runtime::vm_module_t;
 
 // Declare initializers for built-in modules.
 extern std::unique_ptr<vm_module_t> Sysmodinit();
 extern std::unique_ptr<vm_module_t> Mathmodinit();
 
-std::forward_list<std::shared_ptr<vm_module_t>> disvm::runtime::builtin::initialize_builtin_modules()
+std::vector<rooted_ptr_t<vm_module_t>> disvm::runtime::builtin::initialize_builtin_modules()
 {
     // Add built-in module initialization calls here.
     // e.g. Sysmodinit()
@@ -32,14 +32,18 @@ std::forward_list<std::shared_ptr<vm_module_t>> disvm::runtime::builtin::initial
         Mathmodinit()
     };
 
-    std::forward_list<std::shared_ptr<vm_module_t>> builtin_modules;
-    for (auto curr = std::begin(mods); curr != std::end(mods); ++curr)
+    std::vector<rooted_ptr_t<vm_module_t>> builtin_modules;
+    for (auto iter = std::begin(mods); iter != std::end(mods); ++iter)
     {
 #ifndef NDEBUG
         for (const auto& m : builtin_modules)
-            assert(0 != vm_string_t::compare(m->module_name.get(), (*curr)->module_name.get()) && "Built-in module with matching name already exists");
+            assert(0 != vm_string_t::compare(m->module_name.get(), (*iter)->module_name.get()) && "Built-in module with matching name already exists");
 #endif
-        builtin_modules.push_front(std::move(*curr));
+
+        // Create a rooted allocation for the module.
+        auto root = rooted_ptr_t<vm_module_t>::create(managed_ptr_t<vm_module_t>{ iter->release() });
+
+        builtin_modules.push_back(std::move(root));
     }
 
     return builtin_modules;

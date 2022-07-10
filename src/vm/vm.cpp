@@ -14,6 +14,7 @@
 #include <exceptions.hpp>
 #include <builtin_module.hpp>
 #include <vm_version.hpp>
+#include <vm_memory.hpp>
 #include "scheduler.hpp"
 #include "garbage_collector.hpp"
 #include "tool_dispatch.hpp"
@@ -27,6 +28,9 @@ using disvm::loaded_vm_module_callback_t;
 using disvm::debug::component_trace_t;
 using disvm::debug::log_level_t;
 
+using disvm::runtime::managed_ptr_t;
+using disvm::runtime::rooted_ptr_t;
+using disvm::runtime::rooted_collection_t;
 using disvm::runtime::vm_pc_t;
 using disvm::runtime::vm_thread_t;
 using disvm::runtime::vm_memory_allocator_t;
@@ -179,7 +183,10 @@ vm_t::vm_t()
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    _builtin_modules = disvm::runtime::builtin::initialize_builtin_modules();
+    for (auto& r : disvm::runtime::builtin::initialize_builtin_modules())
+    {
+        _builtin_modules.push_back(managed_ptr_t<vm_module_t*>{ r.release() });
+    }
 
     _scheduler = std::make_unique<default_scheduler_t>(*this, default_system_thread_count, default_thread_quanta);
     _module_resolvers.push_back(std::make_unique<default_resolver_t>(*this));
@@ -196,7 +203,10 @@ vm_t::vm_t(vm_config_t config)
     internal_register_system_thread(_gc->get_allocator());
 
     // Initialize built-in modules.
-    _builtin_modules = disvm::runtime::builtin::initialize_builtin_modules();
+    for (auto& r : disvm::runtime::builtin::initialize_builtin_modules())
+    {
+        _builtin_modules.push_back(managed_ptr_t<vm_module_t*>{ r.release() });
+    }
 
     if (config.create_scheduler == nullptr)
         _scheduler = std::make_unique<default_scheduler_t>(*this, config.sys_thread_pool_size, config.thread_quanta);
@@ -214,10 +224,16 @@ vm_t::~vm_t()
     _gc.reset();
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
-    for (auto &m : _modules)
+    for (auto m : _modules)
     {
-        if (m.origin != nullptr)
-            m.origin->release();
+        assert(m.is_valid());
+        runtime::free_rooted_memory(m.release());
+    }
+
+    for (auto b : _builtin_modules)
+    {
+        assert(b.is_valid());
+        runtime::free_rooted_memory(b.release());
     }
 }
 
@@ -253,9 +269,10 @@ uint32_t vm_t::exec(const char *path)
     return thread_id;
 }
 
-uint32_t vm_t::exec(std::unique_ptr<vm_module_t> entry_module)
+uint32_t vm_t::exec(managed_ptr_t<vm_module_t> entry_module)
 {
-    assert(entry_module != nullptr);
+    if (!entry_module.is_valid())
+        throw vm_module_exception{ "Invalid entry module" };
 
     auto entry_module_ref = std::make_unique<vm_module_ref_t>(std::move(entry_module));
     auto thread = _create_thread_safe(std::move(entry_module_ref));
@@ -283,10 +300,10 @@ uint32_t vm_t::fork(
 
 namespace
 {
-    std::unique_ptr<vm_module_t> resolve_module_from_path(const char *path, const std::vector<std::unique_ptr<vm_module_resolver_t>> &resolvers)
+    rooted_ptr_t<vm_module_t> resolve_module_from_path(const char *path, const std::vector<std::unique_ptr<vm_module_resolver_t>> &resolvers)
     {
         assert(!resolvers.empty());
-        std::unique_ptr<vm_module_t> resolved_module;
+        managed_ptr_t<vm_module_t> resolved_module;
 
         // Check if the path is for the Inferno OS.
         const char *inferno_root_path = "/dis/";
@@ -310,7 +327,7 @@ namespace
                     try
                     {
                         if (r->try_resolve_module(module_name, resolved_module))
-                            return resolved_module;
+                            return rooted_ptr_t<vm_module_t>::create(resolved_module);
                     }
                     catch (...)
                     {
@@ -324,7 +341,7 @@ namespace
         for (auto &r : resolvers)
         {
             if (r->try_resolve_module(path, resolved_module))
-                return resolved_module;
+                return rooted_ptr_t<vm_module_t>::create(resolved_module);
         }
 
         std::stringstream ss;
@@ -333,45 +350,26 @@ namespace
     }
 }
 
-std::shared_ptr<vm_module_t> vm_t::load_module(const char *path)
+managed_ptr_t<vm_module_t> vm_t::load_module(const char *path)
 {
     if (path == nullptr)
         throw vm_user_exception{ "Invalid module path" };
 
     auto new_module_iter = loaded_modules_t::const_iterator{};
-    auto new_module = std::shared_ptr<vm_module_t>{};
+    auto new_module = managed_ptr_t<vm_module_t>{};
     {
         std::lock_guard<std::mutex> lock{ _modules_lock };
 
         // Check if the module is already loaded.
-        auto iter = std::begin(_modules);
-        while (iter != std::end(_modules))
+        for (auto const& lm : _loaded_modules)
         {
-            if (0 == ::strcmp(iter->origin->str(), path))
-            {
-                auto module = iter->module.lock();
-
-                // If an entry exists but is null, the module was loaded before. Read the module again and return.
-                if (module == nullptr)
-                {
-                    module = std::shared_ptr<vm_module_t>{ std::move(resolve_module_from_path(path, _module_resolvers)) };
-                    module->vm_id = iter->vm_id;
-
-                    iter->module = module;
-
-                    if (disvm::debug::is_component_tracing_enabled<component_trace_t::module>())
-                        disvm::debug::log_msg(component_trace_t::module, log_level_t::debug, "reload: vm module: >>%s<<", path);
-                }
-
-                return module;
-            }
-
-            ++iter;
+            if (0 == lm.origin.compare(path))
+                return lm.module;
         }
 
         if (path[0] == BUILTIN_MODULE_PREFIX_CHAR)
         {
-            for (const auto& m : _builtin_modules)
+            for (auto m : _builtin_modules)
             {
                 if (0 == std::strcmp(m->module_name->str(), path))
                 {
@@ -380,24 +378,22 @@ std::shared_ptr<vm_module_t> vm_t::load_module(const char *path)
                 }
             }
 
-            if (new_module == nullptr)
+            if (!new_module.is_valid())
                 throw vm_module_exception{ "Unknown built-in module" };
         }
         else
         {
-            new_module = resolve_module_from_path(path, _module_resolvers);
-            assert(new_module != nullptr);
+            _modules.push_back(managed_ptr_t<vm_module_t*>{ resolve_module_from_path(path, _module_resolvers).release() });
+            new_module = _modules.last();
         }
 
-        auto path_local = std::make_unique<vm_string_t>(std::strlen(path), reinterpret_cast<const uint8_t *>(path));
-
         auto vm_id_next = std::size_t{ 1 };
-        if (!_modules.empty())
-            vm_id_next = (_modules.front().vm_id + 1);
+        if (!_loaded_modules.empty())
+            vm_id_next = (_loaded_modules.back().vm_id + 1);
 
         new_module->vm_id = vm_id_next;
-        _modules.push_front(std::move(loaded_vm_module_t{ vm_id_next, std::move(path_local), new_module }));
-        new_module_iter = _modules.begin();
+        _loaded_modules.push_back({ vm_id_next, std::move(path), new_module });
+        new_module_iter = _loaded_modules.end();
     }
 
     if (_tool_dispatch != nullptr)
@@ -419,7 +415,7 @@ void vm_t::enum_loaded_modules(loaded_vm_module_callback_t callback) const
         throw vm_system_exception{ "Callback should not be null" };
 
     std::lock_guard<std::mutex> lock{ _modules_lock };
-    for (auto &m : _modules)
+    for (auto &m : _loaded_modules)
     {
         if (!callback(m))
             return;
